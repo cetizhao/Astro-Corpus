@@ -1,0 +1,45 @@
+output:
+  base_dir: "./data"
+  catalogs_dir: "./data/catalogs"
+  spectra_dir: "./data/spectra"
+  checkpoints_dir: "./data/checkpoints"
+
+logging:
+  level: "DEBUG"
+
+network:
+  retry_max_attempts: 3
+  retry_base_delay_seconds: 1.0
+  retry_max_delay_seconds: 60.0
+  request_timeout_seconds: 180
+
+gaia:
+  tap_url: "https://gea.esac.esa.int/tap-server"
+  db_schema: "gaiadr3"
+  default_query_timeout: 120
+  username: ""
+  password: ""
+  default_columns:
+    - source_id
+    - ra
+    - dec
+    - parallax
+    - parallax_error
+    - pmra
+    - pmdec
+    - phot_g_mean_mag
+    - phot_bp_mean_mag
+    - phot_rp_mean_mag
+    - radial_velocity
+    - ruwe
+
+lamost:
+  base_url: "http://www.lamost.org/dr11/v2.0"
+  spectrum_base_url: "https://www.lamost.org/dr11/v2.0/spectrum/fits/"
+  vizier_catalog_lrs: "V/162/dr11l"
+  vizier_catalog_mrs: "V/162/dr11m"
+
+sdss:
+  skyserver_url: "https://skyserver.sdss.org/dr17"
+  sas_base_url: "https://data.sdss.org/sas/dr17"
+  data_release: 17

@@ -1,0 +1,25 @@
+[project]
+name = "astro-pipeline"
+version = "0.1.0"
+description = "Astronomical data pipeline for Gaia DR3, LAMOST DR11, SDSS DR17"
+readme = "README.md"
+authors = [
+    { name = "cetizhao", email = "cetizhao@163.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "astropy>=7.2.0",
+    "astroquery>=0.4.11",
+    "httpx>=0.28.1",
+    "pandas>=3.0.2",
+    "pyarrow>=24.0.0",
+    "pydantic>=2.13.4",
+    "pyyaml>=6.0.3",
+    "rich>=15.0.0",
+    "tenacity>=9.1.4",
+    "tqdm>=4.67.3",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

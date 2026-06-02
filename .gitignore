@@ -1,0 +1,40 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+.env
+.env.*
+
+# Data outputs
+data/
+*.fits
+*.parquet
+*.csv
+*.jsonl
+
+# Tool caches
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# Local/editor files
+.DS_Store
+*.log
+
+# Claude Code local config and memory
+.claude/
+
+# Large astronomical data formats
+*.hdf5
+*.h5
+
+# Archives generated for sharing
+*.zip
+*.tar
+*.tar.gz
