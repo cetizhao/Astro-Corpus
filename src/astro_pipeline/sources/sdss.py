@@ -86,8 +86,16 @@ class SdssSource(CatalogSource):
             self._logger.warning("SDSS query returned no results")
             df = pd.DataFrame()
         else:
+            _validate_sdss_result(result)
             df = result.to_pandas()
             df.columns = [c.lower() for c in df.columns]
+            # A corrupt response (HTML error page) sometimes parses into a single
+            # junk column; detect and reject so it never silently poisons the cache.
+            if _looks_like_html_column(df):
+                raise RuntimeError(
+                    "SDSS query returned an HTML/error page instead of a VOTable "
+                    "(SkyServer likely rejected the SQL). Not caching bad result."
+                )
 
         self._logger.info("SDSS returned %d rows", len(df))
 
@@ -103,7 +111,8 @@ class SdssSource(CatalogSource):
         )
 
     def _build_sql(self, query: ParameterQuery) -> str:
-        select = "SELECT TOP {limit} p.ra, p.dec, p.u, p.g, p.r, p.i, p.z, p.objid, "
+        top = f"TOP {query.limit} " if query.limit else ""
+        select = f"SELECT {top}p.ra, p.dec, p.u, p.g, p.r, p.i, p.z, p.objid, "
         select += "s.specobjid, s.redshift, s.plate, s.mjd, s.fiberID, s.class "
         select += "FROM PhotoObj AS p JOIN SpecObj AS s ON p.objid = s.bestobjid"
         conditions = []
@@ -186,3 +195,29 @@ class SdssSource(CatalogSource):
             sum(1 for r in results if not r.success),
         )
         return results
+
+
+def _validate_sdss_result(result) -> None:
+    """Reject obviously-bad SDSS query results (HTML error pages, empty tables)."""
+    try:
+        n_cols = len(result.colnames)
+    except AttributeError:
+        return
+    if n_cols == 0:
+        raise RuntimeError("SDSS query returned a table with no columns")
+
+
+def _looks_like_html_column(df: pd.DataFrame) -> bool:
+    """True when the 'parsed' result is actually an HTML error page.
+
+    SkyServer can return an error/landing HTML page that astroquery parses into
+    a single column whose value starts with ``<html`` or ``<!doctype``.
+    """
+    if len(df.columns) == 1:
+        col = df.columns[0]
+        val = str(df[col].iloc[0]).lstrip().lower() if len(df) > 0 else ""
+        if val.startswith(("<html", "<!doctype", "<!DOCTYPE".lower())):
+            return True
+        if str(col).lstrip().lower().startswith("<html"):
+            return True
+    return False

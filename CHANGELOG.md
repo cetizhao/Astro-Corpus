@@ -1,0 +1,74 @@
+# Changelog
+
+All notable changes to this project are documented here. Versions follow
+[Semantic Versioning](https://semver.org/).
+
+## [0.2.0] — 2026-06-17
+
+### Summary
+Delivers the project's core deliverable: a **bidirectional source ↔ paper
+corpus query API**. Input a TWA source → get its papers + multimodal data
+(Gaia / LAMOST / SDSS); input a paper → get the sources it studies + their
+multimodal data. Paper linking is now **authoritative** (SIMBAD-curated
+bibliography) instead of substring-matched, and the multimodal availability
+flags are now **truthful**.
+
+### Added
+- **`astro_pipeline.corpus`** — bidirectional query API + CLI.
+  - `lookup_source(gaia_id)` → astrometry + per-survey multimodal availability
+    (Gaia XP / LAMOST / SDSS) + the SIMBAD reference list, each with
+    arxiv_id/bibcode/title/year/url.
+  - `lookup_paper(arxiv_id|bibcode|title)` → paper metadata + the list of
+    catalog sources it studies, each with its own multimodal data.
+  - Live-first with cached fallback; a single survey failing degrades
+    gracefully (`status: "unavailable"`/`"not_in_catalog"`) and never breaks
+    the result. `--offline` uses cache only.
+  - CLI: `python -m astro_pipeline.corpus {source|paper|summary} ...`.
+- **`astro_pipeline.sources.simbad_refs`** — SIMBAD-grounded paper linking.
+  - `build_paper_edges()` resolves each source via SIMBAD, reads its curated
+    reference list, and converts bibcodes → arXiv ids (embedded parse first,
+    arXiv DOI-API fallback with rate-limit backoff). Result cached to
+    `data/twa/simbad_refs.parquet` (incremental, resumable).
+  - `bibcode_to_arxiv()` — pure offline bibcode→arXiv-id parser.
+  - `enrich_bibcode()` — fetches title/DOI/year/journal from SIMBAD.
+- `models.paper.add_paper_columns()` — attaches `arxiv_ids`, `bibcodes`,
+  `num_papers` to a catalog (journal-only papers kept in `bibcodes`).
+- `scripts/build_twa_paper_edges.py` — regenerates the authoritative edge
+  table. Two-phase & resumable; `--resolve-arxiv` for optional arXiv-id fill.
+- Tests (offline, no live network):
+  - `tests/test_exporter_idcol.py` — multimodal ID-column regression.
+  - `tests/test_bibcode_to_arxiv.py` — bibcode parsing.
+  - `tests/test_corpus_offline.py` — bidirectional query, cache fallback,
+    HTML-corruption guard, URL precedence.
+  - `tests/test_paper_edges.py` — structural + real-data over-match guard.
+
+### Fixed
+- **Multimodal flags all-False bug.** `io/exporter._find_id_col` guessed the
+  id column from `[source_id, obsid, specobjid]`, picking LAMOST's `obsid`
+  (8-digit) and comparing it to the catalog's 19-digit Gaia id — so every
+  `has_*` flag was False. Replaced with `find_gaia_id_col()` + explicit
+  per-survey Gaia columns (`source_id` / `gaiadr3`) on `build_knowledge_table`.
+- **Paper over-matching (94 papers × all 49 sources).** The substring matcher
+  matched a source to a paper when a Gaia id (never in abstracts) or a
+  truncated coordinate appeared as a substring — producing garbage. Replaced
+  entirely with SIMBAD bibliography linking.
+- **SDSS `ParameterQuery._build_sql` literal `"{limit}"`** — `TOP {limit}`
+  was never interpolated. Now `TOP <n>` is emitted correctly.
+- **SDSS HTML-error-page corruption.** `query_catalog` now detects parsed
+  HTML responses (single `<html>` column) and raises instead of silently
+  poisoning the cache; `_validate_sdss_result` rejects empty-column tables.
+  The corrupt `data/twa/catalogs/twa_sdss.parquet` was removed.
+- `examples/twa_sample.py` now uses the SIMBAD linker (was hardcoded demo
+  links) and passes the correct per-survey id columns, so the generated
+  knowledge table has truthful flags and real paper links.
+
+### Changed
+- `paper_edges.parquet` schema now includes
+  `source_id, arxiv_id, bibcode, title, year, journal, doi, main_id`.
+  The old `paper_edges_refined.parquet` (v0.1 substring artifact) is retained
+  for reference but no longer used.
+
+## [0.1.0] — 2026-06-05
+- Initial project setup: Gaia DR3 / LAMOST DR11 / SDSS DR17 catalog sources,
+  cone & source-id queries, cross-match, knowledge-table exporter, TWA sample
+  pipeline, and a live benchmark script.

@@ -9,7 +9,7 @@ from astroquery.gaia import Gaia
 
 from astro_pipeline.config import GaiaConfig, NetworkConfig
 from astro_pipeline.io.writer import DownloadCheckpoint, save_catalog_parquet
-from astro_pipeline.models.query import ConeSearchQuery, ParameterQuery
+from astro_pipeline.models.query import ConeSearchQuery, ParameterQuery, SourceIdQuery
 from astro_pipeline.models.results import CatalogResult, SpectrumResult
 from astro_pipeline.retry import make_retry_decorator
 from astro_pipeline.sources.base import CatalogSource
@@ -77,10 +77,14 @@ class GaiaSource(CatalogSource):
 
     def query_catalog(
         self,
-        query: ConeSearchQuery | ParameterQuery,
+        query: ConeSearchQuery | ParameterQuery | SourceIdQuery,
         output_path: Optional[Path] = None,
     ) -> CatalogResult:
         self._ensure_login()
+
+        if isinstance(query, SourceIdQuery):
+            return self._query_by_ids(query, output_path, extra_columns=None)
+
         adql = self._build_adql(query)
         original_limit = Gaia.ROW_LIMIT
         if query.limit:
@@ -116,13 +120,21 @@ class GaiaSource(CatalogSource):
 
     def query_xp_sources(
         self,
+        query: ConeSearchQuery | ParameterQuery | SourceIdQuery,
+        output_path: Optional[Path] = None,
+    ) -> CatalogResult:
+        if isinstance(query, SourceIdQuery):
+            return self._query_by_ids(query, output_path, extra_columns=["has_xp_sampled"])
+        return self._query_xp_by_cone(query, output_path)
+
+    def _query_xp_by_cone(
+        self,
         query: ConeSearchQuery | ParameterQuery,
         output_path: Optional[Path] = None,
     ) -> CatalogResult:
         """Query only sources that have XP (BP/RP) sampled spectra."""
         self._ensure_login()
         adql = self._build_adql(query, extra_columns=["has_xp_sampled"])
-        # Add filter for XP spectra availability
         if "WHERE" in adql:
             adql += " AND has_xp_sampled = 'true'"
         else:
@@ -157,6 +169,54 @@ class GaiaSource(CatalogSource):
             data=df,
             row_count=len(df),
             query_description=adql,
+            output_path=output_path,
+        )
+
+    def _query_by_ids(
+        self,
+        query: SourceIdQuery,
+        output_path: Optional[Path] = None,
+        extra_columns: list[str] | None = None,
+    ) -> CatalogResult:
+        self._ensure_login()
+        cols = list(self._gaia_config.default_columns)
+        if extra_columns:
+            cols.extend(extra_columns)
+        columns = ", ".join(cols)
+
+        id_list = ", ".join(str(sid) for sid in query.source_ids)
+        adql = (
+            f"SELECT {columns} FROM {self._gaia_config.db_schema}.gaia_source "
+            f"WHERE source_id IN ({id_list})"
+        )
+        if query.limit:
+            adql += f" LIMIT {query.limit}"
+
+        self._logger.info("Gaia source ID query: %d IDs", len(query.source_ids))
+
+        @self._retry
+        def _do_query() -> pd.DataFrame:
+            try:
+                job = Gaia.launch_job_async(
+                    adql, dump_to_file=False, output_format="votable",
+                )
+                return job.get_results().to_pandas()
+            except Exception as e:
+                self._logger.warning("Async ID query failed (%s), trying sync", e)
+                job = Gaia.launch_job(adql, output_format="votable")
+                return job.get_results().to_pandas()
+
+        df = _do_query()
+        self._logger.info("Gaia source ID query returned %d rows", len(df))
+
+        if output_path:
+            save_catalog_parquet(df, output_path)
+
+        return CatalogResult(
+            source_name=self.get_source_name(),
+            data=df,
+            row_count=len(df),
+            query_description=adql[:200],
             output_path=output_path,
         )
 

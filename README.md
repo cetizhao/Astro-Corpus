@@ -1,5 +1,12 @@
 # AISI 天文数据 Pipeline 详细说明
 
+> **版本 0.2.0（2026-06-17）** — 新增双向「源 ↔ 论文」语料库查询 API（`astro_pipeline.corpus`），
+> 论文关联改为 SIMBAD 权威书目（替换原先会生成垃圾结果的子串匹配），多模态可用性
+> 标志（`has_gaia_xp/has_lamost/has_sdss`）现已正确，并修复了 SDSS SQL 与 HTML
+> 错误页污染等缺陷。详见 [CHANGELOG.md](CHANGELOG.md)。
+
+---
+
 本文档说明 `astro-pipeline` 的设计目标、当前实现、数据流、模块职责、可运行演示方式，以及后续要补齐的清洗、cross-match、科学分析与大模型输出层。它面向两个读者：
 
 - 项目内部开发者：知道代码在哪里、每一步做什么、怎么扩展。
@@ -77,20 +84,35 @@ astro-pipeline/
   src/astro_pipeline/
     config.py               # Pydantic 配置模型
     retry.py                # 网络重试策略
+    corpus.py               # 【v0.2】双向「源↔论文」查询 API + CLI
     models/
       query.py              # 查询输入模型
       results.py            # 查询/下载返回模型
+      paper.py              # 论文边表 + arxiv/bibcode 列装配
     io/
       writer.py             # Parquet/FITS 输出与 checkpoint
+      exporter.py           # 知识表构建（多模态标志 + 论文列）
+    crossmatch/             # cross-match 引擎（Gaia id / 位置）
     sources/
       base.py               # 数据源抽象基类
       gaia.py               # Gaia DR3 适配器
       lamost.py             # LAMOST DR11 适配器
       sdss.py               # SDSS DR17 适配器
+      external.py           # 外部星表（如 TWAxgdr3.csv）加载
+      simbad_refs.py        # 【v0.2】SIMBAD 权威书目 -> 论文边
+      arxiv_search.py       # arXiv 关键词检索（仅用于发现，不作归属）
+  scripts/
+    build_twa_paper_edges.py # 【v0.2】重建 TWA 论文边表（两阶段、可续跑）
+  examples/
+    twa_sample.py           # TWA 端到端 demo（SIMBAD 关联 + 正确标志）
   tests/
     test_gaia.py            # Gaia 小样本查询测试
     test_lamost.py          # LAMOST 小样本查询测试
     test_sdss.py            # SDSS 小样本查询测试
+    test_exporter_idcol.py  # 【v0.2】多模态 id 列回归测试
+    test_bibcode_to_arxiv.py# 【v0.2】bibcode 解析测试
+    test_corpus_offline.py  # 【v0.2】双向查询离线测试
+    test_paper_edges.py     # 【v0.2】论文边结构 + 过匹配防护测试
     benchmark.py            # 多数据源、多模态下载验证脚本
 ```
 
@@ -116,7 +138,7 @@ astro-pipeline/
 | `limit` | 返回行数上限 |
 | `order_by` | 排序字段 |
 
-目前 Gaia 支持 cone search 和 parameter query；SDSS 支持二者但 `ParameterQuery` 仍有一个 SQL 模板缺陷需要修复；LAMOST 当前只支持 cone search。
+目前 Gaia 支持 cone search 和 parameter query；SDSS 支持二者（v0.2 已修复 `ParameterQuery` 的 `{limit}` SQL 模板缺陷）；LAMOST 当前只支持 cone search。
 
 ### 5.2 返回对象
 
@@ -279,7 +301,88 @@ uv run python tests/benchmark.py
 
 脚本会输出一个 Rich table，展示每个模态的星表行数、文件有效性、光谱下载数量、耗时和 PASS/PARTIAL/FAIL 状态。
 
+## 7.5 双向「源 ↔ 论文」语料库查询（v0.2 核心 demo）
+
+这是格致语料库项目当前的核心交付：输入一个 TWA 源，得到它对应的论文（id / title /
+链接）以及该源的多模态数据（Gaia / LAMOST / SDSS）；输入一篇论文，得到它研究的源
+列表以及每个源的多模态数据。
+
+### 论文关联方式（权威，非子串匹配）
+
+论文关联来自 **SIMBAD 的权威书目**：SIMBAD 为每个天体维护一个经过人工/算法整理的参
+考文献表，每一条 bibcode 都是真正研究过该源的论文。流程：
+
+```text
+Gaia DR3 source_id
+  -> SIMBAD query_object("Gaia DR3 <id>") 得到该源的参考文献 bibcode 列表
+  -> bibcode -> arXiv id（arXiv 预印本 bibcode 直接解析；期刊论文用 arXiv DOI API 反查）
+  -> bibcode -> title / DOI / year / journal（SIMBAD query_bibcode）
+```
+
+这替换了 v0.1 的子串匹配（曾把 94 篇论文匹配到全部 49 个源，是垃圾结果）。结果缓存到
+`data/twa/simbad_refs.parquet`，可断点续跑、离线复用。
+
+### 命令行使用
+
+```bash
+# 查询一个源：多模态数据 + 论文列表（带 arxiv id / bibcode / title / url）
+python -m astro_pipeline.corpus source 5412403269717562240
+python -m astro_pipeline.corpus source 5412403269717562240 --offline --json
+
+# 反向查询一篇论文：它研究的源列表 + 每个源的多模态数据
+python -m astro_pipeline.corpus paper 1806.05059                 # 按 arxiv id
+python -m astro_pipeline.corpus paper "2018A&A...620A.172Z"      # 按 bibcode
+python -m astro_pipeline.corpus paper "Census of the TW Hya"     # 按 title 子串
+
+# 语料覆盖概览
+python -m astro_pipeline.corpus summary
+```
+
+### Python API
+
+```python
+from astro_pipeline.corpus import Corpus
+
+corpus = Corpus(data_dir="data/twa", catalog_path="TWAxgdr3.csv", offline=False)
+
+# 源 -> 多模态 + 论文
+res = corpus.lookup_source("5412403269717562240")
+# res["multimodal"]["gaia_xp"] | ["lamost"] | ["sdss"]  -> {available, status, rows, data}
+# res["papers"] -> [{arxiv_id, bibcode, title, year, journal, doi, url}, ...]
+
+# 论文 -> 源
+res = corpus.lookup_paper("1806.05059")
+# res["paper"]  -> 论文元数据
+# res["sources"] -> [{gaia_id, astrometry, multimodal}, ...]
+```
+
+### 多模态数据策略
+
+- **Live + cached fallback**：优先实时查询 Gaia/LAMOST/SDSS；失败时回退到 `data/twa`
+  缓存，保证 demo 永远有结果。`--offline` 仅用缓存。
+- **优雅降级**：单个巡天失败不会让整体查询崩溃，该模态返回
+  `status="unavailable"`/`"not_in_catalog"`。
+- **诚实**：若一个源确实没有某巡天数据（例如 TWA 多数成员不在 LAMOST/SDSS 覆盖内），
+  对应标志如实为 `False`，而不是像 v0.1 那样全部误报 `False`。
+
+### 重新生成 TWA 演示数据
+
+```bash
+# 阶段一（可靠、较快）：SIMBAD 源->bibcode + bibcode 元数据（title/DOI/year）
+python scripts/build_twa_paper_edges.py
+
+# 阶段二（可选、慢）：为期刊论文反查 arXiv id（受 arXiv 限流 ~1 req/3s，可多次续跑）
+python scripts/build_twa_paper_edges.py --resolve-arxiv
+```
+
+### 数据完整性说明
+
+TWA 67 个成员中，部分源本身在 LAMOST/SDSS 没有光谱覆盖（演示如实反映）；少数源在
+SIMBAD 没有条目或没有论文引用（结果如实返回空列表），不会伪造关联。
+
 ## 8. 建议的完整科学数据流
+
+
 
 当前代码完成了“获取”和“原始保存”。面向格致语料库，完整 pipeline 应扩展为：
 
@@ -435,7 +538,7 @@ AISI 尚未给出最终接口格式。建议先内部定义一个稳定的 JSON 
   },
   "provenance": {
     "sources": ["Gaia DR3", "LAMOST DR11"],
-    "pipeline_version": "0.1.0"
+    "pipeline_version": "0.2.0"
   }
 }
 ```
@@ -449,18 +552,18 @@ AISI 尚未给出最终接口格式。建议先内部定义一个稳定的 JSON 
 
 ## 9. 已知技术问题
 
-当前代码已有可用骨架，但有几个需要优先修复的点：
+v0.2 已修复其中数项（见下表「状态」列）。剩余项为后续改进方向。
 
-| 问题 | 位置 | 影响 | 建议 |
+| 问题 | 位置 | 影响 | 状态 / 建议 |
 |---|---|---|---|
-| SDSS `ParameterQuery` SQL 模板未格式化 `{limit}` | `sources/sdss.py` | 参数查询会生成非法 SQL | 改成 f-string 或 `.format()` |
-| SDSS `ParameterQuery` 返回描述误用 `query.ra/dec/radius_deg` | `sources/sdss.py` | 参数查询成功后也可能在封装结果时报错 | 按查询类型生成 `query_description` |
+| SDSS `ParameterQuery` SQL 模板未格式化 `{limit}` | `sources/sdss.py` | 参数查询会生成非法 SQL | ✅ v0.2 已修复（f-string） |
+| SDSS 返回 HTML 错误页被当作星表缓存 | `sources/sdss.py` | 缓存污染、`<html>` 列 | ✅ v0.2 已修复（HTML 检测 + 抛错） |
+| 多模态 `has_*` 标志全部为 False（id 列误判） | `io/exporter.py` | 知识表可用性失真 | ✅ v0.2 已修复（显式 per-survey Gaia 列） |
+| 论文子串匹配产生 94×49 垃圾关联 | `sources/arxiv_search.py` | 论文关联完全不可信 | ✅ v0.2 已替换为 SIMBAD 权威书目 |
 | Gaia 查询后若异常，`Gaia.ROW_LIMIT` 可能无法恢复 | `sources/gaia.py` | 后续查询可能继承错误 limit | 用 `try/finally` 恢复 |
 | LAMOST 只接 LRS | `sources/lamost.py` | MRS 暂不能查询/下载 | 增加 `mode=lrs/mrs` 或独立 source |
-| cross-match 缺失 | 尚无模块 | 无法形成统一知识表 | 优先实现 Gaia-LAMOST JOIN |
-| 清洗逻辑缺失 | 尚无模块 | 科学质量不可控 | 新增 per-source QC 函数 |
 | 光谱下载 URL 规则需实测 | `sources/lamost.py` | 直接 `base_url + obsid` 可能不适配所有文件 | 用官方下载接口或星表中的文件路径字段 |
-| 测试依赖外网 | `tests/` | CI/离线环境不稳定 | 标记为 integration tests，增加 mock 单元测试 |
+| 实时查询依赖外网 | `sources/*` | CI/离线环境不稳定 | corpus 已支持 cache fallback；单测已离线化 |
 
 ## 10. 下一步开发建议
 

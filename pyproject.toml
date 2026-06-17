@@ -1,6 +1,6 @@
 [project]
 name = "astro-pipeline"
-version = "0.1.0"
+version = "0.2.0"
 description = "Astronomical data pipeline for Gaia DR3, LAMOST DR11, SDSS DR17"
 readme = "README.md"
 authors = [
@@ -23,3 +23,13 @@ dependencies = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Live-network tests (Gaia/LAMOST/SDSS/SIMBAD queries) are marked `network`
+# and skipped by default so the suite runs offline/CI. Run them explicitly:
+#   uv run pytest -m network
+markers = [
+    "network: tests that require live internet access to a survey archive",
+]
+addopts = "-m 'not network'"

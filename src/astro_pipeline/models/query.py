@@ -18,3 +18,9 @@ class ParameterQuery:
     conditions: dict[str, tuple[str, float]] = field(default_factory=dict)
     limit: Optional[int] = None
     order_by: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class SourceIdQuery:
+    source_ids: list[str]
+    limit: Optional[int] = None

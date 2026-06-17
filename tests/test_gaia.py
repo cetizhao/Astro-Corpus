@@ -14,6 +14,7 @@ def gaia(config):
     return GaiaSource(config.gaia, config.network)
 
 
+@pytest.mark.network
 def test_gaia_query(gaia, config, tmp_path):
     query = ConeSearchQuery(
         ra=56.75, dec=24.12, radius_deg=0.5,

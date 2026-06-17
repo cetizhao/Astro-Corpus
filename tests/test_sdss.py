@@ -14,6 +14,7 @@ def sdss(config):
     return SdssSource(config.sdss, config.network)
 
 
+@pytest.mark.network
 def test_sdss_query(sdss, config, tmp_path):
     query = ConeSearchQuery(
         ra=56.75, dec=24.12, radius_deg=1.0,
