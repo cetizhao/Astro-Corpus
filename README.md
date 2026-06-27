@@ -1,9 +1,9 @@
 # AISI 天文数据 Pipeline 详细说明
 
-> **版本 0.2.0（2026-06-17）** — 新增双向「源 ↔ 论文」语料库查询 API（`astro_pipeline.corpus`），
-> 论文关联改为 SIMBAD 权威书目（替换原先会生成垃圾结果的子串匹配），多模态可用性
-> 标志（`has_gaia_xp/has_lamost/has_sdss`）现已正确，并修复了 SDSS SQL 与 HTML
-> 错误页污染等缺陷。详见 [CHANGELOG.md](CHANGELOG.md)。
+> **版本 0.2.1（2026-06-28）** — v0.2 双向「源 ↔ 论文」查询 API 之上新增 arxiv_id
+> 反向解析（76% 覆盖率，修复 `corpus paper <arxiv_id>` 路径）和交互式 corpus 可视化
+> （`astro_pipeline.viz`）；按当前阶段需求，开发主线收窄至 **Gaia + arXiv**，LAMOST/SDSS
+> 适配保留可用但暂不投入新开发。详见 [CHANGELOG.md](CHANGELOG.md)。
 
 ---
 
@@ -31,22 +31,25 @@ AISI 物理学院格致语料库的天文方向，现实目标不是训练基础
 
 ## 2. 当前实现状态
 
-当前代码已经实现了一个多数据源的最小可用框架，覆盖：
+当前代码已经实现了一个多数据源的最小可用框架。**v0.2.1 起开发主线收窄至 Gaia + arXiv**——LAMOST/SDSS 适配仍可调用、corpus 查询里继续以降级方式返回（`status="unavailable"`），但不在近期开发计划内。
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
 | Gaia DR3 星表查询 | 已实现 | 通过 `astroquery.gaia` 和 ADQL 查询 `gaiadr3.gaia_source` |
 | Gaia XP 光谱源筛选 | 已实现 | 筛选 `has_xp_sampled = true` |
 | Gaia XP 光谱下载 | 已实现 | 通过 Gaia DataLink 获取 BP/RP sampled spectra 的 FITS |
-| LAMOST DR11 星表查询 | 已实现 | 通过 VizieR 查询 LRS 星表 |
-| LAMOST 光谱下载 | 已实现 | 按 `obsid` 下载 FITS |
-| SDSS DR17 星表查询 | 已实现 | 通过 `astroquery.sdss` 查询 PhotoObj 与 SpecObj JOIN |
-| SDSS 光谱下载 | 已实现 | 按 `plate/mjd/fiberid` 下载 FITS |
+| LAMOST DR11 星表查询 | 已实现 · 暂缓 | 通过 VizieR 查询 LRS 星表；v0.2.1 起不在主线 |
+| LAMOST 光谱下载 | 已实现 · 暂缓 | 按 `obsid` 下载 FITS；v0.2.1 起不在主线 |
+| SDSS DR17 星表查询 | 已实现 · 暂缓 | 通过 `astroquery.sdss` 查询 PhotoObj 与 SpecObj JOIN |
+| SDSS 光谱下载 | 已实现 · 暂缓 | 按 `plate/mjd/fiberid` 下载 FITS |
 | 统一查询对象 | 已实现 | `ConeSearchQuery` 与 `ParameterQuery` |
 | 统一返回对象 | 已实现 | `CatalogResult` 与 `SpectrumResult` |
 | Parquet/FITS 输出 | 已实现 | 星表默认保存为 Parquet，可支持 FITS |
 | 下载断点续传 | 已实现 | `DownloadCheckpoint` 记录 completed/failed |
 | 网络重试 | 已实现 | `tenacity` 指数退避重试 |
+| 双向「源↔论文」语料库 API | 已实现 | `astro_pipeline.corpus`：源→论文 + 论文→源，SIMBAD 权威书目 |
+| arxiv_id 反向解析 | 已实现 | DOI→arXiv 批量 API，76% 覆盖（v0.2.1 修复） |
+| corpus 可视化 | 已实现 | `astro_pipeline.viz`：6 张概览图 + 搜索/点击 focus |
 | cross-match 引擎 | 未实现 | 当前只有各数据源独立查询/下载 |
 | 质量控制模块 | 未实现 | 质量过滤目前散落在查询条件或文档建议中 |
 | 光谱分析模块 | 未实现 | 尚未提取等值宽度、S/N、恒星参数等统一特征 |
@@ -101,8 +104,12 @@ astro-pipeline/
       external.py           # 外部星表（如 TWAxgdr3.csv）加载
       simbad_refs.py        # 【v0.2】SIMBAD 权威书目 -> 论文边
       arxiv_search.py       # arXiv 关键词检索（仅用于发现，不作归属）
+    viz/                    # 【v0.2.1】交互式 corpus 可视化
+      source_paper.py       #   源↔论文 HTML 概览生成器（6 张图 + focus）
   scripts/
     build_twa_paper_edges.py # 【v0.2】重建 TWA 论文边表（两阶段、可续跑）
+    resolve_arxiv_ids.py    # 【v0.2.1】批量 arXiv DOI -> arxiv_id 反查（~11 min/3k 篇）
+    build_viz.py            # 【v0.2.1】重生成 data/twa/source_paper_viz.html
   examples/
     twa_sample.py           # TWA 端到端 demo（SIMBAD 关联 + 正确标志）
   tests/
@@ -371,11 +378,40 @@ res = corpus.lookup_paper("1806.05059")
 # 阶段一（可靠、较快）：SIMBAD 源->bibcode + bibcode 元数据（title/DOI/year）
 python scripts/build_twa_paper_edges.py
 
-# 阶段二（可选、慢）：为期刊论文反查 arXiv id（受 arXiv 限流 ~1 req/3s，可多次续跑）
-python scripts/build_twa_paper_edges.py --resolve-arxiv
+# 阶段二（推荐）：批量反查 arxiv_id
+# 用 arXiv DOI API 的 boolean-OR 批量查询（~20 DOI/请求），3k 篇 ~11 分钟
+# 幂等、可续跑，自动备份 paper_edges.parquet + simbad_refs.parquet
+python scripts/resolve_arxiv_ids.py
+
+# （legacy）阶段二旧路径：build_twa_paper_edges.py --resolve-arxiv
+# 走单 DOI 串行查询 + SIMBAD 重查，~2.6 h/3k 篇，已被 resolve_arxiv_ids.py 取代
 ```
 
-### 数据完整性说明
+## 7.6 corpus 可视化（v0.2.1）
+
+`astro_pipeline.viz.build_overview_html` 把 corpus 数据渲染成一个独立的 HTML
+页面（默认 `data/twa/source_paper_viz.html`），完全离线、可邮件附件分发。
+
+**包含 6 张概览图**：天空分布散点（颜色 = log 论文数）、Top 15 源 × 论文数、
+Top 15 论文 × 覆盖源数、arXiv 覆盖率环形、论文年份分布、源-论文二分网络子图。
+
+**两种 focus 方式**：
+
+- 搜索框：输入 Gaia `source_id`（支持 `Gaia DR3 X` 前缀）→ 该源的论文列表；或
+  输入 `arxiv_id` / `bibcode` / 唯一 title 子串 → 该论文的源列表。
+- 点击交互：在天空图、横条图、二分图上点击任意节点 → focus 面板同步刷新。
+
+**重新生成**：
+
+```bash
+python scripts/build_viz.py
+```
+
+读取 `paper_edges.parquet` + `TWAxgdr3.csv`，写出 HTML（一次性备份旧版到
+`.bak`）。ECharts 库本地vendored 在 `data/twa/echarts.min.js`，所有数据以
+JSON 内嵌，不依赖任何外部服务。
+
+
 
 TWA 67 个成员中，部分源本身在 LAMOST/SDSS 没有光谱覆盖（演示如实反映）；少数源在
 SIMBAD 没有条目或没有论文引用（结果如实返回空列表），不会伪造关联。
@@ -538,7 +574,7 @@ AISI 尚未给出最终接口格式。建议先内部定义一个稳定的 JSON 
   },
   "provenance": {
     "sources": ["Gaia DR3", "LAMOST DR11"],
-    "pipeline_version": "0.2.0"
+    "pipeline_version": "0.2.1"
   }
 }
 ```
@@ -560,6 +596,7 @@ v0.2 已修复其中数项（见下表「状态」列）。剩余项为后续改
 | SDSS 返回 HTML 错误页被当作星表缓存 | `sources/sdss.py` | 缓存污染、`<html>` 列 | ✅ v0.2 已修复（HTML 检测 + 抛错） |
 | 多模态 `has_*` 标志全部为 False（id 列误判） | `io/exporter.py` | 知识表可用性失真 | ✅ v0.2 已修复（显式 per-survey Gaia 列） |
 | 论文子串匹配产生 94×49 垃圾关联 | `sources/arxiv_search.py` | 论文关联完全不可信 | ✅ v0.2 已替换为 SIMBAD 权威书目 |
+| `corpus paper <arxiv_id>` 查不到论文 | `paper_edges.parquet` 的 `arxiv_id` 列 | arxiv_id 全空，按 arxiv id 查询路径死的 | ✅ v0.2.1 已修复（`resolve_arxiv_ids.py` 反查，76% 覆盖） |
 | Gaia 查询后若异常，`Gaia.ROW_LIMIT` 可能无法恢复 | `sources/gaia.py` | 后续查询可能继承错误 limit | 用 `try/finally` 恢复 |
 | LAMOST 只接 LRS | `sources/lamost.py` | MRS 暂不能查询/下载 | 增加 `mode=lrs/mrs` 或独立 source |
 | 光谱下载 URL 规则需实测 | `sources/lamost.py` | 直接 `base_url + obsid` 可能不适配所有文件 | 用官方下载接口或星表中的文件路径字段 |
@@ -567,44 +604,45 @@ v0.2 已修复其中数项（见下表「状态」列）。剩余项为后续改
 
 ## 10. 下一步开发建议
 
-建议按“能展示、能解释、能扩展”的顺序推进。
+建议按"能展示、能解释、能扩展"的顺序推进。**v0.2.1 起主线聚焦 Gaia + arXiv**，下文标注「主线」/「暂缓」以区分。
 
-### 阶段 A：把现有原型打磨成稳定 demo
+### 阶段 A：把现有原型打磨成稳定 demo（主线）
 
-1. 修复 SDSS `ParameterQuery`。
-2. 给 Gaia `ROW_LIMIT` 加 `try/finally`。
-3. 给 `benchmark.py` 增加结果 JSON 保存。
-4. 为每个 source 增加 mock 单元测试。
-5. 固化一个演示天区，例如 Kepler/Taurus/Orion。
+1. ✅ 修复 SDSS `ParameterQuery`（v0.2 完成）。
+2. ⏳ 给 Gaia `ROW_LIMIT` 加 `try/finally`（小坑，5 分钟）。
+3. ⏳ 给 `benchmark.py` 增加结果 JSON 保存。
+4. ⏳ 为每个 source 增加 mock 单元测试。
+5. ✅ 固化一个演示天区：TWA（v0.2 起 corpus demo 已基于此）。
 
-### 阶段 B：实现统一知识表
+### 阶段 B：实现统一知识表（主线）
 
 1. 新增 `cleaning/` 模块。
-2. 新增 `crossmatch/gaia_lamost.py`，优先用 `gaia_source_id` JOIN。
-3. 新增 `schema/objects.py`，定义统一字段。
-4. 输出 `catalogs/unified_objects.parquet`。
-5. 导出 `exports/unified_objects.jsonl`。
+2. 新增 `schema/objects.py`，定义统一字段。
+3. 输出 `catalogs/unified_objects.parquet`。
+4. 导出 `exports/unified_objects.jsonl`。
 
-### 阶段 C：做一个青年恒星科学 demo
+> LAMOST/SDSS 相关项（cross-match、多模态合并）原列于此处，**v0.2.1 起归入暂缓**；
+> 现阶段统一表只合并 Gaia 测光/天测/XP 光谱可用性 + SIMBAD 论文边。
 
-1. 选择 Taurus、Orion 或其他 Greg 组相关区域。
-2. Gaia 查询候选源。
-3. 匹配 LAMOST/SDSS 光谱。
-4. 做 HR 图、运动学筛选、Hα 指标预留。
-5. 输出可给 AISI 展示的 Markdown/PDF 报告。
+### 阶段 C：做一个青年恒星科学 demo（主线）
+
+1. 选择 Taurus、Orion 或其他青年恒星区。
+2. Gaia 查询候选源（用 RUWE/视差/自行筛成员）。
+3. 匹配 SIMBAD 论文书目（已有 corpus API）。
+4. 做 HR 图、运动学筛选、活动指标（Hα 等接口预留）。
+5. 输出可展示的 Markdown/PDF 报告。
 
 ### 阶段 D：沉淀为 agent skill
 
 每个 pipeline 步骤都可以写成 skill：
 
-| Skill | 输入 | 输出 |
-|---|---|---|
-| Gaia 查询 skill | 天区/条件 | Gaia Parquet |
-| LAMOST 光谱 skill | obsid/天区 | LAMOST FITS |
-| SDSS 光谱 skill | plate/mjd/fiber 或天区 | SDSS FITS |
-| cross-match skill | 两个星表 | 匹配表 |
-| 质量控制 skill | 原始星表 | 清洗星表 |
-| 语料导出 skill | 统一知识表 | JSONL/Markdown |
+| Skill | 输入 | 输出 | 状态 |
+|---|---|---|---|
+| Gaia 查询 skill | 天区/条件 | Gaia Parquet | 待编写 |
+| corpus 查询 skill | Gaia id / arxiv id | 源↔论文结构化数据 | 主线 |
+| cross-match skill | 两个星表 | 匹配表 | 暂缓 |
+| 质量控制 skill | 原始星表 | 清洗星表 | 待编写 |
+| 语料导出 skill | 统一知识表 | JSONL/Markdown | 待编写 |
 
 ## 11. 交付物定义
 
@@ -621,4 +659,4 @@ v0.2 已修复其中数项（见下表「状态」列）。剩余项为后续改
 
 ## 12. 一句话总结
 
-`astro-pipeline` 的本质是把 Gaia、LAMOST、SDSS 这些“人类天文学家会用、但大模型不会直接用”的公开档案库，包装成一套统一的查询、下载、清洗、匹配和导出工作流。当前已经完成数据获取骨架，下一步最关键的是补上质量控制、Gaia-LAMOST cross-match、统一知识表和 JSONL 导出。
+`astro-pipeline` 的本质是把 Gaia、LAMOST、SDSS 这些"人类天文学家会用、但大模型不会直接用"的公开档案库，包装成一套统一的查询、下载、清洗、匹配和导出工作流。**当前阶段（v0.2.1）聚焦 Gaia + arXiv 链路**：数据获取骨架、双向「源↔论文」查询 API、批量 arxiv_id 反查和交互式 corpus 可视化已就绪；下一步关键是补上质量控制、统一知识表 schema 和 JSONL 导出，待 AISI 接口要求明确后固化输出层。
