@@ -3,6 +3,58 @@
 All notable changes to this project are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] — 2026-06-28
+
+### Summary
+Two follow-ups to v0.2 narrowing the corpus to **Gaia + arXiv** (per the new
+scope decided with the advisor): the previously-broken `corpus paper
+<arxiv_id>` lookup now works end-to-end (76% arXiv-id coverage), and the
+visualization is regenerated from real corpus data instead of a stale
+hand-coded mock.
+
+### Added
+- **`astro_pipeline.viz`** — interactive HTML overview of the source↔paper
+  corpus. Six ECharts panels: sky distribution (color = log paper count),
+  top-15 sources by paper count, top-15 papers by source coverage, arXiv
+  coverage donut, paper year distribution, and a bipartite network subset.
+  Two focus modes: search boxes (`Gaia source_id`, `arxiv_id|bibcode|title`)
+  and click-through on every chart. Output is offline-friendly (ECharts
+  vendored locally, data embedded as JSON).
+- **`scripts/build_viz.py`** — CLI to regenerate `data/twa/source_paper_viz.html`
+  from the corpus parquets. Backs up the previous HTML once.
+- **`scripts/resolve_arxiv_ids.py`** — batched arXiv DOI-API resolver that
+  backfills the `arxiv_id` column in `paper_edges.parquet`. Uses arXiv's
+  boolean-OR query (`doi:X OR doi:Y ...`) at batch-size 20 to resolve
+  ~3000 papers in ~11 minutes vs. ~2.6 h serial. Resumable via per-batch
+  checkpointing; idempotent.
+
+### Fixed
+- **`corpus paper <arxiv_id>` was dead.** v0.2 shipped `paper_edges.parquet`
+  with `arxiv_id` 100% empty (the `--resolve-arxiv` step of the build script
+  had never been run), so the arxiv-id lookup path silently returned "No
+  paper matched". After running `resolve_arxiv_ids.py`, coverage is now
+  **76.2%** (2543 / 3336 unique papers; 5185 / 6505 edges). The remaining
+  24% are journal-only papers with no arXiv preprint — they still resolve
+  via bibcode / DOI / title.
+- **`source_paper_viz.html` was a hardcoded lie.** The old file was a
+  hand-tuned mock titled "49 TW Hya members × 94 arXiv papers · 2,494
+  edges" with hardcoded chart data — none of it reflected the real corpus
+  (67 sources × 3336 papers · 6505 edges). Replaced with a generator
+  (`astro_pipeline.viz.build_overview_html`) driven by `paper_edges.parquet`
+  and the member catalog.
+
+### Removed
+- `data/twa/vis_stats.json` — stale snapshot from the v0.1 substring-matching
+  era; no code referenced it.
+- `data/twa/source_paper_viz.html.bak` — backup of the dead mock, kept only
+  until the new generator proved stable.
+
+### Changed
+- `data/twa/paper_edges.parquet` — `arxiv_id` column now populated for 76%
+  of bibcodes (was 0%). Backup at `paper_edges.parquet.bak`.
+- `data/twa/simbad_refs.parquet` — `arxiv_id` column kept in sync by the
+  same resolver. Backup at `simbad_refs.parquet.bak`.
+
 ## [0.2.0] — 2026-06-17
 
 ### Summary

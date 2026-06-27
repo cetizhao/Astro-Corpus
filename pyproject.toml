@@ -1,6 +1,6 @@
 [project]
 name = "astro-pipeline"
-version = "0.2.0"
+version = "0.2.1"
 description = "Astronomical data pipeline for Gaia DR3, LAMOST DR11, SDSS DR17"
 readme = "README.md"
 authors = [
