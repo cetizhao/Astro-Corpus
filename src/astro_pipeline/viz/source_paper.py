@@ -462,7 +462,8 @@ def build_overview_html(
     catalog_path: Path | str = "TWAxgdr3.csv",
     edges_path: Path | str = "data/twa/paper_edges.parquet",
     name_col: str = NAME_FALLBACK,
-    echarts_local: Path | str | None = None,
+    inline_echarts: bool = False,
+    echarts_path: Path | str | None = None,
 ) -> Path:
     """Top-level entry: read corpus inputs, write the HTML, return its path.
 
@@ -474,8 +475,12 @@ def build_overview_html(
     name_col : column to use as a display name (default ``main_id`` from the edges
         table; not present in the bare catalog, in which case labels fall back
         to ``TWA-<last8>``).
-    echarts_local : if given, replace the ``echarts.min.js`` script src with a
-        path to a vendored copy. Defaults to a sibling file in the output dir.
+    inline_echarts : if True, read ``echarts.min.js`` and embed it as an inline
+        ``<script>`` block instead of a sibling-file reference. Produces a
+        single self-contained HTML that can be emailed or chatted as-is, no
+        accompanying files needed. Adds ~1 MB to the file size.
+    echarts_path : location of the vendored ``echarts.min.js`` to inline.
+        Defaults to a sibling file in the output directory.
     """
     out = Path(output_path)
     catalog = pd.read_csv(catalog_path)
@@ -490,8 +495,15 @@ def build_overview_html(
     payload = compute_overview(catalog, edges, name_col=name_col)
     html = render_html(payload)
 
-    if echarts_local:
-        html = html.replace('src="echarts.min.js"', f'src="{echarts_local}"')
+    if inline_echarts:
+        js_file = Path(echarts_path) if echarts_path else out.parent / "echarts.min.js"
+        if not js_file.exists():
+            raise FileNotFoundError(f"echarts.min.js not found at {js_file}; cannot inline")
+        js = js_file.read_text(encoding="utf-8")
+        html = html.replace(
+            '<script src="echarts.min.js"></script>',
+            f"<script>{js}</script>",
+        )
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")

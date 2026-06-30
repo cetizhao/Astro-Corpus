@@ -28,9 +28,14 @@ OUTPUT = DATA / "source_paper_viz.html"
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--output", type=Path, default=OUTPUT)
+    ap.add_argument("--output", type=Path, default=OUTPUT,
+                    help=f"Output HTML path (default: {OUTPUT}).")
     ap.add_argument("--catalog", type=Path, default=CATALOG)
     ap.add_argument("--edges", type=Path, default=DATA / "paper_edges.parquet")
+    ap.add_argument("--inline", action="store_true",
+                    help="Inline echarts.min.js into the HTML as a <script> block. "
+                         "Produces a single self-contained file (~2.4 MB) that can "
+                         "be emailed or chatted without bundling other files.")
     args = ap.parse_args()
 
     if not args.catalog.exists():
@@ -49,8 +54,10 @@ def main() -> None:
         output_path=args.output,
         catalog_path=args.catalog,
         edges_path=args.edges,
+        inline_echarts=args.inline,
     )
-    logger.info("Wrote %s (%.1f KB)", out, out.stat().st_size / 1024)
+    logger.info("Wrote %s (%.1f KB)%s", out, out.stat().st_size / 1024,
+                " [self-contained]" if args.inline else "")
 
 
 if __name__ == "__main__":
