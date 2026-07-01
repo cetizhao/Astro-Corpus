@@ -60,6 +60,17 @@ def _safe_int(x: Any, default: int = 0) -> int:
         return default
 
 
+def _safe_float(x: Any) -> float | None:
+    if x is None:
+        return None
+    try:
+        if pd.isna(x):
+            return None
+        return float(x)
+    except (TypeError, ValueError):
+        return None
+
+
 def compute_overview(
     catalog_df: pd.DataFrame,
     edges_df: pd.DataFrame,
@@ -82,11 +93,16 @@ def compute_overview(
         main_id = str(row.get(name_col, "")) if name_col in catalog_df.columns else ""
         sources.append({
             "id": gid,
-            "ra": float(row[RA_COL]),
-            "dec": float(row[DEC_COL]),
+            "ra": _safe_float(row.get(RA_COL)),
+            "dec": _safe_float(row.get(DEC_COL)),
             "n_papers": n,
             "label": _short_source_label(gid, main_id),
-            "gmag": float(row.get("Gmag", float("nan"))) if "Gmag" in catalog_df.columns else None,
+            "gmag": _safe_float(row.get("Gmag_gdr3")) or _safe_float(row.get("Gmag")),
+            "plx": _safe_float(row.get("Plx_gdr3")),
+            "plx_err": _safe_float(row.get("e_Plx_gdr3")),
+            "pm_ra": _safe_float(row.get("pmRA_gdr3")),
+            "pm_dec": _safe_float(row.get("pmDE_gdr3")),
+            "ruwe": _safe_float(row.get("RUWE_gdr3")),
         })
     sources.sort(key=lambda s: -s["n_papers"])
 
@@ -178,6 +194,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .focus li a { color:#60a5fa; text-decoration:none; }
   .focus li a:hover { text-decoration:underline; }
   .focus li .year { color:#94a3b8; margin-left:8px; }
+  .focus .title { font-size:13px; margin-bottom:4px; }
+  .focus .title b { color:#f1f5f9; }
+  .focus .title .gid { color:#94a3b8; font-size:11px; margin-left:8px; }
+  .astro-grid { display:grid; grid-template-columns: max-content max-content; gap:2px 14px; font-size:11px; margin:4px 0 10px; }
+  .astro-grid .k { color:#64748b; }
+  .astro-grid .v { color:#e2e8f0; font-family: ui-monospace, SFMono-Regular, monospace; }
   .empty { color:#64748b; font-style:italic; padding:20px; text-align:center; }
   .footer { text-align:center; color:#475569; font-size:11px; margin-top:8px; }
 </style>
@@ -359,14 +381,50 @@ initChart('bip', {
 });
 
 // ---- Focus handlers ----
+function fmtFloat(v, d=3) { return (v===null||v===undefined||isNaN(v)) ? '—' : Number(v).toFixed(d); }
+
+function raDecToHMS(ra, dec) {
+  // Best-effort hms/dms rendering; returns ['11h 01m 52s', '-34° 42\' 18"']
+  try {
+    const h = Math.floor(ra/15), m = Math.floor((ra/15 - h)*60),
+          s = ((ra/15 - h)*60 - m)*60;
+    const ds = dec<0 ? '-' : '+', ad = Math.abs(dec),
+          dd = Math.floor(ad), dm = Math.floor((ad-dd)*60),
+          dss = ((ad-dd)*60 - dm)*60;
+    return [`${h}h ${m}m ${s.toFixed(1)}s`,
+            `${ds}${dd}° ${dm}' ${dss.toFixed(1)}"`];
+  } catch(e) { return ['—','—']; }
+}
+
+function astrometryGrid(s) {
+  const distPc = s.plx ? (1000.0/s.plx).toFixed(1) : null;
+  const [rah, dech] = raDecToHMS(s.ra||0, s.dec||0);
+  const row = (k, v) => `<span class="k">${k}</span><span class="v">${v}</span>`;
+  let html = '<div class="astro-grid">';
+  html += row('RA',  `${fmtFloat(s.ra,4)}° <span style="color:#64748b">(${rah})</span>`);
+  html += row('Dec', `${fmtFloat(s.dec,4)}° <span style="color:#64748b">(${dech})</span>`);
+  const plxStr = s.plx
+    ? `${fmtFloat(s.plx,3)}${s.plx_err ? ' ± ' + fmtFloat(s.plx_err,3) : ''} mas` +
+      (distPc ? ` <span style="color:#64748b">→ ${distPc} pc</span>` : '')
+    : '—';
+  html += row('Parallax', plxStr);
+  html += row('μ_RA',  s.pm_ra  ? `${fmtFloat(s.pm_ra,2)} mas/yr` : '—');
+  html += row('μ_Dec', s.pm_dec ? `${fmtFloat(s.pm_dec,2)} mas/yr` : '—');
+  html += row('RUWE',  fmtFloat(s.ruwe,3));
+  html += row('G mag', fmtFloat(s.gmag,3));
+  html += row('Papers', `${s.n_papers}`);
+  html += '</div>';
+  return html;
+}
+
 function showSourceFocus(srcId) {
   const s = SRC_BY_ID[srcId];
   if (!s) return;
   const card = document.getElementById('focus-source');
   card.style.display = 'block';
   document.getElementById('focus-source-meta').innerHTML =
-    `<b>${s.label}</b> · Gaia DR3 ${s.id}<br/>` +
-    `RA=${s.ra.toFixed(3)}° Dec=${s.dec.toFixed(3)}° · ${s.n_papers} papers`;
+    `<div class="title"><b>${s.label}</b><span class="gid">Gaia DR3 ${s.id}</span></div>` +
+    astrometryGrid(s);
   const papers = DATA.edges.filter(e => e.source_id === srcId).map(e => PAPERS_BY_BIB[e.bibcode]).filter(Boolean);
   papers.sort((a,b) => (b.year||0) - (a.year||0));
   const ul = document.getElementById('focus-source-list');
@@ -391,14 +449,17 @@ function showPaperFocus(bibcode) {
   const card = document.getElementById('focus-paper');
   card.style.display = 'block';
   document.getElementById('focus-paper-meta').innerHTML =
-    `<b>${p.arxiv_id || p.bibcode}</b> (${p.year||'?'}) ${p.journal}<br/>` +
-    `${(p.title||'').slice(0,120)}<br/>${p.n_sources} sources`;
+    `<div class="title"><b>${p.arxiv_id || p.bibcode}</b>` +
+    `<span class="gid">${p.year||'?'}` + (p.journal ? ` · ${p.journal}` : '') + `</span></div>` +
+    `<div style="font-size:12px; color:#cbd5e1; margin-bottom:6px;">${(p.title||'').slice(0,160)}</div>` +
+    `<div style="font-size:11px; color:#94a3b8;">${p.n_sources} sources linked</div>`;
   const srcs = DATA.edges.filter(e => e.bibcode === bibcode).map(e => SRC_BY_ID[e.source_id]).filter(Boolean);
   const ul = document.getElementById('focus-paper-list');
   if (!srcs.length) { ul.innerHTML = '<div class="empty">No sources linked.</div>'; return; }
   ul.innerHTML = srcs.slice(0, 50).map(s => {
-    const label = s.label;
-    return `<li>${label} <span class="year">${s.n_papers} papers</span><br/><span style="color:#94a3b8">Gaia DR3 ${s.id} · (${s.ra.toFixed(2)}, ${s.dec.toFixed(2)})</span></li>`;
+    const plx = s.plx ? `${fmtFloat(s.plx,2)} mas` : '—';
+    return `<li><b>${s.label}</b> <span class="year">G=${fmtFloat(s.gmag,2)} · Plx=${plx} · RUWE=${fmtFloat(s.ruwe,2)} · ${s.n_papers}p</span>` +
+           `<br/><span style="color:#94a3b8">Gaia DR3 ${s.id} · RA=${fmtFloat(s.ra,2)}° Dec=${fmtFloat(s.dec,2)}°</span></li>`;
   }).join('');
   // Highlight matching points on sky map
   const matchIds = new Set(srcs.map(s => s.id));
