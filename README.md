@@ -110,6 +110,7 @@ astro-pipeline/
     build_twa_paper_edges.py # 【v0.2】重建 TWA 论文边表（两阶段、可续跑）
     resolve_arxiv_ids.py    # 【v0.2.1】批量 arXiv DOI -> arxiv_id 反查（~11 min/3k 篇）
     build_viz.py            # 【v0.2.1】重生成 data/twa/source_paper_viz.html
+    export_jsonl.py         # 【v0.2.1】corpus → 简化 schema JSONL 导出
   examples/
     twa_sample.py           # TWA 端到端 demo（SIMBAD 关联 + 正确标志）
   tests/
@@ -533,51 +534,45 @@ crossmatch/
 
 这比泛泛做“全宇宙数据库”更容易形成可展示的科学故事，也更容易和导师方向关联。
 
-### 8.5 大模型/知识库输出
+### 8.5 大模型/知识库输出（JSONL）
 
-AISI 尚未给出最终接口格式。建议先内部定义一个稳定的 JSON Lines 草案，每个天体一行：
+`scripts/export_jsonl.py` 已实现一个**简化 schema** 的 JSONL 导出（每行一个 Gaia 源）。AISI 接口要求明确后会在 `to_record()` 适配层里调整，不影响上游。
+
+**当前 schema**（v0.2.1 实现，对应 `data/twa/twa_corpus.jsonl`）：
 
 ```json
 {
-  "object_id": "gaia_dr3:123456789",
-  "coordinates": {
-    "ra_deg": 290.0,
-    "dec_deg": 40.0,
-    "frame": "ICRS"
+  "gaia_id": "5401795662560500352",
+  "ra_deg": 165.4659,
+  "dec_deg": -34.7048,
+  "parallax_mas": 16.629,
+  "parallax_error_mas": 0.015,
+  "ruwe": 1.175,
+  "g_mag": 10.451,
+  "pm_ra_masyr": -68.31,
+  "pm_dec_masyr": -13.90,
+  "multimodal": {
+    "gaia_xp": true,
+    "lamost": false,
+    "sdss": false
   },
-  "crossmatch": {
-    "gaia_source_id": "123456789",
-    "lamost_obsid": "987654321",
-    "sdss_spec_id": "plate-mjd-fiber"
-  },
-  "photometry": {
-    "gaia_g_mag": 14.2,
-    "gaia_bp_mag": 15.1,
-    "gaia_rp_mag": 13.3
-  },
-  "astrometry": {
-    "parallax_mas": 2.1,
-    "pmra_masyr": 1.2,
-    "pmdec_masyr": -3.4,
-    "ruwe": 1.1
-  },
-  "spectroscopy": {
-    "available": ["gaia_xp", "lamost_lrs"],
-    "teff_k": 4300,
-    "logg_dex": 4.1,
-    "feh_dex": -0.1,
-    "radial_velocity_kms": 18.5
-  },
-  "quality_flags": {
-    "gaia_astrometry_ok": true,
-    "lamost_snr_ok": true
-  },
-  "provenance": {
-    "sources": ["Gaia DR3", "LAMOST DR11"],
-    "pipeline_version": "0.2.1"
-  }
+  "papers": [
+    {"arxiv_id": "2305.03557", "bibcode": "2023AJ....165..269L",
+     "title": "A Census of the TW Hya Association with Gaia.",
+     "year": 2023, "url": "https://arxiv.org/abs/2305.03557"}
+  ],
+  "n_papers": 2154,
+  "provenance": {"pipeline_version": "0.2.1"}
 }
 ```
+
+**计划扩展**（待 AISI spec 确认后再加）：
+
+- 测光：BP/RP 星等（数据已在 catalog，未导出）
+- 恒星参数：Teff / logg / [Fe/H]（Gaia DU 译文已存）
+- 视向速度：`RV_gdr3` / `e_RV_gdr3`
+- 质量标志：`astrometry_ok`（RUWE<1.4 等）、`photometry_ok`
+- 谱数据路径：`spectra: {gaia_xp: "path.fits", ...}`（避免 base64 内联膨胀）
 
 这个结构的核心原则：
 
@@ -652,11 +647,65 @@ v0.2 已修复其中数项（见下表「状态」列）。剩余项为后续改
 |---|---|---|
 | Pipeline 代码 | `src/astro_pipeline/` | 能查询 Gaia/LAMOST/SDSS 小样本 |
 | 配置文件 | `config/*.yaml` | 可切换数据目录、网络参数、数据源版本 |
-| 小样本数据 | `data/catalogs/`, `data/spectra/` | benchmark 生成，文件可读 |
-| benchmark 报告 | `tests/benchmark.py` 输出 | 六个模态至少核心星表查询 PASS |
-| 说明文档 | 本 README | 新人能理解架构和下一步 |
-| 后续 skill | 待新增 `skills/` | AI agent 可按步骤执行 |
+| 双向 corpus API | `astro_pipeline.corpus` CLI/Python | `source/paper/summary` 三个子命令端到端可用 |
+| 交互式可视化 | `data/twa/source_paper_viz*.html` | 6 张图 + 搜索/点击 focus + 完整天测面板 |
+| JSONL 语料导出 | `data/twa/twa_corpus.jsonl` | 67 源、每行 schema 见 §8.5 |
+| SIMBAD 论文边表 | `data/twa/paper_edges.parquet` | 6505 边、76% 有 arxiv_id |
+| 离线测试套件 | `tests/` | `pytest -q` 全过（当前 40 个） |
+| 说明文档 | 本 README + `CHANGELOG.md` | 新人能理解架构和下一步 |
+
+> 注：`data/` 目录被 `.gitignore` 排除（数据可重生），新合作者 clone 后需要按 §13 跑一次 bootstrap 才能复现上述文件。
 
 ## 12. 一句话总结
 
-`astro-pipeline` 的本质是把 Gaia、LAMOST、SDSS 这些"人类天文学家会用、但大模型不会直接用"的公开档案库，包装成一套统一的查询、下载、清洗、匹配和导出工作流。**当前阶段（v0.2.1）聚焦 Gaia + arXiv 链路**：数据获取骨架、双向「源↔论文」查询 API、批量 arxiv_id 反查和交互式 corpus 可视化已就绪；下一步关键是补上质量控制、统一知识表 schema 和 JSONL 导出，待 AISI 接口要求明确后固化输出层。
+`astro-pipeline` 的本质是把 Gaia、LAMOST、SDSS 这些"人类天文学家会用、但大模型不会直接用"的公开档案库，包装成一套统一的查询、下载、清洗、匹配和导出工作流。**当前阶段（v0.2.1）聚焦 Gaia + arXiv 链路**：数据获取骨架、双向「源↔论文」查询 API、批量 arxiv_id 反查、交互式可视化和简化 schema JSONL 导出已就绪；下一步关键是补上质量控制、统一知识表 schema 扩展（恒星参数 / 视向速度 / 谱数据路径），待 AISI 接口要求明确后固化。
+
+## 13. 新合作者上手（bootstrap）
+
+仓库 `git clone` 后是**纯代码**——`data/` 和 `TWAxgdr3.csv` 都被 `.gitignore` 排除（数据可重生、且第三方目录有版权）。要本地跑通，按以下顺序：
+
+### 13.1 安装
+
+```bash
+git clone <repo>
+cd astro-pipeline
+uv sync                              # 装依赖
+uv run pytest -q                     # 离线测试，应 40/40 通过
+```
+
+### 13.2 获取 TWA 输入星表
+
+`TWAxgdr3.csv` 来自 Ducourant et al. 2023（**bibcode `2023AJ....165..269L`**，即 arxiv `2305.03557`，本 corpus 里就有）。两种获取方式：
+
+- **VizieR**: 访问 https://vizier.cds.unistra.fr/viz-bin/VizieR-3?-source=J/AJ/165/269/table1，选 ASCII/CSV 输出，下载后重命名为 `TWAxgdr3.csv` 放在仓库**根目录**
+- **向维护者索取**：力乐 / cetizhao 处有现成文件
+
+### 13.3 重建 corpus 数据（首次约 1 小时，主要是网络）
+
+```bash
+# 1) SIMBAD 论文书目（~30 min，受 SIMBAD 限流）
+python scripts/build_twa_paper_edges.py
+
+# 2) 反查 arxiv_id（~11 min，受 arXiv 限流）
+python scripts/resolve_arxiv_ids.py
+
+# 3)（可选）下载 Gaia/LAMOST 光谱样本
+python examples/twa_sample.py
+
+# 4) 生成可视化 + JSONL
+python scripts/build_viz.py
+python scripts/build_viz.py --inline --output data/twa/source_paper_viz_share.html
+python scripts/export_jsonl.py
+```
+
+跑完后 `corpus summary`、`corpus source <gaia_id>`、可视化 HTML 等都可用。
+
+### 13.4 日常使用（不需要重建数据时）
+
+参见 §7.5 / §7.6 的 CLI 命令清单。`--offline` 用本地缓存，不联网。
+
+### 13.5 常见坑
+
+- **`FileNotFoundError: TWAxgdr3.csv`** → §13.2 没做
+- **`corpus paper <arxiv_id>` 返回 "No paper matched"** → §13.3 第 2 步没跑（arxiv_id 列为空）
+- **`pytest` 全挂在网络错误** → 你大概率跑成了 `pytest -m network`；默认就是离线的，直接 `pytest` 即可
