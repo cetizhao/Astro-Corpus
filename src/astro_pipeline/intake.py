@@ -263,9 +263,11 @@ def _crossmatch_to_gaia(
 
 
 def _canonicalize(df: pd.DataFrame) -> pd.DataFrame:
-    """Rename Gaia DR3 native columns to canonical names; ensure Gaia is str."""
-    if df.empty:
-        return df
+    """Rename Gaia DR3 native columns to canonical names; ensure Gaia is str.
+
+    Even empty DataFrames are renamed so they can be concatenated with
+    populated ones downstream.
+    """
     df = df.rename(columns=CANONICAL_RENAME).copy()
     if "Gaia" in df.columns:
         df["Gaia"] = df["Gaia"].astype(str)
