@@ -18,6 +18,17 @@ Schema (one JSON object per line, per Gaia source):
       "g_mag":              float, # Gaia G-band magnitude
       "pm_ra_masyr":        float, # proper motion (mas/yr)
       "pm_dec_masyr":       float,
+      "quality": {
+        "ruwe":                       float,
+        "parallax_snr":               float,  # parallax / parallax_error
+        "phot_bp_rp_excess_factor":   float,
+        "astrometric_excess_noise":   float,
+        "visibility_periods_used":    int,
+        "astrometric_n_good_obs_al":  int,
+        "duplicated_source":          bool,
+        "astrometry_ok":              bool,   # ruwe<1.4 && parallax_snr>5 (suggested)
+        "photometry_ok":              bool    # 1.0 < excess < 1.4 (rough, G<18)
+      },
       "multimodal": {
         "gaia_xp": bool,           # whether Gaia XP spectrum is available
         "lamost":  bool,           # LAMOST spectrum available
@@ -31,6 +42,9 @@ Schema (one JSON object per line, per Gaia source):
       "n_papers":  int,
       "provenance": {"pipeline_version": str}
     }
+
+The ``quality`` block is informational only -- the pipeline does no filtering.
+Downstream consumers decide their own quality cuts using these flags.
 
 Usage:
     python scripts/export_jsonl.py
@@ -77,16 +91,44 @@ def to_record(lookup: dict, catalog_extras: dict) -> dict:
             pass
         return v
 
+    # Quality-control fields (no filtering -- downstream decides).
+    plx = _f(ast, "Plx_gdr3")
+    plx_err = _f(ast, "e_Plx_gdr3")
+    ruwe = _f(ast, "RUWE_gdr3")
+    parallax_snr = (plx / plx_err) if (plx and plx_err) else None
+    excess = _f(extras, "phot_bp_rp_excess_factor")
+    aen = _f(extras, "astrometric_excess_noise")
+    vis_periods = _f(extras, "visibility_periods_used")
+    n_good_al = _f(extras, "astrometric_n_good_obs_al")
+    dup = _f(extras, "duplicated_source")
+    g_mag = _f(ast, "Gmag_gdr3")
+    # Suggested quality cuts (informational; downstream may use stricter / looser).
+    astrometry_ok = bool(ruwe is not None and ruwe < 1.4
+                        and parallax_snr is not None and parallax_snr > 5)
+    photometry_ok = bool(excess is not None and 1.0 < excess < 3.0
+                         and g_mag is not None and g_mag < 18.0)
+
     return {
         "gaia_id": lookup.get("gaia_id"),
         "ra_deg": _f(ast, "RAICRS"),
         "dec_deg": _f(ast, "DEICRS"),
-        "parallax_mas": _f(ast, "Plx_gdr3"),
-        "parallax_error_mas": _f(ast, "e_Plx_gdr3"),
-        "ruwe": _f(ast, "RUWE_gdr3"),
-        "g_mag": _f(ast, "Gmag_gdr3"),
+        "parallax_mas": plx,
+        "parallax_error_mas": plx_err,
+        "ruwe": ruwe,
+        "g_mag": g_mag,
         "pm_ra_masyr": _f(extras, "pmRA_gdr3") if "pmRA_gdr3" in extras else _f(extras, "pmRA"),
         "pm_dec_masyr": _f(extras, "pmDE_gdr3") if "pmDE_gdr3" in extras else _f(extras, "pmDE"),
+        "quality": {
+            "ruwe": ruwe,
+            "parallax_snr": parallax_snr,
+            "phot_bp_rp_excess_factor": excess,
+            "astrometric_excess_noise": aen,
+            "visibility_periods_used": vis_periods,
+            "astrometric_n_good_obs_al": n_good_al,
+            "duplicated_source": bool(dup) if dup is not None else None,
+            "astrometry_ok": astrometry_ok,
+            "photometry_ok": photometry_ok,
+        },
         "multimodal": {
             "gaia_xp": bool(mm.get("gaia_xp", {}).get("available", False)),
             "lamost": bool(mm.get("lamost", {}).get("available", False)),
