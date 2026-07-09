@@ -709,3 +709,76 @@ python scripts/export_jsonl.py
 - **`FileNotFoundError: TWAxgdr3.csv`** → §13.2 没做
 - **`corpus paper <arxiv_id>` 返回 "No paper matched"** → §13.3 第 2 步没跑（arxiv_id 列为空）
 - **`pytest` 全挂在网络错误** → 你大概率跑成了 `pytest -m network`；默认就是离线的，直接 `pytest` 即可
+
+## 14. MCP 集成（让 AI agent 调用本 pipeline）
+
+本仓库自带一个 [MCP server](https://modelcontextprotocol.io/)（`src/astro_pipeline/mcp_server.py`），把 5 个核心能力暴露成工具，可被 Claude Code、Cursor、Cline 等任意支持 MCP 的 agent 直接调用——无需命令行。
+
+### 14.1 暴露的工具
+
+| Tool | 输入 | 离线？ | 包装的函数 |
+|---|---|---|---|
+| `lookup_source` | `gaia_id` | ✓ | `Corpus.lookup_source` |
+| `lookup_paper` | `arxiv_id` / `bibcode` / `title` | ✓ | `Corpus.lookup_paper` |
+| `resolve_name` | `name`（如 "TW Hya"） | 网络 | `intake.resolve_members(name=...)` |
+| `cone_search` | `ra, dec, radius_deg, limit` | 网络 | `intake.resolve_members(cone=...)` |
+| `summarize_corpus` | 无 | ✓ | `Corpus.summary` |
+
+启动时加载 TWA corpus 一次（~1s），之后离线工具毫秒响应，在线工具 2-5 秒。
+
+### 14.2 在 Claude Code 里挂上
+
+命令行（一次性）：
+
+```bash
+claude mcp add astro-corpus -- uv run --directory /path/to/astro-pipeline python -m astro_pipeline.mcp_server
+```
+
+或写到项目级 `.claude/mcp.json`：
+
+```json
+{
+  "mcpServers": {
+    "astro-corpus": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/astro-pipeline", "python", "-m", "astro_pipeline.mcp_server"]
+    }
+  }
+}
+```
+
+### 14.3 在 Cursor / Cline / Zed 里挂上
+
+各 agent 的具体菜单不同，但核心都是：填 `command: uv`，`args: ["run", "--directory", "<repo>", "python", "-m", "astro_pipeline.mcp_server"]`。详见各 agent 的 MCP 文档。
+
+### 14.4 配置（可选）
+
+通过环境变量覆盖默认数据目录：
+
+```bash
+ASTRO_PIPELINE_DATA_DIR=/path/to/data/twa
+ASTRO_PIPELINE_CATALOG=/path/to/TWAxgdr3.csv
+```
+
+在 `.claude/mcp.json` 里加 `"env": {...}`。
+
+### 14.5 实测典型对话
+
+挂上后，在 agent 里这样问就行：
+
+- "查一下 Gaia DR3 5401795662560500352 的论文" → agent 自动调 `lookup_source`
+- "TW Hya 有多少篇论文？" → agent 先 `resolve_name` 拿 gaia_id，再 `lookup_source`
+- "arxiv 2305.03557 研究了哪些源？" → 直接 `lookup_paper`
+- "当前语料库的覆盖情况？" → `summarize_corpus`
+
+用户全程不碰命令行。
+
+### 14.6 调试
+
+```bash
+# 启动 server 自己测一下
+uv run python -m astro_pipeline.mcp_server
+
+# 用 MCP inspector 浏览器交互调试（需要 mcp[cli] extra）
+uv run mcp dev src/astro_pipeline/mcp_server.py
+```
