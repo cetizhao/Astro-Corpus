@@ -723,8 +723,11 @@ python scripts/export_jsonl.py
 | `resolve_name` | `name`（如 "TW Hya"） | 网络 | `intake.resolve_members(name=...)` |
 | `cone_search` | `ra, dec, radius_deg, limit` | 网络 | `intake.resolve_members(cone=...)` |
 | `summarize_corpus` | 无 | ✓ | `Corpus.summary` |
+| `gaia_xp_spectrum` | `gaia_id` | 缓存 | `spectra.get_xp_spectrum_png` |
 
 启动时加载 TWA corpus 一次（~1s），之后离线工具毫秒响应，在线工具 2-5 秒。
+
+`gaia_xp_spectrum` 渲染给定源的 BP/RP 光谱图并返回 `file://` URL；优先用 XP_CONTINUOUS 缓存，回退 XP_SAMPLED。需要先用 `examples/twa_sample.py`（或 Gaia 认证后直接下载）填充 `data_dir/gaia_xp_continuous/` 或 `data_dir/gaia_xp_sampled/`。
 
 ### 14.2 在 Claude Code 里挂上
 

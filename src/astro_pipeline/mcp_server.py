@@ -40,6 +40,7 @@ from mcp.server.fastmcp import FastMCP
 
 from astro_pipeline.corpus import Corpus
 from astro_pipeline.intake import resolve_members
+from astro_pipeline.spectra import get_xp_spectrum_png
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +163,36 @@ def summarize_corpus() -> dict:
     which other tools to call.
     """
     return _json_safe(corpus.summary())
+
+
+@mcp.tool()
+def gaia_xp_spectrum(gaia_id: str) -> dict:
+    """Render the Gaia DR3 BP/RP spectrum for a source and return a file URL.
+
+    The agent or user opens the returned URL (file:// path) to view the plot.
+    Spectrum is fetched from cache (data_dir/gaia_xp_continuous/ or
+    data_dir/gaia_xp_sampled/) -- XP_CONTINUOUS is preferred; falls back to
+    XP_SAMPLED if only that is available. The rendered PNG is cached at
+    data_dir/gaia_xp_png/<gaia_id>.png so repeated calls are free.
+
+    Parameters
+    ----------
+    gaia_id : Gaia DR3 source_id (19-digit string).
+
+    Returns
+    -------
+    dict with: url (file://), format ("continuous" | "sampled" | "cached"),
+    cached (bool), gaia_id, bp_n_points, rp_n_points. Returns {"error": ...}
+    if the source has no XP spectrum cached (download requires Gaia archive
+    credentials -- see README §13.2).
+
+    Note
+    ----
+    Live download from Gaia is not enabled by default; the tool reads from
+    cache only. Use ``examples/twa_sample.py`` to populate the cache first.
+    """
+    result = get_xp_spectrum_png(gaia_id, DATA_DIR, allow_download=False)
+    return _json_safe(result)
 
 
 # --------------------------------------------------------------------- helpers
