@@ -114,7 +114,7 @@ def resolve_members(
 
 # ------------------------------------------------------------------ input modes
 def _from_cone(ra: float, dec: float, radius_deg: float, *, limit: Optional[int]) -> pd.DataFrame:
-    cfg = PipelineConfig()
+    cfg = PipelineConfig.load()
     src = GaiaSource(cfg.gaia, cfg.network)
     res = src.query_catalog(
         ConeSearchQuery(ra=ra, dec=dec, radius_deg=radius_deg, limit=limit),
@@ -204,7 +204,7 @@ def _from_region(center_name: str, radius_deg: float, *, limit: Optional[int]) -
 
 # ------------------------------------------------------------------ helpers
 def _fetch_gaia_by_ids(source_ids: list[str], *, limit: Optional[int] = None) -> pd.DataFrame:
-    cfg = PipelineConfig()
+    cfg = PipelineConfig.load()
     src = GaiaSource(cfg.gaia, cfg.network)
     res = src._query_by_ids(
         SourceIdQuery(source_ids=source_ids, limit=limit),
@@ -238,7 +238,7 @@ def _crossmatch_to_gaia(
     center_ra, center_dec, radius_deg = compute_coverage_center_radius(df, ra_col, dec_col)
     logger.info("Coverage center (%.3f, %.3f), radius %.3f deg", center_ra, center_dec, radius_deg)
 
-    cfg = PipelineConfig()
+    cfg = PipelineConfig.load()
     src = GaiaSource(cfg.gaia, cfg.network)
     res = src.query_catalog(
         ConeSearchQuery(ra=center_ra, dec=center_dec, radius_deg=radius_deg + 0.05, limit=limit),

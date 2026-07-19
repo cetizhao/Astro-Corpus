@@ -85,11 +85,19 @@ def _download_via_datalink(
 ) -> None:
     """Download via astroquery.gaia (requires auth for XP_*).
 
+    Reads credentials from config/local.yaml via PipelineConfig.load().
     Thin wrapper around astroquery; reused from sources/gaia.py logic but kept
     standalone so this module has no hard dependency on the project's source
     abstraction.
     """
     from astroquery.gaia import Gaia  # local import: heavy + networked
+
+    from astro_pipeline.config import PipelineConfig
+
+    cfg = PipelineConfig.load()
+    if cfg.gaia.username:
+        Gaia.login(user=cfg.gaia.username, password=cfg.gaia.password)
+        logger.info("Logged in to Gaia archive as %s", cfg.gaia.username)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     dl = Gaia.load_data(

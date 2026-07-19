@@ -11,6 +11,11 @@ wheels/
 .env
 .env.*
 
+# Local-only config (credentials, personal overrides) -- never commit
+config/local.yaml
+config/local.*.yaml
+**/secrets.*
+
 # Data outputs
 data/
 *.fits

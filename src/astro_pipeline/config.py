@@ -64,3 +64,31 @@ class PipelineConfig(BaseModel):
         with open(path) as f:
             raw = yaml.safe_load(f)
         return cls(**raw)
+
+    @classmethod
+    def load(cls, config_dir: Path | str = "config") -> PipelineConfig:
+        """Load default.yaml, then overlay local.yaml if it exists.
+
+        ``local.yaml`` is gitignored and intended for credentials / personal
+        overrides. Missing files fall back to bare defaults.
+        """
+        config_dir = Path(config_dir)
+        default_path = config_dir / "default.yaml"
+        local_path = config_dir / "local.yaml"
+
+        if default_path.exists():
+            cfg = cls.from_yaml(default_path)
+        else:
+            cfg = cls()
+
+        if local_path.exists():
+            with open(local_path) as f:
+                local_raw = yaml.safe_load(f) or {}
+            # Deep-merge top-level sections (gaia/lamost/sdss/network/output).
+            for key, value in local_raw.items():
+                current = getattr(cfg, key, None)
+                if isinstance(current, BaseModel) and isinstance(value, dict):
+                    setattr(cfg, key, current.__class__(**{**current.model_dump(), **value}))
+                else:
+                    setattr(cfg, key, value)
+        return cfg
