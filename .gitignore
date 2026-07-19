@@ -32,8 +32,9 @@ data/
 .DS_Store
 *.log
 
-# Claude Code local config and memory
-.claude/
+# Claude Code local config and memory (but keep shared project MCP config)
+.claude/*
+!.claude/mcp.json
 
 # Large astronomical data formats
 *.hdf5

@@ -712,7 +712,7 @@ python scripts/export_jsonl.py
 
 ## 14. MCP 集成（让 AI agent 调用本 pipeline）
 
-本仓库自带一个 [MCP server](https://modelcontextprotocol.io/)（`src/astro_pipeline/mcp_server.py`），把 5 个核心能力暴露成工具，可被 Claude Code、Cursor、Cline 等任意支持 MCP 的 agent 直接调用——无需命令行。
+本仓库自带一个 [MCP server](https://modelcontextprotocol.io/)（`src/astro_pipeline/mcp_server.py`），把 6 个核心能力暴露成工具，可被 Claude Code、Cursor、Cline 等任意支持 MCP 的 agent 直接调用——无需命令行。
 
 ### 14.1 暴露的工具
 
@@ -729,41 +729,49 @@ python scripts/export_jsonl.py
 
 `gaia_xp_spectrum` 渲染给定源的 BP/RP 光谱图并返回 `file://` URL；优先用 XP_CONTINUOUS 缓存，回退 XP_SAMPLED。需要先用 `examples/twa_sample.py`（或 Gaia 认证后直接下载）填充 `data_dir/gaia_xp_continuous/` 或 `data_dir/gaia_xp_sampled/`。
 
-### 14.2 在 Claude Code 里挂上
+### 14.2 在 Claude Code 里使用（开箱即用）
 
-命令行（一次性）：
+仓库已带 `.claude/mcp.json`（项目级配置），clone 后**直接从项目根目录启动 Claude Code 即可**：
 
 ```bash
-claude mcp add astro-corpus -- uv run --directory /path/to/astro-pipeline python -m astro_pipeline.mcp_server
+git clone <repo>
+cd astro-pipeline
+uv sync                                          # 装依赖
+# 按 §13 bootstrap 数据（获取 TWAxgdr3.csv 等）
+claude                                            # 从项目根启动 Claude Code
 ```
 
-或写到项目级 `.claude/mcp.json`：
+Claude Code 启动时会自动读 `.claude/mcp.json`，spawn MCP server 子进程，发现 6 个工具。无需手动 `claude mcp add`。
 
-```json
-{
-  "mcpServers": {
-    "astro-corpus": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/astro-pipeline", "python", "-m", "astro_pipeline.mcp_server"]
-    }
-  }
-}
-```
+**前提**：
+- 已装 `uv`（https://docs.astral.sh/uv/）
+- 已按 §13.2 获取 `TWAxgdr3.csv` 放到项目根目录
+- 已按 §13.3 重建 `data/twa/paper_edges.parquet` 等（否则 `summarize_corpus` 等会报"catalog not found"）
 
 ### 14.3 在 Cursor / Cline / Zed 里挂上
 
-各 agent 的具体菜单不同，但核心都是：填 `command: uv`，`args: ["run", "--directory", "<repo>", "python", "-m", "astro_pipeline.mcp_server"]`。详见各 agent 的 MCP 文档。
+这些 agent 不读 `.claude/mcp.json`（Claude Code 专用），需要手动配置，但参数一样：
 
-### 14.4 配置（可选）
+| 字段 | 值 |
+|---|---|
+| command | `uv` |
+| args | `["run", "--directory", "<你的 repo 绝对路径>", "python", "-m", "astro_pipeline.mcp_server"]` |
 
-通过环境变量覆盖默认数据目录：
+Cursor：Settings → MCP → Add new MCP Server → type: command。
+Cline/Zed：各自 MCP 配置文件，格式同 Claude Code。
+
+### 14.4 配置覆盖（可选）
+
+通过环境变量切换数据目录或目录覆盖：
 
 ```bash
-ASTRO_PIPELINE_DATA_DIR=/path/to/data/twa
-ASTRO_PIPELINE_CATALOG=/path/to/TWAxgdr3.csv
+ASTRO_PIPELINE_DATA_DIR=/path/to/data/twa        # 默认 ./data/twa
+ASTRO_PIPELINE_CATALOG=/path/to/TWAxgdr3.csv     # 默认 ./TWAxgdr3.csv
 ```
 
-在 `.claude/mcp.json` 里加 `"env": {...}`。
+在 agent 配置里加 `"env": {...}` 字段。
+
+个人 Gaia 凭据：建 `config/local.yaml`（gitignored），按 `config/default.yaml` 的 schema 写 `gaia.username` / `gaia.password`。`PipelineConfig.load()` 会自动叠加。
 
 ### 14.5 实测典型对话
 
@@ -773,15 +781,19 @@ ASTRO_PIPELINE_CATALOG=/path/to/TWAxgdr3.csv
 - "TW Hya 有多少篇论文？" → agent 先 `resolve_name` 拿 gaia_id，再 `lookup_source`
 - "arxiv 2305.03557 研究了哪些源？" → 直接 `lookup_paper`
 - "当前语料库的覆盖情况？" → `summarize_corpus`
+- "TW Hya 的 Gaia 光谱图" → `resolve_name` → `gaia_xp_spectrum`
 
 用户全程不碰命令行。
 
 ### 14.6 调试
 
 ```bash
-# 启动 server 自己测一下
+# 启动 server 自己测一下（看启动日志，按 Ctrl+C 退出）
 uv run python -m astro_pipeline.mcp_server
 
 # 用 MCP inspector 浏览器交互调试（需要 mcp[cli] extra）
 uv run mcp dev src/astro_pipeline/mcp_server.py
+
+# 在 Claude Code 里查 MCP 状态
+/mcp
 ```

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "astro-corpus": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "astro_pipeline.mcp_server"]
+    }
+  }
+}
