@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -30,11 +30,13 @@ DEC_COL = "DEICRS"
 NAME_FALLBACK = "main_id"
 
 
-def _short_source_label(gaia_id: str, main_id: str = "") -> str:
-    """Compact label for a Gaia source: prefer SIMBAD main_id, else last 8 digits."""
+def _short_source_label(gaia_id: str, main_id: str = "", corpus_prefix: str = "Gaia") -> str:
+    """Compact label for a Gaia source: prefer SIMBAD main_id, else last 8 digits
+    prefixed by ``<corpus_prefix>-`` (e.g. ``Gaia-12345678``).
+    """
     if main_id and str(main_id) != "nan":
         return str(main_id)
-    return f"TWA-{str(gaia_id)[-8:]}"
+    return f"{corpus_prefix}-{str(gaia_id)[-8:]}"
 
 
 def _paper_label(arxiv_id: str, bibcode: str) -> str:
@@ -172,7 +174,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<title>TWA Source-Paper Corpus</title>
+<title>__CORPUS_NAME__ Source-Paper Corpus</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0f172a; color: #e2e8f0; padding: 16px; }
@@ -205,7 +207,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </style>
 </head>
 <body>
-<h1>TWA Source &harr; Paper Corpus</h1>
+<h1>__CORPUS_NAME__ Source &harr; Paper Corpus</h1>
 <div class="subtitle" id="subtitle"></div>
 
 <div class="legend">
@@ -510,11 +512,18 @@ document.getElementById('q-paper').addEventListener('keydown', e => { if (e.key 
 """
 
 
-def render_html(payload: dict) -> str:
-    """Render the overview HTML with embedded data."""
+def render_html(payload: dict, corpus_name: str = "TWA") -> str:
+    """Render the overview HTML with embedded data.
+
+    ``corpus_name`` is substituted into <title> and <h1>; defaults to "TWA"
+    for backward compat with the original TWA demo.
+    """
     # Compact but readable; the file is meant to be opened, not edited.
     json_str = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    return HTML_TEMPLATE.replace("__DATA_JSON__", json_str)
+    html = HTML_TEMPLATE.replace("__DATA_JSON__", json_str)
+    # Escape for HTML; also handle empty/None gracefully.
+    safe_name = (corpus_name or "Source-Paper").replace("<", "").replace(">", "")
+    return html.replace("__CORPUS_NAME__", safe_name)
 
 
 def build_overview_html(
@@ -525,27 +534,35 @@ def build_overview_html(
     name_col: str = NAME_FALLBACK,
     inline_echarts: bool = False,
     echarts_path: Path | str | None = None,
+    corpus_name: Optional[str] = None,
 ) -> Path:
     """Top-level entry: read corpus inputs, write the HTML, return its path.
 
     Parameters
     ----------
     output_path : where to write the HTML.
-    catalog_path : TWA member CSV with Gaia/RAICRS/DEICRS columns.
-    edges_path : paper_edges.parquet from build_twa_paper_edges.py.
+    catalog_path : member CSV with Gaia/RAICRS/DEICRS columns.
+    edges_path : paper_edges.parquet from build_twa_paper_edges.py or
+        build_corpus.py.
     name_col : column to use as a display name (default ``main_id`` from the edges
         table; not present in the bare catalog, in which case labels fall back
-        to ``TWA-<last8>``).
+        to ``<corpus_name>-<last8>``).
     inline_echarts : if True, read ``echarts.min.js`` and embed it as an inline
         ``<script>`` block instead of a sibling-file reference. Produces a
         single self-contained HTML that can be emailed or chatted as-is, no
         accompanying files needed. Adds ~1 MB to the file size.
     echarts_path : location of the vendored ``echarts.min.js`` to inline.
         Defaults to a sibling file in the output directory.
+    corpus_name : human-readable name for <title> and <h1>. Defaults to the
+        parent directory name of ``output_path`` (so a corpus at
+        ``data/orion_onc/source_paper_viz.html`` becomes "orion_onc ...").
     """
     out = Path(output_path)
     catalog = pd.read_csv(catalog_path)
     edges = pd.read_parquet(edges_path)
+
+    if corpus_name is None:
+        corpus_name = out.parent.name
 
     # Bring a per-source display name from the edges' main_id, if available.
     if name_col == NAME_FALLBACK and NAME_FALLBACK in edges.columns:
@@ -554,7 +571,7 @@ def build_overview_html(
         catalog[NAME_FALLBACK] = catalog[GAIA_ID_COL].astype(str).map(main_map).fillna("")
 
     payload = compute_overview(catalog, edges, name_col=name_col)
-    html = render_html(payload)
+    html = render_html(payload, corpus_name=corpus_name)
 
     if inline_echarts:
         js_file = Path(echarts_path) if echarts_path else out.parent / "echarts.min.js"

@@ -36,6 +36,9 @@ def main() -> None:
                     help="Inline echarts.min.js into the HTML as a <script> block. "
                          "Produces a single self-contained file (~2.4 MB) that can "
                          "be emailed or chatted without bundling other files.")
+    ap.add_argument("--corpus-name", type=str, default=None,
+                    help="Override the corpus name shown in <title>/<h1> "
+                         "(default: derived from output directory name).")
     args = ap.parse_args()
 
     if not args.catalog.exists():
@@ -50,11 +53,15 @@ def main() -> None:
         bak.write_bytes(args.output.read_bytes())
         logger.info("Backed up existing HTML to %s", bak.name)
 
+    # Derive corpus name from output dir; override via --corpus-name if given
+    corpus_name = args.corpus_name if args.corpus_name else args.output.parent.name
+
     out = build_overview_html(
         output_path=args.output,
         catalog_path=args.catalog,
         edges_path=args.edges,
         inline_echarts=args.inline,
+        corpus_name=corpus_name,
     )
     logger.info("Wrote %s (%.1f KB)%s", out, out.stat().st_size / 1024,
                 " [self-contained]" if args.inline else "")

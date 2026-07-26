@@ -187,13 +187,20 @@ def build_corpus_snapshot(
     edges.save(edges_path)
 
     # --- 4. Viz HTML ---
+    # inline_echarts=True so the HTML is self-contained (no sibling file dep).
+    # The ~1 MB cost is acceptable and avoids the "blank page" failure mode
+    # when the corpus dir is moved/shared without echarts.min.js.
     from astro_pipeline.viz import build_overview_html
 
     viz_path = out_dir / "source_paper_viz.html"
+    echarts_src = out_dir.parent / "twa" / "echarts.min.js"
     build_overview_html(
         output_path=viz_path,
         catalog_path=members_csv,
         edges_path=edges_path,
+        corpus_name=label,
+        inline_echarts=True,
+        echarts_path=echarts_src if echarts_src.exists() else None,
     )
 
     n_papers = int(refs["bibcode"].nunique()) if not refs.empty else 0
