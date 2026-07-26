@@ -295,9 +295,9 @@ const skyChart = initChart('sky', {
   tooltip: {trigger:'item', formatter: p =>
     `${p.data.name}<br/>(${p.data.value[0].toFixed(2)}, ${p.data.value[1].toFixed(2)})<br/>${p.data.value[2]} papers`},
   xAxis: {name:'RA [deg]', nameTextStyle:{color:AXIS_LABEL.color}, type:'value',
-    min:120, max:210, axisLabel:AXIS_LABEL, axisLine:AXIS_LINE, splitLine:SPLIT},
+    axisLabel:AXIS_LABEL, axisLine:AXIS_LINE, splitLine:SPLIT},
   yAxis: {name:'Dec [deg]', nameTextStyle:{color:AXIS_LABEL.color}, type:'value',
-    min:-45, max:-25, axisLabel:AXIS_LABEL, axisLine:AXIS_LINE, splitLine:SPLIT},
+    axisLabel:AXIS_LABEL, axisLine:AXIS_LINE, splitLine:SPLIT},
   series: [{type:'scatter', data:skyPoints, emphasis:{itemStyle:{color:'#fbbf24', borderColor:'#fff', borderWidth:2}}}],
 });
 
