@@ -204,6 +204,8 @@ def download_corpus(
     catalog_path: Optional[str] = None,
     limit: int = 200,
     skip_simbad: bool = False,
+    sleep_seconds: float = 0.3,
+    enrich: bool = True,
 ) -> dict:
     """Download a corpus snapshot and persist to ``data/<label>/`` on disk.
 
@@ -232,12 +234,25 @@ def download_corpus(
         SIMBAD phase scales as ~0.3 s/source).
     skip_simbad : if True, stop after members are resolved (no paper edges,
         no viz). Useful for a quick "what's in this region" check.
+    sleep_seconds : pause between SIMBAD requests (default 0.3, polite).
+        Lower to 0.1 for ~3x speedup at small risk of SIMBAD throttle
+        (auto-retries on failure). Set higher (0.5-1.0) if you want to be
+        extra cautious.
+    enrich : if False, skip per-bibcode metadata fetch (title/DOI/year).
+        Source<->paper links are still built, but paper titles are empty.
+        ~5-10x faster for dense fields. Use when you only need the linkage.
 
     Returns
     -------
     dict with: label, input_mode, n_members, n_paper_edges, n_unique_papers,
     out_dir, members_csv, paper_edges_parquet, viz_html, elapsed_seconds.
     On failure: dict with ``error`` key.
+
+    Tip
+    ----
+    To peek at progress during a long build, run ``corpus_status(label)``
+    from another agent session or CLI -- it reads the checkpoint files
+    written every ~25 bibcodes.
     """
     from astro_pipeline.corpus_builder import build_corpus_snapshot, result_to_dict
 
@@ -254,10 +269,100 @@ def download_corpus(
             catalog=catalog_path,
             limit=limit if limit and limit > 0 else None,
             skip_simbad=skip_simbad,
+            sleep_seconds=sleep_seconds,
+            enrich=enrich,
         )
     except (ValueError, LookupError) as e:
         return {"error": str(e), "label": label}
     return result_to_dict(result)
+
+
+@mcp.tool()
+def corpus_status(label: str) -> dict:
+    """Report build progress for a corpus by reading its checkpoint files.
+
+    Useful both during a long ``download_corpus`` build (call from another
+    agent session or CLI) and after the fact to summarize what's in a
+    corpus without loading it.
+
+    Parameters
+    ----------
+    label : directory name under data/ (e.g. "orion").
+
+    Returns
+    -------
+    dict with: label, path, exists, n_members, simbad_phase (one of
+    "not_started" | "in_progress" | "done"), n_sources_queried,
+    n_unique_bibcodes, n_enriched (bibcodes with title/DOI), n_with_arxiv,
+    has_paper_edges, has_viz, members_modified (timestamp),
+    simbad_modified (timestamp).
+
+    The SIMBAD phase is detected as ``in_progress`` when the simbad cache
+    exists but no final paper_edges.parquet is written yet.
+    """
+    import pandas as pd
+
+    corpora_root = DATA_DIR.parent if DATA_DIR.name == "twa" else Path("data")
+    path = corpora_root / label
+
+    if not path.exists():
+        return {"label": label, "exists": False, "error": f"no corpus at {path}"}
+
+    out: dict = {"label": label, "path": str(path.resolve()), "exists": True}
+
+    # Members
+    members_csv = path / "members.csv"
+    members_parquet = path / "members.parquet"
+    if members_parquet.exists():
+        out["n_members"] = len(pd.read_parquet(members_parquet))
+        out["members_modified"] = _iso_mtime(members_parquet)
+    elif members_csv.exists():
+        out["n_members"] = len(pd.read_csv(members_csv))
+        out["members_modified"] = _iso_mtime(members_csv)
+    else:
+        out["n_members"] = 0
+
+    # SIMBAD progress
+    simbad_path = path / "simbad_refs.parquet"
+    edges_path = path / "paper_edges.parquet"
+    has_edges = edges_path.exists()
+
+    if not simbad_path.exists() and not has_edges:
+        out["simbad_phase"] = "not_started"
+    elif has_edges:
+        out["simbad_phase"] = "done"
+    else:
+        out["simbad_phase"] = "in_progress"
+
+    if simbad_path.exists() or has_edges:
+        src = simbad_path if simbad_path.exists() else edges_path
+        try:
+            df = pd.read_parquet(src)
+            n_src = int(df["gaia_id"].nunique()) if "gaia_id" in df.columns else None
+            out["n_sources_queried"] = n_src
+            out["n_unique_bibcodes"] = int(df["bibcode"].nunique()) if "bibcode" in df.columns else 0
+            if "title" in df.columns:
+                titles = df.groupby("bibcode")["title"].first()
+                out["n_enriched"] = int((titles.astype(str).str.strip() != "").sum())
+            if "arxiv_id" in df.columns:
+                arxiv = df.groupby("bibcode")["arxiv_id"].first()
+                out["n_with_arxiv"] = int((arxiv.astype(str).str.strip() != "").sum())
+            out["simbad_modified"] = _iso_mtime(src)
+            # If no members file (TWA-style), infer n_members from edges
+            if not out.get("n_members") and n_src:
+                out["n_members"] = n_src
+        except Exception as e:
+            out["simbad_read_error"] = str(e)
+
+    out["has_paper_edges"] = has_edges
+    out["has_viz"] = (path / "source_paper_viz.html").exists()
+    return out
+
+
+def _iso_mtime(p: Path) -> str:
+    """ISO-formatted modification time of a file."""
+    import datetime
+    return datetime.datetime.fromtimestamp(p.stat().st_mtime).isoformat(timespec="seconds")
 
 
 @mcp.tool()

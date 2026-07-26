@@ -59,6 +59,13 @@ def main() -> None:
                     help="Cap on members (advisory for cone; hard for catalog id fetch)")
     ap.add_argument("--skip-simbad", action="store_true",
                     help="Stop after members.* are written (faster; for testing)")
+    ap.add_argument("--sleep", type=float, default=0.3,
+                    help="Pause between SIMBAD requests in seconds (default 0.3; "
+                         "lower to 0.1 for ~3x speedup)")
+    ap.add_argument("--no-enrich", action="store_true",
+                    help="Skip per-bibcode metadata fetch (title/DOI/year). "
+                         "Source<->paper links still built; just no paper titles. "
+                         "5-10x faster for dense fields.")
     args = ap.parse_args()
 
     # Derive a label if not given
@@ -84,6 +91,8 @@ def main() -> None:
         catalog=args.catalog,
         limit=args.limit,
         skip_simbad=args.skip_simbad,
+        sleep_seconds=args.sleep,
+        enrich=not args.no_enrich,
     )
 
     if result.error:

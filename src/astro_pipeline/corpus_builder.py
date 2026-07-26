@@ -65,6 +65,8 @@ def build_corpus_snapshot(
     catalog: Optional[str | Path] = None,
     limit: Optional[int] = None,
     skip_simbad: bool = False,
+    sleep_seconds: float = 0.3,
+    enrich: bool = True,
 ) -> CorpusBuildResult:
     """Build a corpus snapshot from any input mode and persist to disk.
 
@@ -93,6 +95,13 @@ def build_corpus_snapshot(
         prevents accidental huge downloads and long SIMBAD phases.
     skip_simmad : if True, stop after ``members.*`` are written (no SIMBAD,
         no viz, no edges). Useful for quick "what's in this region" checks.
+    sleep_seconds : pause between SIMBAD requests. Default 0.3 is polite;
+        lower to 0.1 for ~3x speedup at risk of occasional SIMBAD throttle
+        (the retry decorator recovers automatically).
+    enrich : if False, skip per-bibcode metadata fetch (title/DOI/year).
+        Bibcodes are still linked to sources, but the paper list has empty
+        titles. ~5-10x faster for dense fields. Use when you only need the
+        source<->paper linkage, not human-readable paper metadata.
     """
     inputs = {"cone": cone, "name": name, "region": region, "catalog": catalog}
     provided = [k for k, v in inputs.items() if v is not None]
@@ -164,12 +173,15 @@ def build_corpus_snapshot(
     # --- 3. SIMBAD paper edges (inherits resumable cache via cache_path) ---
     logger.info(
         "Querying SIMBAD for paper bibliography per source "
-        "(~0.3s/source; interruptible, resumable)..."
+        "(sleep=%.2fs, enrich=%s; interruptible, resumable)...",
+        sleep_seconds, enrich,
     )
     edges, refs = build_paper_edges(
         members,
         id_col="Gaia",
         cache_path=out_dir / "simbad_refs.parquet",
+        sleep_seconds=sleep_seconds,
+        enrich=enrich,
     )
     edges_path = out_dir / "paper_edges.parquet"
     edges.save(edges_path)
