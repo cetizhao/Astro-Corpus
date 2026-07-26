@@ -34,7 +34,7 @@ import logging
 import math
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from mcp.server.fastmcp import FastMCP
 
@@ -193,6 +193,121 @@ def gaia_xp_spectrum(gaia_id: str) -> dict:
     """
     result = get_xp_spectrum_png(gaia_id, DATA_DIR, allow_download=False)
     return _json_safe(result)
+
+
+@mcp.tool()
+def download_corpus(
+    label: str,
+    cone: Optional[list[float]] = None,
+    name: Optional[str] = None,
+    region: Optional[list] = None,
+    catalog_path: Optional[str] = None,
+    limit: int = 200,
+    skip_simbad: bool = False,
+) -> dict:
+    """Download a corpus snapshot and persist to ``data/<label>/`` on disk.
+
+    Exactly one of ``cone`` / ``name`` / ``region`` / ``catalog_path`` must
+    be provided.
+
+    Pipeline:
+      1. Resolve members via Gaia DR3 (cone/name/region) or read user CSV.
+      2. Query SIMBAD for paper bibliography per source (resumable).
+      3. Render interactive viz HTML.
+    Output goes under ``data/<label>/`` (members.csv, members.parquet,
+    paper_edges.parquet, simbad_refs.parquet, source_paper_viz.html).
+
+    The build is interruptible and resumable: if interrupted during the
+    SIMBAD phase, re-running with the same label picks up where it left
+    off via the simbad_refs.parquet cache.
+
+    Parameters
+    ----------
+    label : directory name under data/ (e.g. "orion", "tw_hya_region").
+    cone : [ra_deg, dec_deg, radius_deg] for a Gaia cone search.
+    name : SIMBAD-resolvable source name (e.g. "TW Hya").
+    region : [center_name, radius_deg]; SIMBAD resolves the center.
+    catalog_path : path to a CSV with Gaia ids OR RA/Dec columns.
+    limit : cap on members (default 200; raise for bigger builds, but
+        SIMBAD phase scales as ~0.3 s/source).
+    skip_simbad : if True, stop after members are resolved (no paper edges,
+        no viz). Useful for a quick "what's in this region" check.
+
+    Returns
+    -------
+    dict with: label, input_mode, n_members, n_paper_edges, n_unique_papers,
+    out_dir, members_csv, paper_edges_parquet, viz_html, elapsed_seconds.
+    On failure: dict with ``error`` key.
+    """
+    from astro_pipeline.corpus_builder import build_corpus_snapshot, result_to_dict
+
+    corpora_root = DATA_DIR.parent if DATA_DIR.name == "twa" else Path("data")
+    out_dir = corpora_root / label
+
+    try:
+        result = build_corpus_snapshot(
+            label=label,
+            out_dir=out_dir,
+            cone=tuple(cone) if cone else None,
+            name=name,
+            region=(region[0], float(region[1])) if region else None,
+            catalog=catalog_path,
+            limit=limit if limit and limit > 0 else None,
+            skip_simbad=skip_simbad,
+        )
+    except (ValueError, LookupError) as e:
+        return {"error": str(e), "label": label}
+    return result_to_dict(result)
+
+
+@mcp.tool()
+def list_corpora() -> list[dict]:
+    """List all corpus snapshots under the data root.
+
+    Each corpus is a subdirectory of ``data/`` containing at least a
+    ``members.csv``, ``members.parquet``, or ``paper_edges.parquet`` file
+    (the TWA demo uses ``paper_edges.parquet`` without a members file).
+
+    Returns
+    -------
+    list of dicts, one per corpus, with: name, path, n_members (if known),
+    has_paper_edges, has_viz.
+    """
+    import pandas as pd
+
+    corpora_root = DATA_DIR.parent if DATA_DIR.name == "twa" else Path("data")
+    out: list[dict] = []
+
+    if not corpora_root.exists():
+        return out
+
+    for sub in sorted(corpora_root.iterdir()):
+        if not sub.is_dir():
+            continue
+        members_csv = sub / "members.csv"
+        members_parquet = sub / "members.parquet"
+        has_edges = (sub / "paper_edges.parquet").exists()
+        if not (members_csv.exists() or members_parquet.exists() or has_edges):
+            continue
+        n_members: Optional[int] = None
+        try:
+            if members_parquet.exists():
+                n_members = len(pd.read_parquet(members_parquet))
+            elif members_csv.exists():
+                n_members = len(pd.read_csv(members_csv))
+            elif has_edges:
+                # TWA-style: members count = unique source_id in edges
+                n_members = int(pd.read_parquet(sub / "paper_edges.parquet")["source_id"].nunique())
+        except Exception:
+            pass
+        out.append({
+            "name": sub.name,
+            "path": str(sub.resolve()),
+            "n_members": n_members,
+            "has_paper_edges": has_edges,
+            "has_viz": (sub / "source_paper_viz.html").exists(),
+        })
+    return out
 
 
 # --------------------------------------------------------------------- helpers
