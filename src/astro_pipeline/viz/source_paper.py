@@ -291,12 +291,23 @@ const skyPoints = DATA.sources.map(s => ({
   symbolSize: Math.max(6, Math.min(36, Math.log10(s.n_papers + 1) * 12)),
   itemStyle: {color: '#60a5fa', opacity: 0.85},
 }));
+// Compute tight data-driven axis bounds (ECharts default "nice numbers" leave
+// too much whitespace for compact regions like Orion).
+const _raVals = DATA.sources.map(s => s.ra).filter(v => v != null && !isNaN(v));
+const _decVals = DATA.sources.map(s => s.dec).filter(v => v != null && !isNaN(v));
+const _raRange = _raVals.length ? [Math.min(..._raVals), Math.max(..._raVals)] : [0, 360];
+const _decRange = _decVals.length ? [Math.min(..._decVals), Math.max(..._decVals)] : [-90, 90];
+const _raPad = Math.max((_raRange[1] - _raRange[0]) * 0.05, 0.05);
+const _decPad = Math.max((_decRange[1] - _decRange[0]) * 0.05, 0.05);
+
 const skyChart = initChart('sky', {
   tooltip: {trigger:'item', formatter: p =>
     `${p.data.name}<br/>(${p.data.value[0].toFixed(2)}, ${p.data.value[1].toFixed(2)})<br/>${p.data.value[2]} papers`},
   xAxis: {name:'RA [deg]', nameTextStyle:{color:AXIS_LABEL.color}, type:'value',
+    min:_raRange[0]-_raPad, max:_raRange[1]+_raPad,
     axisLabel:AXIS_LABEL, axisLine:AXIS_LINE, splitLine:SPLIT},
   yAxis: {name:'Dec [deg]', nameTextStyle:{color:AXIS_LABEL.color}, type:'value',
+    min:_decRange[0]-_decPad, max:_decRange[1]+_decPad,
     axisLabel:AXIS_LABEL, axisLine:AXIS_LINE, splitLine:SPLIT},
   series: [{type:'scatter', data:skyPoints, emphasis:{itemStyle:{color:'#fbbf24', borderColor:'#fff', borderWidth:2}}}],
 });
