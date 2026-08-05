@@ -124,7 +124,20 @@ class GaiaSource(CatalogSource):
         output_path: Optional[Path] = None,
     ) -> CatalogResult:
         if isinstance(query, SourceIdQuery):
-            return self._query_by_ids(query, output_path, extra_columns=["has_xp_sampled"])
+            result = self._query_by_ids(query, None, extra_columns=["has_xp_sampled"])
+            df = result.data
+            if "has_xp_sampled" in df.columns:
+                mask = df["has_xp_sampled"].astype(str).str.lower().isin({"true", "1"})
+                df = df.loc[mask].reset_index(drop=True)
+            if output_path:
+                save_catalog_parquet(df, output_path)
+            return CatalogResult(
+                source_name=self.get_source_name() + " (XP)",
+                data=df,
+                row_count=len(df),
+                query_description=result.query_description,
+                output_path=output_path,
+            )
         return self._query_xp_by_cone(query, output_path)
 
     def _query_xp_by_cone(
@@ -225,7 +238,17 @@ class GaiaSource(CatalogSource):
         identifiers: Sequence[str] | pd.DataFrame,
         output_dir: Path,
         resume: bool = True,
+        retrieval_type: str = "XP_SAMPLED",
+        batch_size: int | None = None,
     ) -> list[SpectrumResult]:
+        retrieval_type = retrieval_type.upper()
+        if retrieval_type not in {"XP_SAMPLED", "XP_CONTINUOUS"}:
+            raise ValueError(f"Unsupported Gaia XP retrieval type: {retrieval_type}")
+        if batch_size is None:
+            batch_size = 5 if retrieval_type == "XP_CONTINUOUS" else 5000
+        if batch_size < 1 or batch_size > 5000:
+            raise ValueError("batch_size must be between 1 and Gaia DataLink's 5000-source limit")
+
         self._ensure_login()
         if isinstance(identifiers, pd.DataFrame):
             ids = [str(sid) for sid in identifiers["source_id"].tolist()]
@@ -245,51 +268,80 @@ class GaiaSource(CatalogSource):
             self._logger.info("All Gaia spectra already downloaded")
             return []
 
-        self._logger.info("Downloading %d Gaia XP spectra via DataLink", len(ids))
+        self._logger.info("Downloading %d Gaia %s spectra via DataLink", len(ids), retrieval_type)
         results: list[SpectrumResult] = []
 
-        batch_size = 5000
         for i in range(0, len(ids), batch_size):
             batch = ids[i : i + batch_size]
+            self._logger.info(
+                "Gaia %s batch %d/%d (%d sources)",
+                retrieval_type,
+                i // batch_size + 1,
+                (len(ids) + batch_size - 1) // batch_size,
+                len(batch),
+            )
 
             @self._retry
             def _fetch_batch(batch_ids=batch) -> dict:
                 return Gaia.load_data(
                     ids=batch_ids,
-                    data_release="DR3",
+                    data_release="Gaia DR3",
                     data_structure="RAW",
-                    retrieval_type="XP_SAMPLED",
+                    retrieval_type=retrieval_type,
                     format="fits",
                 )
 
             try:
                 dl_results = _fetch_batch()
-                for key, tables in dl_results.items():
+                returned_ids: set[str] = set()
+                for _key, tables in (dl_results or {}).items():
                     for table in tables:
-                        try:
-                            from astropy.io import fits as afits
+                        from astropy.table import Table
 
-                            if hasattr(table, "data") and "source_id" in table.data.columns:
-                                source_id = str(table.data["source_id"][0])
-                            else:
-                                source_id = key
-                            out_path = output_dir / f"gaia_xp_{source_id}.fits"
-                            if hasattr(table, "writeto"):
-                                table.writeto(str(out_path), overwrite=True)
-                            else:
-                                afits.writeto(str(out_path), table.data, overwrite=True)
-                            checkpoint.mark_completed(source_id)
-                            results.append(
-                                SpectrumResult(source_id=source_id, path=out_path, success=True)
+                        if not isinstance(table, Table):
+                            table = Table(table)
+                        names = {name.lower(): name for name in table.colnames}
+                        sid_col = names.get("source_id") or names.get("sourceid")
+                        if not sid_col:
+                            self._logger.warning(
+                                "Gaia XP table has no source_id column: %s", table.colnames,
                             )
-                        except Exception as e:
-                            self._logger.warning("Failed to save Gaia spectrum: %s", e)
-                            results.append(
-                                SpectrumResult(
-                                    source_id=source_id, path=out_path,
-                                    success=False, error=str(e),
+                            continue
+                        for row_index in range(len(table)):
+                            source_id = str(table[sid_col][row_index])
+                            out_path = output_dir / f"{source_id}.fits"
+                            try:
+                                table[row_index : row_index + 1].write(
+                                    str(out_path), format="fits", overwrite=True,
                                 )
-                            )
+                                returned_ids.add(source_id)
+                                checkpoint.mark_completed(source_id)
+                                results.append(
+                                    SpectrumResult(source_id=source_id, path=out_path, success=True)
+                                )
+                            except Exception as e:
+                                self._logger.warning(
+                                    "Failed to save Gaia spectrum %s: %s", source_id, e,
+                                )
+                                checkpoint.mark_failed(source_id)
+                                results.append(
+                                    SpectrumResult(
+                                        source_id=source_id, path=out_path,
+                                        success=False, error=str(e),
+                                    )
+                                )
+
+                for source_id in set(batch) - returned_ids:
+                    checkpoint.mark_failed(source_id)
+                    results.append(
+                        SpectrumResult(
+                            source_id=source_id,
+                            path=output_dir / f"{source_id}.fits",
+                            success=False,
+                            error=f"Gaia DataLink returned no {retrieval_type} product",
+                        )
+                    )
+                checkpoint.save()
             except Exception as e:
                 self._logger.error("Gaia DataLink batch failed: %s", e)
                 for id_ in batch:
@@ -297,10 +349,11 @@ class GaiaSource(CatalogSource):
                     results.append(
                         SpectrumResult(
                             source_id=id_,
-                            path=output_dir / f"gaia_xp_{id_}.fits",
+                            path=output_dir / f"{id_}.fits",
                             success=False, error=str(e),
                         )
                     )
+                checkpoint.save()
 
         checkpoint.save()
         self._logger.info(

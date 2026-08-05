@@ -73,11 +73,20 @@ def _safe_float(x: Any) -> float | None:
         return None
 
 
+def _first_float(row: pd.Series, *columns: str) -> float | None:
+    for column in columns:
+        value = _safe_float(row.get(column))
+        if value is not None:
+            return value
+    return None
+
+
 def compute_overview(
     catalog_df: pd.DataFrame,
     edges_df: pd.DataFrame,
     *,
     name_col: str = NAME_FALLBACK,
+    spectra_by_source: Optional[dict[str, dict]] = None,
 ) -> dict:
     """Compute the JSON-serializable overview payload from corpus data."""
     edges = edges_df.copy()
@@ -93,18 +102,21 @@ def compute_overview(
         gid = str(row[GAIA_ID_COL])
         n = int(n_papers_per_src.get(gid, 0))
         main_id = str(row.get(name_col, "")) if name_col in catalog_df.columns else ""
+        if (not main_id or main_id == "nan") and "Name" in catalog_df.columns:
+            main_id = str(row.get("Name", ""))
         sources.append({
             "id": gid,
             "ra": _safe_float(row.get(RA_COL)),
             "dec": _safe_float(row.get(DEC_COL)),
             "n_papers": n,
             "label": _short_source_label(gid, main_id),
-            "gmag": _safe_float(row.get("Gmag_gdr3")) or _safe_float(row.get("Gmag")),
-            "plx": _safe_float(row.get("Plx_gdr3")),
-            "plx_err": _safe_float(row.get("e_Plx_gdr3")),
-            "pm_ra": _safe_float(row.get("pmRA_gdr3")),
-            "pm_dec": _safe_float(row.get("pmDE_gdr3")),
-            "ruwe": _safe_float(row.get("RUWE_gdr3")),
+            "gmag": _first_float(row, "Gmag_gdr3", "Gmag"),
+            "plx": _first_float(row, "Plx_gdr3", "plx"),
+            "plx_err": _first_float(row, "e_Plx_gdr3", "e_plx"),
+            "pm_ra": _first_float(row, "pmRA_gdr3", "pmRA"),
+            "pm_dec": _first_float(row, "pmDE_gdr3", "pmDE"),
+            "ruwe": _first_float(row, "RUWE_gdr3", "RUWE"),
+            "has_xp": gid in (spectra_by_source or {}),
         })
     sources.sort(key=lambda s: -s["n_papers"])
 
@@ -167,6 +179,7 @@ def compute_overview(
         "papers": papers,
         "edges": edge_triples,
         "year_hist": year_hist,
+        "spectra": spectra_by_source or {},
     }
 
 
@@ -202,8 +215,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .astro-grid { display:grid; grid-template-columns: max-content max-content; gap:2px 14px; font-size:11px; margin:4px 0 10px; }
   .astro-grid .k { color:#64748b; }
   .astro-grid .v { color:#e2e8f0; font-family: ui-monospace, SFMono-Regular, monospace; }
+  .spectrum-wrap { margin:10px 0 12px; border-top:1px solid #334155; padding-top:10px; }
+  .spectrum-title { color:#94a3b8; font-size:11px; margin-bottom:4px; }
+  .spectrum-chart { width:100%; height:260px; }
   .empty { color:#64748b; font-style:italic; padding:20px; text-align:center; }
   .footer { text-align:center; color:#475569; font-size:11px; margin-top:8px; }
+  @media (max-width: 820px) { .row { flex-direction:column; } }
 </style>
 </head>
 <body>
@@ -243,6 +260,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <div class="card focus" id="focus-source">
     <h3>Source Focus</h3>
     <div class="meta" id="focus-source-meta">Click a source in the sky map or bar chart.</div>
+    <div class="spectrum-wrap" id="focus-spectrum-wrap" style="display:none;">
+      <div class="spectrum-title" id="focus-spectrum-title"></div>
+      <div class="spectrum-chart" id="focus-spectrum"></div>
+    </div>
     <ul id="focus-source-list"></ul>
   </div>
   <div class="card focus" id="focus-paper">
@@ -368,17 +389,18 @@ initChart('year', {
 // ---- Bipartite subgraph (top 8 sources × top 12 papers) ----
 const bpSrc = DATA.sources.slice(0, 8);
 const bpPapers = DATA.papers.slice(0, 12);
-const bpPids = bpPapers.map(p => p.arxiv_id || p.bibcode);
+const bpSourceIds = new Set(bpSrc.map(s => s.id));
+const bpPaperBibs = new Set(bpPapers.map(p => p.bibcode));
 const bpLinks = [];
 DATA.edges.forEach(e => {
-  const ti = bpSrc.findIndex(s => s.id === e.source_id);
-  const pi = bpPids.indexOf(e.arxiv_id || e.bibcode);
-  if (ti >= 0 && pi >= 0) bpLinks.push({source: ti, target: bpSrc.length + pi});
+  if (bpSourceIds.has(e.source_id) && bpPaperBibs.has(e.bibcode)) {
+    bpLinks.push({source: 'source:' + e.source_id, target: 'paper:' + e.bibcode});
+  }
 });
 const bpNodes = [
-  ...bpSrc.map((s,i) => ({name: s.label, x: 100, y: 60 + i*50, symbolSize: 18,
+  ...bpSrc.map((s,i) => ({id:'source:' + s.id, name: s.label, x: 100, y: 60 + i*50, symbolSize: 18,
     itemStyle:{color:'#60a5fa'}, category: 0})),
-  ...bpPapers.map((p,i) => ({name: p.arxiv_id||p.bibcode.slice(0,12), x: 500, y: 30 + i*36, symbolSize: 14,
+  ...bpPapers.map((p,i) => ({id:'paper:' + p.bibcode, name: p.arxiv_id||p.bibcode.slice(0,12), x: 500, y: 30 + i*36, symbolSize: 14,
     itemStyle:{color:'#f472b6'}, category: 1})),
 ];
 initChart('bip', {
@@ -430,6 +452,52 @@ function astrometryGrid(s) {
   return html;
 }
 
+let spectrumChart = null;
+function renderSpectrum(s) {
+  const wrap = document.getElementById('focus-spectrum-wrap');
+  const title = document.getElementById('focus-spectrum-title');
+  const chartDom = document.getElementById('focus-spectrum');
+  const spectrum = DATA.spectra[s.id];
+  if (spectrumChart) { spectrumChart.dispose(); spectrumChart = null; }
+  wrap.style.display = 'block';
+  if (!spectrum) {
+    title.textContent = 'Gaia XP spectrum unavailable';
+    chartDom.innerHTML = '<div class="empty">No XP_SAMPLED data for this source.</div>';
+    return;
+  }
+
+  title.textContent = `Gaia XP_SAMPLED · ${spectrum.wavelength.length} wavelength points`;
+  chartDom.innerHTML = '';
+  const displayFlux = spectrum.flux.map(v => v == null ? null : v * 1e17);
+  const displayError = spectrum.flux_error.map(v => v == null ? null : v * 1e17);
+  const lower = displayFlux.map((v, i) =>
+    v == null ? null : v - (displayError[i] || 0));
+  const band = displayError.map(v => v == null ? null : 2 * v);
+  spectrumChart = echarts.init(chartDom);
+  spectrumChart.setOption({
+    animation:false,
+    tooltip:{trigger:'axis', formatter: params => {
+      const i = params[0].dataIndex;
+      const flux = displayFlux[i];
+      const err = displayError[i];
+      return `${spectrum.wavelength[i].toFixed(1)} nm<br/>Flux: ${flux == null ? '—' : flux.toFixed(3)} × 10⁻¹⁷` +
+             (err == null ? '' : `<br/>Error: ${err.toFixed(3)} × 10⁻¹⁷`);
+    }},
+    grid:{left:96,right:18,top:12,bottom:42},
+    xAxis:{type:'category',data:spectrum.wavelength,boundaryGap:false,
+      name:'Wavelength [nm]',nameLocation:'middle',nameGap:28,
+      axisLabel:{color:'#94a3b8',formatter:(v,i)=>i%40===0?Number(v).toFixed(0):''},axisLine:AXIS_LINE},
+    yAxis:{type:'value',scale:true,name:'Flux [10⁻¹⁷ W m⁻² nm⁻¹]',
+      nameLocation:'middle',nameGap:72,nameRotate:90,nameTextStyle:{color:'#94a3b8'},
+      axisLabel:{color:'#94a3b8'},splitLine:SPLIT},
+    series:[
+      {type:'line',data:lower,stack:'xp-error',symbol:'none',lineStyle:{opacity:0},areaStyle:{opacity:0}},
+      {type:'line',data:band,stack:'xp-error',symbol:'none',lineStyle:{opacity:0},areaStyle:{color:'rgba(96,165,250,0.25)'}},
+      {name:'Flux',type:'line',data:displayFlux,symbol:'none',lineStyle:{color:'#60a5fa',width:1.4}},
+    ],
+  });
+}
+
 function showSourceFocus(srcId) {
   const s = SRC_BY_ID[srcId];
   if (!s) return;
@@ -438,11 +506,12 @@ function showSourceFocus(srcId) {
   document.getElementById('focus-source-meta').innerHTML =
     `<div class="title"><b>${s.label}</b><span class="gid">Gaia DR3 ${s.id}</span></div>` +
     astrometryGrid(s);
+  renderSpectrum(s);
   const papers = DATA.edges.filter(e => e.source_id === srcId).map(e => PAPERS_BY_BIB[e.bibcode]).filter(Boolean);
   papers.sort((a,b) => (b.year||0) - (a.year||0));
   const ul = document.getElementById('focus-source-list');
-  if (!papers.length) { ul.innerHTML = '<div class="empty">No papers linked.</div>'; return; }
-  ul.innerHTML = papers.slice(0, 50).map(p => {
+  if (!papers.length) ul.innerHTML = '<div class="empty">No papers linked.</div>';
+  else ul.innerHTML = papers.slice(0, 50).map(p => {
     const label = p.arxiv_id || p.bibcode.slice(0, 22);
     const title = (p.title||'').slice(0, 90);
     const year = p.year ? `<span class="year">${p.year}</span>` : '';
@@ -496,7 +565,7 @@ function flashError(msg) {
 document.getElementById('go-src').addEventListener('click', () => {
   const q = document.getElementById('q-src').value.trim();
   if (!q) { flashError('Enter a Gaia source_id'); return; }
-  const id = q.replace(/^Gaia\s*DR3\s*/i, '').trim();
+  const id = q.replace(/^Gaia\\s*DR3\\s*/i, '').trim();
   if (SRC_BY_ID[id]) { showSourceFocus(id); flashError(''); }
   else flashError('Source ' + q + ' not in catalog');
 });
@@ -546,6 +615,7 @@ def build_overview_html(
     inline_echarts: bool = False,
     echarts_path: Path | str | None = None,
     corpus_name: Optional[str] = None,
+    spectra_dir: Path | str | None = None,
 ) -> Path:
     """Top-level entry: read corpus inputs, write the HTML, return its path.
 
@@ -569,7 +639,7 @@ def build_overview_html(
         ``data/orion_onc/source_paper_viz.html`` becomes "orion_onc ...").
     """
     out = Path(output_path)
-    catalog = pd.read_csv(catalog_path)
+    catalog = pd.read_csv(catalog_path, dtype={GAIA_ID_COL: str})
     edges = pd.read_parquet(edges_path)
 
     if corpus_name is None:
@@ -578,10 +648,30 @@ def build_overview_html(
     # Bring a per-source display name from the edges' main_id, if available.
     if name_col == NAME_FALLBACK and NAME_FALLBACK in edges.columns:
         main_map = edges.drop_duplicates("source_id").set_index("source_id")["main_id"]
+        main_map.index = main_map.index.astype(str)
         catalog = catalog.copy()
         catalog[NAME_FALLBACK] = catalog[GAIA_ID_COL].astype(str).map(main_map).fillna("")
 
-    payload = compute_overview(catalog, edges, name_col=name_col)
+    spectra_by_source: dict[str, dict] = {}
+    if spectra_dir:
+        from astro_pipeline.spectra import read_xp_sampled
+
+        spectrum_root = Path(spectra_dir)
+        for gaia_id in catalog[GAIA_ID_COL].astype(str):
+            spectrum_path = spectrum_root / f"{gaia_id}.fits"
+            if not spectrum_path.exists():
+                continue
+            try:
+                spectra_by_source[gaia_id] = read_xp_sampled(spectrum_path)
+            except ValueError:
+                continue
+
+    payload = compute_overview(
+        catalog,
+        edges,
+        name_col=name_col,
+        spectra_by_source=spectra_by_source,
+    )
     html = render_html(payload, corpus_name=corpus_name)
 
     if inline_echarts:
