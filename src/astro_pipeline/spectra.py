@@ -33,6 +33,12 @@ logger = logging.getLogger(__name__)
 CONTINUOUS_SUBDIR = "gaia_xp_continuous"
 SAMPLED_SUBDIR = "gaia_xp_sampled"
 PNG_SUBDIR = "gaia_xp_png"
+XP_SAMPLED_WAVELENGTH_NM = np.arange(336.0, 1021.0, 2.0)
+
+
+def _json_float_list(values: Any) -> list[float | None]:
+    array = np.asarray(values, dtype=float)
+    return [float(value) if np.isfinite(value) else None for value in array]
 
 
 # --------------------------------------------------------------------- fetch
@@ -102,32 +108,31 @@ def _download_via_datalink(
     out_dir.mkdir(parents=True, exist_ok=True)
     dl = Gaia.load_data(
         ids=source_ids,
-        data_release="DR3",
+        data_release="Gaia DR3",
         data_structure="RAW",
         retrieval_type=retrieval_type,
         format="fits",
     )
     for _key, tables in (dl or {}).items():
         for table in tables:
-            try:
-                data = table.data if hasattr(table, "data") else table[1].data
-                sid = str(data["source_id"][0]) if "source_id" in data.columns.names else None
-            except Exception:
-                sid = None
-            if not sid:
-                continue
-            from astropy.io import fits as afits
+            from astropy.table import Table
 
-            out = out_dir / f"{sid}.fits"
-            if hasattr(table, "writeto"):
-                table.writeto(str(out), overwrite=True)
-            else:
-                afits.writeto(str(out), table.data, overwrite=True)
+            if not isinstance(table, Table):
+                table = Table(table)
+            names = {name.lower(): name for name in table.colnames}
+            sid_col = names.get("source_id") or names.get("sourceid")
+            if not sid_col:
+                continue
+            for row_index in range(len(table)):
+                sid = str(table[sid_col][row_index])
+                table[row_index : row_index + 1].write(
+                    str(out_dir / f"{sid}.fits"), format="fits", overwrite=True,
+                )
 
 
 # --------------------------------------------------------------------- read
 def read_xp_continuous(fits_path: Path | str) -> dict:
-    """Parse an XP_CONTINUOUS FITS via gaiaxpy; return sampled BP/RP arrays.
+    """Parse an XP_CONTINUOUS FITS via gaiaxpy on a common wavelength grid.
 
     Uses gaiaxpy.calibrate to reconstruct the absolute-flux spectrum from
     basis-function coefficients. Output is uniformly sampled to a default
@@ -135,57 +140,112 @@ def read_xp_continuous(fits_path: Path | str) -> dict:
     """
     from gaiaxpy import calibrate  # local import: heavy
 
-    sampled, _sampling = calibrate(str(fits_path))
+    sampled, sampling = calibrate(str(fits_path), save_file=False)
     if len(sampled) == 0:
         raise ValueError(f"gaiaxpy returned no spectra for {fits_path}")
 
-    # gaiaxpy returns one row per source with 'bp' and 'rp' columns holding
-    # arrays of (wavelength, flux).
     row = sampled.iloc[0]
     return {
         "format": "continuous",
         "source_id": str(row.get("source_id", "")),
-        "bp_wavelength": np.asarray(row["bp"]["wavelength"]).tolist(),
-        "bp_flux": np.asarray(row["bp"]["flux"]).tolist(),
-        "rp_wavelength": np.asarray(row["rp"]["wavelength"]).tolist(),
-        "rp_flux": np.asarray(row["rp"]["flux"]).tolist(),
+        "wavelength": _json_float_list(sampling),
+        "flux": _json_float_list(row["flux"]),
+        "flux_error": _json_float_list(row["flux_error"]),
     }
 
 
-def read_xp_sampled(fits_path: Path | str) -> dict:
-    """Parse an XP_SAMPLED FITS as written by astroquery/Gaia DataLink.
+def read_xp_continuous_params(fits_path: Path | str) -> dict:
+    """Extract coefficients, errors, and quality params from XP_CONTINUOUS FITS."""
+    from astropy.table import Table
 
-    Each file is one BinTable HDU per source with columns ``source_id``,
-    ``bp_wavelength``, ``bp_flux``, ``rp_wavelength``, ``rp_flux`` (float
-    arrays). Tolerates column-name variation.
-    """
-    from astropy.io import fits as afits
-
-    with afits.open(str(fits_path)) as hdul:
-        # Find the BinTable that has wavelength/flux columns.
-        for hdu in hdul:
-            if not hasattr(hdu, "columns"):
-                continue
-            names = {n.lower(): n for n in hdu.columns.names}
-            bp_wl = names.get("bp_wavelength")
-            bp_fx = names.get("bp_flux")
-            rp_wl = names.get("rp_wavelength")
-            rp_fx = names.get("rp_flux")
-            if not (bp_wl and bp_fx and rp_wl and rp_fx):
-                continue
-            sid_col = names.get("source_id")
-            data = hdu.data
-            return {
-                "format": "sampled",
-                "source_id": str(data[sid_col][0]) if sid_col else "",
-                "bp_wavelength": np.asarray(data[bp_wl][0]).tolist(),
-                "bp_flux": np.asarray(data[bp_fx][0]).tolist(),
-                "rp_wavelength": np.asarray(data[rp_wl][0]).tolist(),
-                "rp_flux": np.asarray(data[rp_fx][0]).tolist(),
-            }
-    raise ValueError(
-        f"No HDU with bp_wavelength/bp_flux/rp_wavelength/rp_flux in {fits_path}"
+    table = Table.read(str(fits_path), format="fits")
+    if len(table) == 0:
+        raise ValueError(f"Empty XP_CONTINUOUS table in {fits_path}")
+    names = {name.lower(): name for name in table.colnames}
+    sid_col = names.get("source_id") or names.get("sourceid")
+    required = (
+        "bp_coefficients", "bp_coefficient_errors",
+        "rp_coefficients", "rp_coefficient_errors",
     )
+    missing = [column for column in required if column not in names]
+    if missing:
+        raise ValueError(f"Missing XP_CONTINUOUS columns in {fits_path}: {missing}")
+
+    return {
+        "format": "continuous",
+        "source_id": str(table[sid_col][0]) if sid_col else "",
+        "bp_coefficients": _json_float_list(table[names["bp_coefficients"]][0]),
+        "bp_coefficient_errors": _json_float_list(table[names["bp_coefficient_errors"]][0]),
+        "rp_coefficients": _json_float_list(table[names["rp_coefficients"]][0]),
+        "rp_coefficient_errors": _json_float_list(table[names["rp_coefficient_errors"]][0]),
+        "quality": {
+            column: _first_numeric(table, column)
+            for column in (
+                "bp_basis_function_id", "bp_degrees_of_freedom", "bp_n_parameters",
+                "bp_n_measurements", "bp_n_rejected_measurements",
+                "bp_standard_deviation", "bp_chi_squared", "bp_n_relevant_bases",
+                "bp_relative_shrinking", "rp_basis_function_id",
+                "rp_degrees_of_freedom", "rp_n_parameters", "rp_n_measurements",
+                "rp_n_rejected_measurements", "rp_standard_deviation",
+                "rp_chi_squared", "rp_n_relevant_bases", "rp_relative_shrinking",
+            )
+        },
+    }
+
+
+def _first_numeric(table, col_name_lower: str, default=None):
+    names = {name.lower(): name for name in table.colnames}
+    col = names.get(col_name_lower)
+    if not col:
+        return default
+    val = table[col][0]
+    if isinstance(val, (np.integer, int)):
+        return int(val)
+    if isinstance(val, (np.floating, float)):
+        return float(val) if np.isfinite(float(val)) else default
+    return default
+
+
+def read_xp_sampled(fits_path: Path | str) -> dict:
+    """Parse an XP_SAMPLED FITS produced by Gaia DataLink RAW serialization."""
+    from astropy.table import Table
+
+    table = Table.read(str(fits_path), format="fits")
+    names = {name.lower(): name for name in table.colnames}
+    flux_col = names.get("flux")
+    error_col = names.get("flux_error")
+    if not flux_col or not error_col or len(table) == 0:
+        raise ValueError(f"No flux/flux_error arrays in {fits_path}")
+
+    first_flux = table[flux_col][0]
+    if np.ndim(first_flux) > 0:
+        flux = np.asarray(first_flux, dtype=float)
+        flux_error = np.asarray(table[error_col][0], dtype=float)
+    else:
+        flux = np.asarray(table[flux_col], dtype=float)
+        flux_error = np.asarray(table[error_col], dtype=float)
+
+    wavelength_col = names.get("wavelength")
+    if wavelength_col:
+        first_wavelength = table[wavelength_col][0]
+        wavelength = (
+            np.asarray(first_wavelength, dtype=float)
+            if np.ndim(first_wavelength) > 0
+            else np.asarray(table[wavelength_col], dtype=float)
+        )
+    elif len(flux) == len(XP_SAMPLED_WAVELENGTH_NM):
+        wavelength = XP_SAMPLED_WAVELENGTH_NM
+    else:
+        wavelength = np.linspace(336.0, 1020.0, len(flux))
+
+    sid_col = names.get("source_id") or names.get("sourceid")
+    return {
+        "format": "sampled",
+        "source_id": str(table[sid_col][0]) if sid_col else "",
+        "wavelength": _json_float_list(wavelength),
+        "flux": _json_float_list(flux),
+        "flux_error": _json_float_list(flux_error),
+    }
 
 
 def read_xp_spectrum(spec_meta: dict) -> dict:
@@ -200,7 +260,7 @@ def read_xp_spectrum(spec_meta: dict) -> dict:
 
 # --------------------------------------------------------------------- plot
 def render_xp_plot(spectrum: dict, out_path: Path | str, *, title: Optional[str] = None) -> Path:
-    """Render BP/RP spectrum to a PNG file. Returns the PNG path."""
+    """Render a sampled XP spectrum to a PNG file. Returns the PNG path."""
     import matplotlib
     matplotlib.use("Agg")  # headless backend (server context)
     import matplotlib.pyplot as plt
@@ -210,18 +270,20 @@ def render_xp_plot(spectrum: dict, out_path: Path | str, *, title: Optional[str]
 
     fig, ax = plt.subplots(figsize=(10, 4), dpi=110)
 
-    bp_wl = np.asarray(spectrum.get("bp_wavelength", []))
-    bp_fx = np.asarray(spectrum.get("bp_flux", []))
-    rp_wl = np.asarray(spectrum.get("rp_wavelength", []))
-    rp_fx = np.asarray(spectrum.get("rp_flux", []))
+    wavelength = np.asarray(spectrum.get("wavelength", []), dtype=float)
+    flux = np.asarray(spectrum.get("flux", []), dtype=float)
+    flux_error = np.asarray(spectrum.get("flux_error", []), dtype=float)
 
-    if bp_wl.size:
-        ax.plot(bp_wl, bp_fx, color="#3b82f6", lw=0.8, label="BP", alpha=0.85)
-    if rp_wl.size:
-        ax.plot(rp_wl, rp_fx, color="#ef4444", lw=0.8, label="RP", alpha=0.85)
+    if wavelength.size:
+        ax.plot(wavelength, flux, color="#60a5fa", lw=1.0, label="XP sampled")
+        if flux_error.size == flux.size:
+            ax.fill_between(
+                wavelength, flux - flux_error, flux + flux_error,
+                color="#60a5fa", alpha=0.2, linewidth=0,
+            )
 
     ax.set_xlabel("Wavelength [nm]")
-    ax.set_ylabel(r"Flux [$10^{-17}$ W m$^{-2}$ nm$^{-1}$]")
+    ax.set_ylabel(r"Flux [W m$^{-2}$ nm$^{-1}$]")
     ax.set_xlim(330, 1100)
     ax.legend(loc="upper right", framealpha=0.9)
     ax.grid(alpha=0.25)
@@ -253,7 +315,7 @@ def get_xp_spectrum_png(
     Returns
     -------
     dict with: url (file://), format, cached (PNG), path_png, gaia_id,
-    bp_n_points, rp_n_points. On failure: {"error": str}.
+    n_points. On failure: {"error": str}.
 
     PNG rendering is cached at ``cache_dir/gaia_xp_png/<gaia_id>.png``.
     Pass ``force_refresh=True`` to overwrite.
@@ -276,14 +338,15 @@ def get_xp_spectrum_png(
     except Exception as e:
         return {"error": f"plot render failed: {e}", "gaia_id": gaia_id}
 
-    return _png_result(gaia_id, png_path, format=spectrum["format"], cached=False,
-                       bp_n=len(spectrum.get("bp_wavelength", [])),
-                       rp_n=len(spectrum.get("rp_wavelength", [])))
+    return _png_result(
+        gaia_id, png_path, format=spectrum["format"], cached=False,
+        n_points=len(spectrum.get("wavelength", [])),
+    )
 
 
 def _png_result(
     gaia_id: str, png_path: Path, *, format: str, cached: bool,
-    bp_n: int = 0, rp_n: int = 0,
+    n_points: int = 0,
 ) -> dict:
     return {
         "gaia_id": gaia_id,
@@ -291,6 +354,5 @@ def _png_result(
         "format": format,
         "cached": cached,
         "path_png": str(png_path),
-        "bp_n_points": bp_n,
-        "rp_n_points": rp_n,
+        "n_points": n_points,
     }

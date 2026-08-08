@@ -39,6 +39,10 @@ def main() -> None:
     ap.add_argument("--corpus-name", type=str, default=None,
                     help="Override the corpus name shown in <title>/<h1> "
                          "(default: derived from output directory name).")
+    ap.add_argument(
+        "--spectra-dir", type=Path, default=DATA / "gaia_xp_sampled",
+        help="Directory containing <source_id>.fits XP_SAMPLED files.",
+    )
     args = ap.parse_args()
 
     if not args.catalog.exists():
@@ -62,6 +66,7 @@ def main() -> None:
         edges_path=args.edges,
         inline_echarts=args.inline,
         corpus_name=corpus_name,
+        spectra_dir=args.spectra_dir,
     )
     logger.info("Wrote %s (%.1f KB)%s", out, out.stat().st_size / 1024,
                 " [self-contained]" if args.inline else "")

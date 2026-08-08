@@ -1,9 +1,9 @@
 # astro-pipeline 详细说明
 
-> **版本 0.2.1（2026-06-28）** — v0.2 双向「源 ↔ 论文」查询 API 之上新增 arxiv_id
-> 反向解析（76% 覆盖率，修复 `corpus paper <arxiv_id>` 路径）和交互式 corpus 可视化
-> （`astro_pipeline.viz`）；按当前阶段需求，开发主线收窄至 **Gaia + arXiv**，LAMOST/SDSS
-> 适配保留可用但暂不投入新开发。详见 [CHANGELOG.md](CHANGELOG.md)。
+> **版本 0.3.0（2026-08-05）** — TWA corpus 新增 Gaia DR3 XP Sampled/Continuous
+> 可续跑下载、光谱与质量字段 JSONL 导出，以及带不确定度的交互式 BP/RP 光谱展示。
+> 开发主线继续聚焦 **Gaia + arXiv**；LAMOST/SDSS 适配保留可用但暂不投入新开发。
+> 详见 [CHANGELOG.md](CHANGELOG.md)。
 
 ---
 
@@ -31,13 +31,13 @@
 
 ## 2. 当前实现状态
 
-当前代码已经实现了一个多数据源的最小可用框架。**v0.2.1 起开发主线收窄至 Gaia + arXiv**——LAMOST/SDSS 适配仍可调用、corpus 查询里继续以降级方式返回（`status="unavailable"`），但不在近期开发计划内。
+当前代码已经实现了一个多数据源的最小可用框架。**v0.2.1 起开发主线收窄至 Gaia + arXiv**——LAMOST/SDSS 适配仍可调用、corpus 查询里继续以降级方式返回（`status="unavailable"`），但不在近期开发计划内。v0.3.0 补齐 Gaia XP Sampled/Continuous 的下载、解析、导出和展示链路。
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
 | Gaia DR3 星表查询 | 已实现 | 通过 `astroquery.gaia` 和 ADQL 查询 `gaiadr3.gaia_source` |
-| Gaia XP 光谱源筛选 | 已实现 | 筛选 `has_xp_sampled = true` |
-| Gaia XP 光谱下载 | 已实现 | 通过 Gaia DataLink 获取 BP/RP sampled spectra 的 FITS |
+| Gaia XP 光谱源筛选 | 已实现 | 分别使用 `has_xp_sampled` 和 `has_xp_continuous` 标志 |
+| Gaia XP 光谱下载 | 已实现 | 通过 Gaia DataLink 获取 BP/RP Sampled/Continuous FITS，支持分批与 checkpoint |
 | LAMOST DR11 星表查询 | 已实现 · 暂缓 | 通过 VizieR 查询 LRS 星表；v0.2.1 起不在主线 |
 | LAMOST 光谱下载 | 已实现 · 暂缓 | 按 `obsid` 下载 FITS；v0.2.1 起不在主线 |
 | SDSS DR17 星表查询 | 已实现 · 暂缓 | 通过 `astroquery.sdss` 查询 PhotoObj 与 SpecObj JOIN |
@@ -49,7 +49,7 @@
 | 网络重试 | 已实现 | `tenacity` 指数退避重试 |
 | 双向「源↔论文」语料库 API | 已实现 | `astro_pipeline.corpus`：源→论文 + 论文→源，SIMBAD 权威书目 |
 | arxiv_id 反向解析 | 已实现 | DOI→arXiv 批量 API，76% 覆盖（v0.2.1 修复） |
-| corpus 可视化 | 已实现 | `astro_pipeline.viz`：6 张概览图 + 搜索/点击 focus |
+| corpus 可视化 | 已实现 | `astro_pipeline.viz`：6 张概览图 + 搜索/点击 focus + XP 光谱面板 |
 | cross-match 引擎 | 未实现 | 当前只有各数据源独立查询/下载 |
 | 质量控制模块 | 未实现 | 质量过滤目前散落在查询条件或文档建议中 |
 | 光谱分析模块 | 未实现 | 尚未提取等值宽度、S/N、恒星参数等统一特征 |
@@ -87,6 +87,7 @@ astro-pipeline/
   src/astro_pipeline/
     config.py               # Pydantic 配置模型
     retry.py                # 网络重试策略
+    spectra.py              # Gaia XP Sampled/Continuous 解析与 PNG 渲染
     corpus.py               # 【v0.2】双向「源↔论文」查询 API + CLI
     models/
       query.py              # 查询输入模型
@@ -104,17 +105,20 @@ astro-pipeline/
       external.py           # 外部星表（如 TWAxgdr3.csv）加载
       simbad_refs.py        # 【v0.2】SIMBAD 权威书目 -> 论文边
       arxiv_search.py       # arXiv 关键词检索（仅用于发现，不作归属）
-    viz/                    # 【v0.2.1】交互式 corpus 可视化
-      source_paper.py       #   源↔论文 HTML 概览生成器（6 张图 + focus）
+    viz/                    # 交互式 corpus 可视化
+      source_paper.py       #   源↔论文概览（6 张图 + focus + XP 光谱）
   scripts/
     build_twa_paper_edges.py # 【v0.2】重建 TWA 论文边表（两阶段、可续跑）
     resolve_arxiv_ids.py    # 【v0.2.1】批量 arXiv DOI -> arxiv_id 反查（~11 min/3k 篇）
     build_viz.py            # 【v0.2.1】重生成 data/twa/source_paper_viz.html
     export_jsonl.py         # 【v0.2.1】corpus → 简化 schema JSONL 导出
+    download_twa_xp.py      # 【v0.3.0】下载 TWA XP Sampled FITS
+    download_twa_xp_continuous.py # 【v0.3.0】分批下载 TWA XP Continuous FITS
   examples/
     twa_sample.py           # TWA 端到端 demo（SIMBAD 关联 + 正确标志）
   tests/
     test_gaia.py            # Gaia 小样本查询测试
+    test_spectra_viz.py     # XP 解析、JSONL 与可视化回归测试
     test_lamost.py          # LAMOST 小样本查询测试
     test_sdss.py            # SDSS 小样本查询测试
     test_exporter_idcol.py  # 【v0.2】多模态 id 列回归测试
@@ -241,10 +245,11 @@ SDSS：
 Gaia XP 光谱：
 
 1. 输入 `source_id` 列表或包含 `source_id` 的 DataFrame。
-2. 每 5000 个源分批调用 `Gaia.load_data()`。
-3. retrieval type 使用 `XP_SAMPLED`。
-4. 保存为 `gaia_xp_{source_id}.fits`。
-5. 记录 checkpoint。
+2. 选择 `XP_SAMPLED` 或 `XP_CONTINUOUS` retrieval type。
+3. 按配置分批调用 `Gaia.load_data()`；TWA Continuous 脚本默认每批 5 个源。
+4. 分别保存到 `gaia_xp_sampled/<source_id>.fits` 或
+   `gaia_xp_continuous/<source_id>.fits`。
+5. 每批更新 checkpoint，失败后重跑会跳过已完成源。
 
 LAMOST 光谱：
 
@@ -388,7 +393,7 @@ python scripts/resolve_arxiv_ids.py
 # 走单 DOI 串行查询 + SIMBAD 重查，~2.6 h/3k 篇，已被 resolve_arxiv_ids.py 取代
 ```
 
-## 7.6 corpus 可视化（v0.2.1）
+## 7.6 corpus 可视化（v0.3.0）
 
 `astro_pipeline.viz.build_overview_html` 把 corpus 数据渲染成一个独立的 HTML
 页面（默认 `data/twa/source_paper_viz.html`），完全离线、可邮件附件分发。
@@ -401,6 +406,10 @@ Top 15 论文 × 覆盖源数、arXiv 覆盖率环形、论文年份分布、源
 - 搜索框：输入 Gaia `source_id`（支持 `Gaia DR3 X` 前缀）→ 该源的论文列表；或
   输入 `arxiv_id` / `bibcode` / 唯一 title 子串 → 该论文的源列表。
 - 点击交互：在天空图、横条图、二分图上点击任意节点 → focus 面板同步刷新。
+
+源 focus 面板还会读取 `data/twa/gaia_xp_sampled/<source_id>.fits`，展示 BP/RP
+波长-流量曲线和 flux uncertainty 阴影。没有本地缓存时，页面明确显示 XP 不可用，
+不影响其他 corpus 图表和查询。
 
 **重新生成**：
 
@@ -538,7 +547,7 @@ crossmatch/
 
 `scripts/export_jsonl.py` 已实现一个**简化 schema** 的 JSONL 导出（每行一个 Gaia 源）。下游 schema 约定明确后会在 `to_record()` 适配层里调整，不影响上游。
 
-**当前 schema**（v0.2.1 实现，对应 `data/twa/twa_corpus.jsonl`）：
+**当前 schema**（v0.3.0 实现，对应 `data/twa/twa_corpus.jsonl`）：
 
 ```json
 {
@@ -552,7 +561,27 @@ crossmatch/
   "pm_ra_masyr": -68.31,
   "pm_dec_masyr": -13.90,
   "multimodal": {
-    "gaia_xp": true,
+    "gaia_xp": {
+      "sampled": {
+        "available": true,
+        "cached": true,
+        "retrieval_type": "XP_SAMPLED",
+        "datalink_url": "https://gea.esac.esa.int/data-server/datalink/links?...",
+        "path": "gaia_xp_sampled/<source_id>.fits",
+        "n_points": 343
+      },
+      "continuous": {
+        "available": true,
+        "cached": true,
+        "retrieval_type": "XP_CONTINUOUS",
+        "bp_coefficients": ["55 coefficients"],
+        "bp_coefficient_errors": ["55 errors"],
+        "rp_coefficients": ["55 coefficients"],
+        "rp_coefficient_errors": ["55 errors"],
+        "quality": {"bp_n_relevant_bases": 20, "rp_n_relevant_bases": 16},
+        "path": "gaia_xp_continuous/<source_id>.fits"
+      }
+    },
     "lamost": false,
     "sdss": false
   },
@@ -562,7 +591,7 @@ crossmatch/
      "year": 2023, "url": "https://arxiv.org/abs/2305.03557"}
   ],
   "n_papers": 2154,
-  "provenance": {"pipeline_version": "0.2.1"}
+  "provenance": {"pipeline_version": "0.3.0"}
 }
 ```
 
@@ -572,7 +601,7 @@ crossmatch/
 - 恒星参数：Teff / logg / [Fe/H]（Gaia DU 译文已存）
 - 视向速度：`RV_gdr3` / `e_RV_gdr3`
 - 质量标志：`astrometry_ok`（RUWE<1.4 等）、`photometry_ok`
-- 谱数据路径：`spectra: {gaia_xp: "path.fits", ...}`（避免 base64 内联膨胀）
+- Gaia XP 的完整相关矩阵继续保留在原始 FITS 中，不重复膨胀 JSONL。
 
 这个结构的核心原则：
 
@@ -648,17 +677,17 @@ v0.2 已修复其中数项（见下表「状态」列）。剩余项为后续改
 | Pipeline 代码 | `src/astro_pipeline/` | 能查询 Gaia/LAMOST/SDSS 小样本 |
 | 配置文件 | `config/*.yaml` | 可切换数据目录、网络参数、数据源版本 |
 | 双向 corpus API | `astro_pipeline.corpus` CLI/Python | `source/paper/summary` 三个子命令端到端可用 |
-| 交互式可视化 | `data/twa/source_paper_viz*.html` | 6 张图 + 搜索/点击 focus + 完整天测面板 |
+| 交互式可视化 | `data/twa/source_paper_viz*.html` | 6 张图 + 搜索/点击 focus + 天测与 XP 光谱面板 |
 | JSONL 语料导出 | `data/twa/twa_corpus.jsonl` | 67 源、每行 schema 见 §8.5 |
 | SIMBAD 论文边表 | `data/twa/paper_edges.parquet` | 6505 边、76% 有 arxiv_id |
-| 离线测试套件 | `tests/` | `pytest -q` 全过（当前 40 个） |
+| 离线测试套件 | `tests/` | `pytest -q` 全过（当前 57 个，另有 5 个显式排除） |
 | 说明文档 | 本 README + `CHANGELOG.md` | 新人能理解架构和下一步 |
 
 > 注：`data/` 目录被 `.gitignore` 排除（数据可重生），新合作者 clone 后需要按 §13 跑一次 bootstrap 才能复现上述文件。
 
 ## 12. 一句话总结
 
-`astro-pipeline` 的本质是把 Gaia、LAMOST、SDSS 这些"人类天文学家会用、但大模型不会直接用"的公开档案库，包装成一套统一的查询、下载、清洗、匹配和导出工作流。**当前阶段（v0.2.1）聚焦 Gaia + arXiv 链路**：数据获取骨架、双向「源↔论文」查询 API、批量 arxiv_id 反查、交互式可视化和简化 schema JSONL 导出已就绪；下一步关键是补上质量控制、统一知识表 schema 扩展（恒星参数 / 视向速度 / 谱数据路径），待下游 spec 约定后固化。
+`astro-pipeline` 的本质是把 Gaia、LAMOST、SDSS 这些"人类天文学家会用、但大模型不会直接用"的公开档案库，包装成一套统一的查询、下载、清洗、匹配和导出工作流。**当前阶段（v0.3.0）聚焦 Gaia + arXiv 链路**：数据获取骨架、双向「源↔论文」查询 API、批量 arxiv_id 反查、Gaia XP Sampled/Continuous、交互式可视化和 JSONL 导出已就绪；下一步关键是补上统一质量控制与科学特征提取。
 
 ## 13. 新合作者上手（bootstrap）
 
@@ -670,7 +699,7 @@ v0.2 已修复其中数项（见下表「状态」列）。剩余项为后续改
 git clone <repo>
 cd astro-pipeline
 uv sync                              # 装依赖
-uv run pytest -q                     # 离线测试，应 40/40 通过
+uv run pytest -q                     # 离线测试，应 57 passed, 5 deselected
 ```
 
 ### 13.2 获取 TWA 输入星表
@@ -689,8 +718,9 @@ python scripts/build_twa_paper_edges.py
 # 2) 反查 arxiv_id（~11 min，受 arXiv 限流）
 python scripts/resolve_arxiv_ids.py
 
-# 3)（可选）下载 Gaia/LAMOST 光谱样本
-python examples/twa_sample.py
+# 3) 下载 Gaia XP Sampled 与 Continuous
+python scripts/download_twa_xp.py
+python scripts/download_twa_xp_continuous.py
 
 # 4) 生成可视化 + JSONL
 python scripts/build_viz.py
@@ -727,7 +757,7 @@ python scripts/export_jsonl.py
 
 启动时加载 TWA corpus 一次（~1s），之后离线工具毫秒响应，在线工具 2-5 秒。
 
-`gaia_xp_spectrum` 渲染给定源的 BP/RP 光谱图并返回 `file://` URL；优先用 XP_CONTINUOUS 缓存，回退 XP_SAMPLED。需要先用 `examples/twa_sample.py`（或 Gaia 认证后直接下载）填充 `data_dir/gaia_xp_continuous/` 或 `data_dir/gaia_xp_sampled/`。
+`gaia_xp_spectrum` 渲染给定源的 BP/RP 光谱图并返回 `file://` URL；优先用 XP_CONTINUOUS 缓存，回退 XP_SAMPLED。按 §13.3 运行 `scripts/download_twa_xp.py` 和 `scripts/download_twa_xp_continuous.py`，即可填充 `data_dir/gaia_xp_sampled/` 与 `data_dir/gaia_xp_continuous/`。
 
 ### 14.2 在 Claude Code 里使用（开箱即用）
 

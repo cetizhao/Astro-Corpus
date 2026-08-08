@@ -3,6 +3,42 @@
 All notable changes to this project are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] — 2026-08-05
+
+### Summary
+Adds reproducible Gaia DR3 XP Sampled and XP Continuous acquisition to the TWA
+corpus, exposes the cached spectra in the standalone HTML visualization, and
+exports the XP products and quality metadata in the JSONL corpus.
+
+### Added
+- `scripts/download_twa_xp.py` downloads all available TWA XP Sampled products
+  and checkpoints each completed source.
+- `scripts/download_twa_xp_continuous.py` downloads XP Continuous products in
+  small, resumable batches (five sources by default).
+- XP Sampled parsing includes wavelengths, fluxes, and flux uncertainties;
+  XP Continuous parsing includes BP/RP coefficients, coefficient errors, and
+  18 quality fields.
+- The source focus view in the ECharts HTML renders a BP/RP spectrum with an
+  uncertainty band when a cached XP Sampled product is available.
+- Tests cover DataLink batching, Sampled/Continuous parsing, JSONL export, and
+  XP visualization rendering.
+
+### Changed
+- Gaia DataLink downloads now support both `XP_SAMPLED` and `XP_CONTINUOUS`,
+  save products as `<source_id>.fits` in retrieval-specific directories, and
+  persist progress after every batch.
+- The JSONL `multimodal.gaia_xp` record now reports availability, cache state,
+  DataLink resolver URLs, local paths, Sampled point counts, and Continuous
+  coefficients, errors, and quality metadata.
+- TWA column aliases now populate parallax, RUWE, G magnitude, and proper
+  motions from the source catalog.
+
+### Fixed
+- Continuous downloads no longer submit an oversized request before applying
+  the configured batch limit.
+- Checkpoints are written throughout a download instead of only after the full
+  source list completes.
+
 ## [0.2.1] — 2026-06-28
 
 ### Summary
