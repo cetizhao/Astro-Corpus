@@ -336,7 +336,12 @@ def build_paper_edges(
             time.sleep(sleep_seconds)
 
     if not rows:
-        return PaperEdgeTable(), pd.DataFrame(
+        # Empty result must still carry the full schema so downstream (viz,
+        # JSONL) can group by bibcode without KeyError on zero-edge corpora.
+        edge_cols = ["source_id", "arxiv_id", "bibcode", "title", "year", "journal", "doi", "main_id"]
+        edges = PaperEdgeTable()
+        edges.df = pd.DataFrame(columns=edge_cols)
+        return edges, pd.DataFrame(
             columns=["gaia_id", "main_id", "bibcode", "arxiv_id", "title", "year", "journal", "doi"]
         )
 

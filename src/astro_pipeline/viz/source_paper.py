@@ -90,9 +90,12 @@ def compute_overview(
 ) -> dict:
     """Compute the JSON-serializable overview payload from corpus data."""
     edges = edges_df.copy()
+    # Ensure canonical columns exist even for empty/partial edge tables
+    # (a corpus with zero SIMBAD papers otherwise raises KeyError on groupby).
     for col in ("arxiv_id", "bibcode", "title", "doi", "journal"):
-        if col in edges.columns:
-            edges[col] = edges[col].fillna("").astype(str)
+        if col not in edges.columns:
+            edges[col] = ""
+        edges[col] = edges[col].fillna("").astype(str)
     edges["year"] = pd.to_numeric(edges.get("year"), errors="coerce")
 
     # Per-source stats + sky positions
