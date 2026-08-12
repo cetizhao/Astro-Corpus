@@ -51,7 +51,12 @@ class GaiaSource(CatalogSource):
         if extra_columns:
             cols.extend(extra_columns)
         columns = ", ".join(cols)
-        adql = f"SELECT {columns} FROM {self._gaia_config.db_schema}.gaia_source"
+        # Explicit TOP n in the SQL. Gaia.ROW_LIMIT (a module global) is
+        # advisory and not reliably applied by all astroquery versions; an
+        # explicit TOP makes the cap deterministic. Without it, cone queries
+        # over dense fields (e.g. 1 deg at Taurus) return the FULL cone.
+        limit_clause = f" TOP {query.limit}" if query.limit else ""
+        adql = f"SELECT{limit_clause} {columns} FROM {self._gaia_config.db_schema}.gaia_source"
 
         conditions: list[str] = []
         if isinstance(query, ConeSearchQuery):
