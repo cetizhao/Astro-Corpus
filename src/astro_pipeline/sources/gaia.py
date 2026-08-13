@@ -85,7 +85,8 @@ class GaiaSource(CatalogSource):
         query: ConeSearchQuery | ParameterQuery | SourceIdQuery,
         output_path: Optional[Path] = None,
     ) -> CatalogResult:
-        self._ensure_login()
+        # TAP astrometry queries work anonymously; no login needed.
+        # Login is only required for DataLink (download_spectra).
 
         if isinstance(query, SourceIdQuery):
             return self._query_by_ids(query, output_path, extra_columns=None)
@@ -151,7 +152,7 @@ class GaiaSource(CatalogSource):
         output_path: Optional[Path] = None,
     ) -> CatalogResult:
         """Query only sources that have XP (BP/RP) sampled spectra."""
-        self._ensure_login()
+        # TAP query; anonymous access is fine.
         adql = self._build_adql(query, extra_columns=["has_xp_sampled"])
         if "WHERE" in adql:
             adql += " AND has_xp_sampled = 'true'"
@@ -196,7 +197,7 @@ class GaiaSource(CatalogSource):
         output_path: Optional[Path] = None,
         extra_columns: list[str] | None = None,
     ) -> CatalogResult:
-        self._ensure_login()
+        # TAP query; anonymous access is fine.
         cols = list(self._gaia_config.default_columns)
         if extra_columns:
             cols.extend(extra_columns)
