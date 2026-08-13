@@ -16,12 +16,14 @@ link is never lost.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 import pandas as pd
 
@@ -38,6 +40,16 @@ _ARXIV_PLAIN_RE = re.compile(r"^\d{4}\.\d{4,5}$")
 GAIA_ID_COLUMN = "Gaia"
 RA_COLUMN = "RAICRS"
 DEC_COLUMN = "DEICRS"
+REF_COLUMNS = [
+    "gaia_id",
+    "main_id",
+    "bibcode",
+    "arxiv_id",
+    "title",
+    "year",
+    "journal",
+    "doi",
+]
 
 
 @dataclass
@@ -67,6 +79,7 @@ class SourcePapers:
     bibcodes: list[str] = field(default_factory=list)
     papers: list[PaperRecord] = field(default_factory=list)
     resolved: bool = False
+    error: Optional[str] = None
 
 
 def bibcode_to_arxiv(bibcode: str) -> Optional[str]:
@@ -127,7 +140,7 @@ def arxiv_id_from_doi(
 
     params = urllib.parse.urlencode({"search_query": f"doi:{doi}", "max_results": 1})
     url = f"https://export.arxiv.org/api/query?{params}"
-    headers = {"User-Agent": "astro-pipeline/0.2 (mailto:cetizhao@163.com)"}
+    headers = {"User-Agent": "astro-pipeline/0.4 (mailto:cetizhao@163.com)"}
 
     for attempt in range(max_retries):
         try:
@@ -232,6 +245,7 @@ def get_source_bibcodes(gaia_id: str) -> SourcePapers:
         res = simbad.query_object(query)
     except Exception as e:  # network / server error
         logger.warning("SIMBAD query failed for %s: %s", gaia_id, e)
+        sp.error = str(e)
         return sp
     if res is None or len(res) == 0:
         logger.debug("SIMBAD: no entry for Gaia DR3 %s", gaia_id)
@@ -265,6 +279,7 @@ def build_paper_edges(
     cache_path: Optional[Path] = None,
     enrich: bool = True,
     resolve_doi: bool = True,
+    progress_callback: Optional[Callable[[dict[str, Any]], None]] = None,
 ) -> tuple[PaperEdgeTable, pd.DataFrame]:
     """Build authoritative source↔paper edges for a catalog via SIMBAD.
 
@@ -281,82 +296,187 @@ def build_paper_edges(
     catalog_df : catalog with a Gaia source_id column.
     id_col : name of the Gaia source_id column in ``catalog_df``.
     sleep_seconds : pause between SIMBAD requests (be polite to the service).
-    cache_path : if given, the (incrementally updated) reference table is cached
-        here as parquet and re-used on subsequent runs (offline-friendly).
+    cache_path : if given, the incrementally updated reference rows are cached
+        here as Parquet. A sibling ``*.checkpoint.json`` records sources that
+        were queried successfully but had zero references, plus retryable
+        failures. Both are reused on subsequent runs.
     enrich : if False, skip the per-bibcode metadata fetch.
     resolve_doi : if False, skip the (rate-limited) arXiv DOI->id lookup. Set to
         False for a fast first pass; bibcodes/DOIs/titles are still captured.
     """
-    gaia_ids = [str(x) for x in catalog_df[id_col].astype(str).tolist()]
+    gaia_ids = list(dict.fromkeys(str(x) for x in catalog_df[id_col].astype(str)))
+    target_ids = set(gaia_ids)
 
     # ----- Stage 1: source -> bibcodes (cached) -----
-    cached: pd.DataFrame = pd.DataFrame()
-    if cache_path and Path(cache_path).exists():
+    cache = pd.DataFrame(columns=REF_COLUMNS)
+    cache_file = Path(cache_path) if cache_path else None
+    checkpoint_file = _simbad_checkpoint_path(cache_file) if cache_file else None
+    if cache_file and cache_file.exists():
         try:
-            cached = pd.read_parquet(cache_path)
-            logger.info("Loaded %d cached SIMBAD refs from %s", len(cached), cache_path)
+            cache = _normalize_refs(pd.read_parquet(cache_file))
+            logger.info("Loaded %d cached SIMBAD refs from %s", len(cache), cache_file)
         except Exception as e:
             logger.warning("Could not read SIMBAD ref cache: %s", e)
-            cached = pd.DataFrame()
+            cache = pd.DataFrame(columns=REF_COLUMNS)
 
-    rows: list[dict] = []
-    for i, gid in enumerate(gaia_ids, start=1):
-        cached_for_source = (
-            cached[cached["gaia_id"].astype(str) == gid] if not cached.empty else pd.DataFrame()
+    checkpoint = _load_simbad_checkpoint(checkpoint_file)
+    all_completed = {str(value) for value in checkpoint.get("completed", [])}
+    all_failures = {
+        str(key): str(value)
+        for key, value in checkpoint.get("failed", {}).items()
+    }
+    # Old caches predate the checkpoint file. Any source with stored rows was
+    # necessarily queried successfully, so it is safe to infer completion.
+    if not cache.empty:
+        all_completed.update(cache["gaia_id"].dropna().astype(str))
+    completed = all_completed & target_ids
+    failures = {
+        key: value for key, value in all_failures.items() if key in target_ids
+    }
+    for gid in completed:
+        failures.pop(gid, None)
+
+    processed_since_flush = 0
+
+    def flush(*, final: bool = False) -> None:
+        nonlocal processed_since_flush
+        if cache_file is not None:
+            _write_parquet_atomic(_normalize_refs(cache), cache_file)
+        if checkpoint_file is not None:
+            persisted_completed = (all_completed - target_ids) | completed
+            persisted_failures = {
+                key: value
+                for key, value in all_failures.items()
+                if key not in target_ids
+            }
+            persisted_failures.update(failures)
+            _write_simbad_checkpoint(
+                checkpoint_file,
+                completed=persisted_completed,
+                failures=persisted_failures,
+                total=len(persisted_completed | set(persisted_failures) | target_ids),
+            )
+        if progress_callback:
+            progress_callback(
+                {
+                    "status": (
+                        "partial"
+                        if final and failures
+                        else "completed"
+                        if final
+                        else "running"
+                    ),
+                    "total": len(gaia_ids),
+                    "completed": len(completed),
+                    "failed": len(failures),
+                    "remaining": len(target_ids - completed),
+                }
+            )
+        processed_since_flush = 0
+
+    if progress_callback:
+        progress_callback(
+            {
+                "status": "running",
+                "total": len(gaia_ids),
+                "completed": len(completed),
+                "failed": len(failures),
+                "remaining": len(target_ids - completed),
+            }
         )
-        if not cached_for_source.empty:
-            main_id = str(cached_for_source["main_id"].iloc[0])
-            for _, r in cached_for_source.iterrows():
-                rows.append({
-                    "gaia_id": gid, "main_id": main_id,
-                    "bibcode": str(r["bibcode"]),
-                    "arxiv_id": (r.get("arxiv_id") or bibcode_to_arxiv(str(r["bibcode"])) or ""),
-                    "year": r.get("year"),
-                    "journal": r.get("journal", ""),
-                    "title": r.get("title", ""),
-                    "doi": r.get("doi", ""),
-                })
-            continue
 
-        try:
-            sp = get_source_bibcodes(gid)
-        except Exception as e:
-            logger.warning("SIMBAD lookup failed for %s: %s", gid, e)
-            continue
-        for p in sp.papers:
-            rows.append({
-                "gaia_id": gid, "main_id": sp.main_id,
-                "bibcode": p.bibcode, "arxiv_id": p.arxiv_id or "",
-                "year": p.year, "journal": p.journal,
-                "title": "", "doi": "",
-            })
-        if progress_every and i % progress_every == 0:
-            logger.info("SIMBAD progress: %d/%d sources", i, len(gaia_ids))
-        if sleep_seconds:
-            time.sleep(sleep_seconds)
+    try:
+        for gid in gaia_ids:
+            if gid in completed:
+                continue
+            try:
+                sp = get_source_bibcodes(gid)
+            except Exception as exc:
+                logger.warning("SIMBAD lookup failed for %s: %s", gid, exc)
+                sp = SourcePapers(gaia_id=gid, error=str(exc))
 
-    if not rows:
+            if sp.error:
+                failures[gid] = sp.error
+            else:
+                new_rows = [
+                    {
+                        "gaia_id": gid,
+                        "main_id": sp.main_id,
+                        "bibcode": paper.bibcode,
+                        "arxiv_id": paper.arxiv_id or "",
+                        "year": paper.year,
+                        "journal": paper.journal,
+                        "title": paper.title,
+                        "doi": paper.doi,
+                    }
+                    for paper in sp.papers
+                ]
+                if new_rows:
+                    cache = _normalize_refs(
+                        pd.concat([cache, pd.DataFrame(new_rows)], ignore_index=True)
+                    )
+                # A successful query with no SIMBAD object or no bibliography
+                # is still complete. The checkpoint records it without adding
+                # a fake/empty paper row to the training table.
+                completed.add(gid)
+                failures.pop(gid, None)
+
+            processed_since_flush += 1
+            if progress_every and processed_since_flush >= progress_every:
+                flush()
+                logger.info(
+                    "SIMBAD progress: %d/%d sources (%d retryable failures)",
+                    len(completed),
+                    len(gaia_ids),
+                    len(failures),
+                )
+            if sleep_seconds:
+                time.sleep(sleep_seconds)
+    finally:
+        # Cache rows before completion state. If the second atomic replace is
+        # interrupted, a rerun may repeat a query but cannot silently lose rows.
+        if processed_since_flush or cache_file is not None:
+            flush(final=True)
+
+    refs_table = _normalize_refs(
+        cache[cache["gaia_id"].astype(str).isin(target_ids)].copy()
+        if not cache.empty
+        else cache
+    )
+    source_progress = {
+        "total": len(gaia_ids),
+        "completed": len(completed),
+        "failed": len(failures),
+        "remaining": len(target_ids - completed),
+        "checkpoint_path": str(checkpoint_file.resolve()) if checkpoint_file else "",
+    }
+
+    if refs_table.empty:
         # Empty result must still carry the full schema so downstream (viz,
         # JSONL) can group by bibcode without KeyError on zero-edge corpora.
         edge_cols = ["source_id", "arxiv_id", "bibcode", "title", "year", "journal", "doi", "main_id"]
         edges = PaperEdgeTable()
         edges.df = pd.DataFrame(columns=edge_cols)
-        return edges, pd.DataFrame(
-            columns=["gaia_id", "main_id", "bibcode", "arxiv_id", "title", "year", "journal", "doi"]
-        )
+        refs_table.attrs["source_progress"] = source_progress
+        return edges, refs_table
 
-    refs_table = pd.DataFrame(rows)
+    outside_target = (
+        cache[~cache["gaia_id"].astype(str).isin(target_ids)].copy()
+        if not cache.empty
+        else pd.DataFrame(columns=REF_COLUMNS)
+    )
 
     # ----- Stage 2: per-bibcode metadata enrichment (title/DOI/arXiv id) -----
     if enrich:
         refs_table = _enrich_refs_table(
             refs_table, sleep_seconds=sleep_seconds, resolve_doi=resolve_doi,
-            cache_path=cache_path,
+            cache_path=cache_path, preserved_refs=outside_target,
         )
 
     # Persist cache (includes enriched metadata now).
     if cache_path:
-        refs_table.to_parquet(cache_path, index=False)
+        persisted_refs = _merge_ref_frames(outside_target, refs_table)
+        _write_parquet_atomic(persisted_refs, Path(cache_path))
         logger.info("Cached %d SIMBAD refs to %s", len(refs_table), cache_path)
 
     # ----- Build the edge table -----
@@ -372,6 +492,7 @@ def build_paper_edges(
         "Built %d paper edges across %d sources (%d edges have an arXiv id)",
         len(edges), refs_table["gaia_id"].nunique(), n_arxiv,
     )
+    refs_table.attrs["source_progress"] = source_progress
     return edges, refs_table
 
 
@@ -380,6 +501,7 @@ def _enrich_refs_table(
     sleep_seconds: float = 0.3,
     resolve_doi: bool = True,
     cache_path: Optional[Path] = None,
+    preserved_refs: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
     """Fill in title/DOI/arxiv_id for each unique bibcode in ``refs_table``.
 
@@ -388,7 +510,9 @@ def _enrich_refs_table(
     rate-limit interruption is never lost work.
     """
     df = refs_table.copy()
-    need = df[(df["title"].astype(str) == "") | (df["arxiv_id"].astype(str) == "")]
+    need_title = df["title"].astype(str).str.strip() == ""
+    need_arxiv = df["arxiv_id"].astype(str).str.strip() == ""
+    need = df[need_title | (need_arxiv if resolve_doi else False)]
     unique = need["bibcode"].drop_duplicates().tolist()
     if not unique:
         logger.info("All %d bibcodes already enriched; skipping metadata fetch", df["bibcode"].nunique())
@@ -408,12 +532,83 @@ def _enrich_refs_table(
         if i % checkpoint_every == 0:
             df = _apply_meta(df, meta)
             if cache_path:
-                df.to_parquet(cache_path, index=False)
+                _write_parquet_atomic(
+                    _merge_ref_frames(preserved_refs, df), Path(cache_path)
+                )
             logger.info("Enrich progress: %d/%d bibcodes", i, len(unique))
         if sleep_seconds:
             time.sleep(sleep_seconds)
 
     return _apply_meta(df, meta)
+
+
+def _normalize_refs(frame: pd.DataFrame) -> pd.DataFrame:
+    frame = frame.copy()
+    for column in REF_COLUMNS:
+        if column not in frame.columns:
+            frame[column] = None if column == "year" else ""
+    frame = frame[REF_COLUMNS]
+    for column in (set(REF_COLUMNS) - {"year"}):
+        frame[column] = frame[column].fillna("")
+    if not frame.empty:
+        frame["gaia_id"] = frame["gaia_id"].astype(str)
+        frame = frame.drop_duplicates(subset=["gaia_id", "bibcode"], keep="last")
+        frame = frame.reset_index(drop=True)
+    return frame
+
+
+def _merge_ref_frames(*frames: Optional[pd.DataFrame]) -> pd.DataFrame:
+    present = [frame for frame in frames if frame is not None and not frame.empty]
+    if not present:
+        return pd.DataFrame(columns=REF_COLUMNS)
+    return _normalize_refs(pd.concat(present, ignore_index=True))
+
+
+def _simbad_checkpoint_path(cache_path: Path) -> Path:
+    return cache_path.with_name(f"{cache_path.stem}.checkpoint.json")
+
+
+def _load_simbad_checkpoint(path: Optional[Path]) -> dict[str, Any]:
+    if path is None or not path.exists():
+        return {"completed": [], "failed": {}}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("Could not read SIMBAD checkpoint %s: %s", path, exc)
+        return {"completed": [], "failed": {}}
+    if not isinstance(data.get("failed", {}), dict):
+        data["failed"] = {str(value): "previous lookup failed" for value in data["failed"]}
+    return data
+
+
+def _write_simbad_checkpoint(
+    path: Path,
+    *,
+    completed: set[str],
+    failures: dict[str, str],
+    total: int,
+) -> None:
+    payload = {
+        "schema_version": "1.0",
+        "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "total": total,
+        "completed": sorted(completed),
+        "failed": dict(sorted(failures.items())),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(path)
+
+
+def _write_parquet_atomic(frame: pd.DataFrame, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    frame.to_parquet(temporary, index=False)
+    temporary.replace(path)
 
 
 def _apply_meta(df: pd.DataFrame, meta: dict[str, PaperRecord]) -> pd.DataFrame:

@@ -32,16 +32,26 @@ def main() -> None:
                     help=f"Output HTML path (default: {OUTPUT}).")
     ap.add_argument("--catalog", type=Path, default=CATALOG)
     ap.add_argument("--edges", type=Path, default=DATA / "paper_edges.parquet")
-    ap.add_argument("--inline", action="store_true",
-                    help="Inline echarts.min.js into the HTML as a <script> block. "
-                         "Produces a single self-contained file (~2.4 MB) that can "
-                         "be emailed or chatted without bundling other files.")
+    inline_group = ap.add_mutually_exclusive_group()
+    inline_group.add_argument(
+        "--inline",
+        dest="inline",
+        action="store_true",
+        default=True,
+        help="Inline ECharts (default) so the HTML is one self-contained file.",
+    )
+    inline_group.add_argument(
+        "--no-inline",
+        dest="inline",
+        action="store_false",
+        help="Reference a sibling echarts.min.js instead of embedding it.",
+    )
     ap.add_argument("--corpus-name", type=str, default=None,
                     help="Override the corpus name shown in <title>/<h1> "
                          "(default: derived from output directory name).")
     ap.add_argument(
-        "--spectra-dir", type=Path, default=DATA / "gaia_xp_sampled",
-        help="Directory containing <source_id>.fits XP_SAMPLED files.",
+        "--spectra-dir", type=Path, default=DATA,
+        help="Corpus root containing gaia_xp_continuous/ and gaia_xp_sampled/.",
     )
     args = ap.parse_args()
 
@@ -65,6 +75,10 @@ def main() -> None:
         catalog_path=args.catalog,
         edges_path=args.edges,
         inline_echarts=args.inline,
+        echarts_path=(
+            Path(__file__).resolve().parent.parent
+            / "src" / "astro_pipeline" / "viz" / "vendor" / "echarts.min.js"
+        ) if args.inline else None,
         corpus_name=corpus_name,
         spectra_dir=args.spectra_dir,
     )

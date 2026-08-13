@@ -134,6 +134,43 @@ def test_from_cone_truncates_and_warns_when_over_limit(monkeypatch, caplog):
     assert any("truncating to 5" in rec.message for rec in caplog.records)
 
 
+def test_position_catalog_uses_batched_match_and_applies_limit_first(
+    monkeypatch, tmp_path
+):
+    from astro_pipeline import intake
+
+    catalog = tmp_path / "positions.csv"
+    pd.DataFrame(
+        {"RAICRS": [10.0, 11.0, 12.0], "DEICRS": [20.0, 21.0, 22.0]}
+    ).to_csv(catalog, index=False)
+    captured = {}
+
+    class _FakeGaiaSource:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def crossmatch_positions(self, positions, **kwargs):
+            captured["positions"] = positions.copy()
+            captured["kwargs"] = kwargs
+            return pd.DataFrame(
+                {
+                    "_catalog_row": [1, 0],
+                    "source_id": [200, 100],
+                    "ra": [11.0, 10.0],
+                    "dec": [21.0, 20.0],
+                    "match_sep_arcsec": [0.1, 0.1],
+                    "match_candidate_count": [1, 1],
+                }
+            )
+
+    monkeypatch.setattr(intake, "GaiaSource", _FakeGaiaSource)
+    result = resolve_members(catalog=catalog, limit=2)
+
+    assert len(captured["positions"]) == 2
+    assert captured["kwargs"]["batch_size"] == 25
+    assert result["Gaia"].tolist() == ["100", "200"]
+
+
 # --------------------------------------------------------------------- live (network)
 @pytest.mark.network
 def test_resolve_members_name_mode_tw_hya():

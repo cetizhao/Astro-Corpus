@@ -9,12 +9,19 @@ Two layers:
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 import pandas as pd
 import pytest
 
 from astro_pipeline.models.paper import PaperEdgeTable
-from astro_pipeline.sources.simbad_refs import bibcode_to_arxiv
+from astro_pipeline.sources import simbad_refs
+from astro_pipeline.sources.simbad_refs import (
+    PaperRecord,
+    SourcePapers,
+    bibcode_to_arxiv,
+    build_paper_edges,
+)
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "twa"
 REAL_EDGES = DATA_DIR / "paper_edges.parquet"
@@ -45,6 +52,176 @@ def test_synthetic_no_overmatching():
     n_sources = e.df["source_id"].nunique()
     for aid in e.df["arxiv_id"].unique():
         assert len(e.get_sources(aid)) < n_sources
+
+
+def test_simbad_source_checkpoint_resumes_and_records_zero_refs(
+    monkeypatch, tmp_path
+):
+    catalog = pd.DataFrame({"Gaia": ["111", "222"]})
+    cache_path = tmp_path / "simbad_refs.parquet"
+    first_calls = []
+
+    def interrupted(source_id: str) -> SourcePapers:
+        first_calls.append(source_id)
+        if source_id == "222":
+            raise KeyboardInterrupt("stop after first source")
+        return SourcePapers(
+            gaia_id=source_id,
+            main_id="Source 111",
+            resolved=True,
+            papers=[PaperRecord(bibcode="2024TEST....1A", year=2024)],
+        )
+
+    monkeypatch.setattr(simbad_refs, "get_source_bibcodes", interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        build_paper_edges(
+            catalog,
+            cache_path=cache_path,
+            enrich=False,
+            sleep_seconds=0,
+            progress_every=1,
+        )
+
+    checkpoint_path = tmp_path / "simbad_refs.checkpoint.json"
+    checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+    assert checkpoint["completed"] == ["111"]
+    assert pd.read_parquet(cache_path)["gaia_id"].astype(str).tolist() == ["111"]
+
+    resumed_calls = []
+
+    def resumed(source_id: str) -> SourcePapers:
+        resumed_calls.append(source_id)
+        # A successful query with no object/references is still complete.
+        return SourcePapers(gaia_id=source_id, resolved=False)
+
+    monkeypatch.setattr(simbad_refs, "get_source_bibcodes", resumed)
+    edges, refs = build_paper_edges(
+        catalog,
+        cache_path=cache_path,
+        enrich=False,
+        sleep_seconds=0,
+        progress_every=1,
+    )
+
+    assert first_calls == ["111", "222"]
+    assert resumed_calls == ["222"]
+    assert len(edges) == 1
+    assert refs["gaia_id"].astype(str).tolist() == ["111"]
+    checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+    assert checkpoint["completed"] == ["111", "222"]
+    assert checkpoint["failed"] == {}
+
+    monkeypatch.setattr(
+        simbad_refs,
+        "get_source_bibcodes",
+        lambda source_id: pytest.fail(f"completed source was queried again: {source_id}"),
+    )
+    build_paper_edges(
+        catalog,
+        cache_path=cache_path,
+        enrich=False,
+        sleep_seconds=0,
+    )
+
+
+def test_simbad_failure_remains_retryable(monkeypatch, tmp_path):
+    catalog = pd.DataFrame({"Gaia": ["111"]})
+    cache_path = tmp_path / "simbad_refs.parquet"
+    monkeypatch.setattr(
+        simbad_refs,
+        "get_source_bibcodes",
+        lambda source_id: SourcePapers(gaia_id=source_id, error="service busy"),
+    )
+
+    _, refs = build_paper_edges(
+        catalog,
+        cache_path=cache_path,
+        enrich=False,
+        sleep_seconds=0,
+    )
+    checkpoint_path = tmp_path / "simbad_refs.checkpoint.json"
+    checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+    assert refs.attrs["source_progress"]["failed"] == 1
+    assert checkpoint["completed"] == []
+    assert checkpoint["failed"] == {"111": "service busy"}
+
+    calls = []
+    monkeypatch.setattr(
+        simbad_refs,
+        "get_source_bibcodes",
+        lambda source_id: calls.append(source_id)
+        or SourcePapers(gaia_id=source_id, resolved=False),
+    )
+    _, refs = build_paper_edges(
+        catalog,
+        cache_path=cache_path,
+        enrich=False,
+        sleep_seconds=0,
+    )
+    assert calls == ["111"]
+    assert refs.attrs["source_progress"]["failed"] == 0
+    checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+    assert checkpoint["completed"] == ["111"]
+    assert checkpoint["failed"] == {}
+
+
+def test_enrichment_checkpoint_preserves_sources_outside_current_subset(
+    monkeypatch, tmp_path
+):
+    cache_path = tmp_path / "simbad_refs.parquet"
+    rows = [
+        {
+            "gaia_id": "111",
+            "main_id": "Target",
+            "bibcode": f"2024TEST{i:04d}A",
+            "arxiv_id": "",
+            "title": "",
+            "year": 2024,
+            "journal": "TEST",
+            "doi": "",
+        }
+        for i in range(26)
+    ]
+    rows.append(
+        {
+            "gaia_id": "999",
+            "main_id": "Outside subset",
+            "bibcode": "2023KEEP....1A",
+            "arxiv_id": "",
+            "title": "Keep this row",
+            "year": 2023,
+            "journal": "TEST",
+            "doi": "",
+        }
+    )
+    pd.DataFrame(rows).to_parquet(cache_path, index=False)
+    (tmp_path / "simbad_refs.checkpoint.json").write_text(
+        json.dumps({"completed": ["111", "999"], "failed": {}}),
+        encoding="utf-8",
+    )
+    calls = 0
+
+    def interrupted_enrichment(bibcode, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 26:
+            raise KeyboardInterrupt("interrupt after enrichment checkpoint")
+        return PaperRecord(bibcode=bibcode, title="Enriched")
+
+    monkeypatch.setattr(simbad_refs, "enrich_bibcode", interrupted_enrichment)
+    with pytest.raises(KeyboardInterrupt):
+        build_paper_edges(
+            pd.DataFrame({"Gaia": ["111"]}),
+            cache_path=cache_path,
+            enrich=True,
+            resolve_doi=False,
+            sleep_seconds=0,
+        )
+
+    cached = pd.read_parquet(cache_path)
+    assert set(cached["gaia_id"].astype(str)) == {"111", "999"}
+    outside = cached[cached["gaia_id"].astype(str) == "999"]
+    assert outside.iloc[0]["title"] == "Keep this row"
 
 
 # ---- Real-data validation (skipped if paper_edges.parquet not built/legacy) ----

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,10 +11,22 @@ from typing import Any, Optional
 from astro_pipeline import __version__
 
 MANIFEST_SCHEMA_VERSION = "1.0"
+SAFE_LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def validate_label(label: str) -> str:
+    """Validate a corpus directory label (never a user-controlled path)."""
+    label = label.strip()
+    if not SAFE_LABEL.fullmatch(label):
+        raise ValueError(
+            "label must use only letters, digits, dot, underscore or hyphen and "
+            "must not contain a path separator"
+        )
+    return label
 
 
 class CorpusManifest:
@@ -34,12 +47,14 @@ class CorpusManifest:
         requested_products: dict[str, bool],
     ) -> "CorpusManifest":
         path = Path(path)
+        label = validate_label(label)
         now = utc_now()
         if path.exists():
             data = json.loads(path.read_text(encoding="utf-8"))
             previous = data.get("corpus", {})
             if (
-                previous.get("input_mode") not in (None, input_mode)
+                previous.get("label") not in (None, label)
+                or previous.get("input_mode") not in (None, input_mode)
                 or previous.get("input_summary") not in (None, input_summary)
             ):
                 raise ValueError(
@@ -48,10 +63,22 @@ class CorpusManifest:
                     f"{previous.get('input_summary')}). Choose a new label or remove "
                     "the old corpus directory after reviewing it."
                 )
-            data.setdefault("requested_products", {}).update(requested_products)
+            stored_products = data.setdefault("requested_products", {})
+            for product, requested in requested_products.items():
+                # A corpus may add optional products on a later run, but an
+                # already-requested product remains part of its durable scope.
+                stored_products[product] = bool(stored_products.get(product)) or bool(
+                    requested
+                )
             data["status"] = "running"
             data["updated_at"] = now
-            data.setdefault("runs", []).append({"started_at": now, "status": "running"})
+            data.setdefault("runs", []).append(
+                {
+                    "started_at": now,
+                    "status": "running",
+                    "requested_products": dict(requested_products),
+                }
+            )
         else:
             data = {
                 "schema_version": MANIFEST_SCHEMA_VERSION,
@@ -69,7 +96,13 @@ class CorpusManifest:
                 "artifacts": {},
                 "warnings": [],
                 "errors": [],
-                "runs": [{"started_at": now, "status": "running"}],
+                "runs": [
+                    {
+                        "started_at": now,
+                        "status": "running",
+                        "requested_products": dict(requested_products),
+                    }
+                ],
             }
         manifest = cls(path, data)
         manifest.save()
@@ -145,6 +178,7 @@ def make_download_plan(
     xp_continuous: bool,
 ) -> dict[str, Any]:
     """Return a read-only preflight plan suitable for an agent/user review."""
+    label = validate_label(label)
     n_sources = expected_sources if expected_sources and expected_sources > 0 else None
     stages: list[dict[str, Any]] = [
         {

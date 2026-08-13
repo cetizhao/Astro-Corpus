@@ -12,8 +12,8 @@ Click a source in the sky map -> its papers fill the "Source focus" panel.
 Click a paper in the top-papers chart -> its sources highlight on the sky map
 and fill the "Paper focus" panel.
 
-Output is offline-friendly: ECharts is loaded from a sibling ``echarts.min.js``,
-all data is embedded as JSON.
+Output is offline-friendly: corpus data is embedded as JSON, and callers can
+inline the package-vendored ECharts runtime to produce one standalone file.
 """
 from __future__ import annotations
 
@@ -637,7 +637,7 @@ def build_overview_html(
         single self-contained HTML that can be emailed or chatted as-is, no
         accompanying files needed. Adds ~1 MB to the file size.
     echarts_path : location of the vendored ``echarts.min.js`` to inline.
-        Defaults to a sibling file in the output directory.
+        Defaults to the copy shipped inside :mod:`astro_pipeline.viz`.
     corpus_name : human-readable name for <title> and <h1>. Defaults to the
         parent directory name of ``output_path`` (so a corpus at
         ``data/orion_onc/source_paper_viz.html`` becomes "orion_onc ...").
@@ -693,7 +693,11 @@ def build_overview_html(
     html = render_html(payload, corpus_name=corpus_name)
 
     if inline_echarts:
-        js_file = Path(echarts_path) if echarts_path else out.parent / "echarts.min.js"
+        js_file = (
+            Path(echarts_path)
+            if echarts_path
+            else Path(__file__).parent / "vendor" / "echarts.min.js"
+        )
         if not js_file.exists():
             raise FileNotFoundError(f"echarts.min.js not found at {js_file}; cannot inline")
         js = js_file.read_text(encoding="utf-8")

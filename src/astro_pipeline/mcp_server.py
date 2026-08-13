@@ -1,12 +1,8 @@
 """MCP server exposing astro-pipeline to AI agents (Claude Code, Cursor, Cline, ...).
 
-Five tools map onto the existing API surface:
-
-  * lookup_source(gaia_id)          -- Corpus.lookup_source
-  * lookup_paper(query)             -- Corpus.lookup_paper (arxiv_id/bibcode/title)
-  * resolve_name(name)              -- intake.resolve_members(name=...)
-  * cone_search(ra, dec, radius)    -- intake.resolve_members(cone=...)
-  * summarize_corpus()              -- Corpus.summary
+Tools cover cached corpus lookup, live Gaia/name queries, published membership
+catalogue discovery, resumable corpus/XP builds, progress inspection, and a
+bounded HEALPix downloader for the Gaia DR3 main source table.
 
 Run standalone::
 
@@ -60,7 +56,16 @@ if not CATALOG.exists():
         CATALOG,
     )
 
-corpus = Corpus(data_dir=DATA_DIR, catalog_path=CATALOG, offline=True)
+try:
+    corpus: Optional[Corpus] = Corpus(
+        data_dir=DATA_DIR, catalog_path=CATALOG, offline=True
+    )
+except FileNotFoundError as exc:
+    # A fresh clone intentionally has no generated/private TWA data. Keep all
+    # live discovery/build tools available and make only cached lookup tools
+    # return a structured bootstrap message.
+    logger.warning("Default cached corpus unavailable: %s", exc)
+    corpus = None
 mcp = FastMCP("astro-corpus")
 
 
@@ -78,6 +83,8 @@ def lookup_source(gaia_id: str) -> dict:
     dict with keys: gaia_id, resolved, astrometry, multimodal, papers.
     Offline (uses cached TWA data + paper_edges); milliseconds.
     """
+    if corpus is None:
+        return _cached_corpus_unavailable()
     return _json_safe(corpus.lookup_source(gaia_id))
 
 
@@ -99,6 +106,8 @@ def lookup_paper(query: str) -> dict:
     dict with keys: query, resolved, paper, sources.
     Offline; milliseconds.
     """
+    if corpus is None:
+        return _cached_corpus_unavailable()
     return _json_safe(corpus.lookup_paper(query))
 
 
@@ -165,11 +174,13 @@ def summarize_corpus() -> dict:
     Useful for an agent to discover what data is available before deciding
     which other tools to call.
     """
+    if corpus is None:
+        return _cached_corpus_unavailable()
     return _json_safe(corpus.summary())
 
 
 @mcp.tool()
-def gaia_xp_spectrum(gaia_id: str) -> dict:
+def gaia_xp_spectrum(gaia_id: str, label: Optional[str] = None) -> dict:
     """Render the Gaia DR3 BP/RP spectrum for a source and return a file URL.
 
     The agent or user opens the returned URL (file:// path) to view the plot.
@@ -181,6 +192,8 @@ def gaia_xp_spectrum(gaia_id: str) -> dict:
     Parameters
     ----------
     gaia_id : Gaia DR3 source_id (19-digit string).
+    label : optional corpus directory under data/ (e.g. "taurus_members").
+        Omit to use the server's configured default corpus (TWA by default).
 
     Returns
     -------
@@ -194,7 +207,18 @@ def gaia_xp_spectrum(gaia_id: str) -> dict:
     Live download from Gaia is not enabled by default; the tool reads from
     cache only. Use ``examples/twa_sample.py`` to populate the cache first.
     """
-    result = get_xp_spectrum_png(gaia_id, DATA_DIR, allow_download=False)
+    cache_dir = DATA_DIR
+    if label is not None:
+        from astro_pipeline.manifest import validate_label
+
+        try:
+            label = validate_label(label)
+        except ValueError as exc:
+            return {"error": str(exc), "gaia_id": gaia_id, "label": label}
+        corpora_root = DATA_DIR.parent if DATA_DIR.name == "twa" else Path("data")
+        cache_dir = corpora_root / label
+    result = get_xp_spectrum_png(gaia_id, cache_dir, allow_download=False)
+    result["corpus_label"] = label or DATA_DIR.name
     return _json_safe(result)
 
 
@@ -227,7 +251,8 @@ def download_corpus(
 
     The build is interruptible and resumable: if interrupted during the
     SIMBAD phase, re-running with the same label picks up where it left
-    off via the simbad_refs.parquet cache.
+    off via the source checkpoint and simbad_refs.parquet cache. Sources with
+    zero references are checkpointed without adding placeholder paper rows.
 
     Parameters
     ----------
@@ -265,11 +290,17 @@ def download_corpus(
     Tip
     ----
     To peek at progress during a long build, run ``corpus_status(label)``
-    from another agent session or CLI -- it reads the checkpoint files
-    written every ~25 bibcodes.
+    from another agent session or CLI; it reads the atomically updated source,
+    XP, and manifest checkpoints.
     """
     from astro_pipeline.corpus_builder import build_corpus_snapshot, result_to_dict
 
+    from astro_pipeline.manifest import validate_label
+
+    try:
+        label = validate_label(label)
+    except ValueError as exc:
+        return {"error": str(exc), "label": label}
     corpora_root = DATA_DIR.parent if DATA_DIR.name == "twa" else Path("data")
     out_dir = corpora_root / label
 
@@ -288,7 +319,7 @@ def download_corpus(
             xp_sampled=xp_sampled,
             xp_continuous=xp_continuous,
         )
-    except (ValueError, LookupError) as e:
+    except (ValueError, LookupError, FileNotFoundError, TypeError, IndexError) as e:
         return {"error": str(e), "label": label}
     return result_to_dict(result)
 
@@ -314,17 +345,100 @@ def download_plan(
 
     if not label.strip() or not input_mode.strip() or not input_summary.strip():
         return {"error": "label, input_mode and input_summary must not be empty"}
-    return _json_safe(
-        make_download_plan(
-            label=label,
-            input_mode=input_mode,
-            input_summary=input_summary,
-            expected_sources=expected_sources if expected_sources > 0 else None,
-            skip_simbad=skip_simbad,
-            xp_sampled=xp_sampled,
-            xp_continuous=xp_continuous,
+    try:
+        return _json_safe(
+            make_download_plan(
+                label=label,
+                input_mode=input_mode,
+                input_summary=input_summary,
+                expected_sources=expected_sources if expected_sources > 0 else None,
+                skip_simbad=skip_simbad,
+                xp_sampled=xp_sampled,
+                xp_continuous=xp_continuous,
+            )
         )
-    )
+    except ValueError as exc:
+        return {"error": str(exc), "label": label}
+
+
+@mcp.tool()
+def create_gaia_bulk_plan(
+    label: str,
+    healpix_level: int = 5,
+    pixel_start: int = 0,
+    pixel_stop: int = 0,
+    columns_mode: str = "default",
+    custom_columns: Optional[list[str]] = None,
+    page_size: int = 100000,
+) -> dict:
+    """Create a resumable plan for Gaia DR3 main-table HEALPix chunks.
+
+    This is a planning call only: it writes ``data/gaia_bulk/<label>/bulk_plan.json``
+    but downloads zero Gaia rows. ``pixel_stop=0`` means all pixels from
+    pixel_start to the end. At level 5 the full sky has 12,288 chunks; use a
+    short pixel range for a test. ``columns_mode`` can be ``default`` (compact
+    astrometry/photometry/QC/XP flags), ``custom``, or ``all``.
+
+    Scope is exactly ``gaiadr3.gaia_source``. "all" columns does not include
+    auxiliary Gaia tables, epoch photometry, XP/RVS files or other DataLink
+    products. The source_id/HEALPix partition rule follows official Gaia DR3
+    documentation and chunks are keyset-paginated without sampling.
+    """
+    from astro_pipeline.bulk_gaia import create_bulk_plan
+    from astro_pipeline.manifest import validate_label
+
+    try:
+        label = validate_label(label)
+        root = Path("data") / "gaia_bulk" / label
+        return _json_safe(
+            create_bulk_plan(
+                label=label,
+                root=root,
+                healpix_level=healpix_level,
+                pixel_start=pixel_start,
+                pixel_stop=pixel_stop if pixel_stop > 0 else None,
+                columns_mode=columns_mode,
+                custom_columns=custom_columns,
+                page_size=page_size,
+            )
+        )
+    except ValueError as exc:
+        return {"error": str(exc), "label": label}
+
+
+@mcp.tool()
+def run_gaia_bulk_download(label: str, max_chunks: int = 1) -> dict:
+    """Run a saved Gaia main-table plan with bounded, resumable work.
+
+    Defaults to one HEALPix chunk so an agent cannot accidentally start a
+    full-sky download. A positive value processes at most that many chunks;
+    ``max_chunks=0`` explicitly means every remaining chunk. Each chunk is
+    paginated and saved as Parquet parts with its own checkpoint. The worker
+    stops on the first service failure and can be rerun with the same label.
+    """
+    from astro_pipeline.bulk_gaia import run_bulk_plan
+    from astro_pipeline.manifest import validate_label
+
+    try:
+        label = validate_label(label)
+        plan_path = Path("data") / "gaia_bulk" / label / "bulk_plan.json"
+        return _json_safe(run_bulk_plan(plan_path, max_chunks=max_chunks))
+    except (ValueError, FileNotFoundError) as exc:
+        return {"error": str(exc), "label": label}
+
+
+@mcp.tool()
+def gaia_bulk_status(label: str) -> dict:
+    """Read progress for a Gaia HEALPix bulk plan without querying Gaia."""
+    from astro_pipeline.bulk_gaia import bulk_status
+    from astro_pipeline.manifest import validate_label
+
+    try:
+        label = validate_label(label)
+        plan_path = Path("data") / "gaia_bulk" / label / "bulk_plan.json"
+        return _json_safe(bulk_status(plan_path))
+    except ValueError as exc:
+        return {"error": str(exc), "label": label}
 
 
 @mcp.tool()
@@ -346,7 +460,7 @@ def search_membership_catalogs(target: str, max_results: int = 10) -> dict:
 
     try:
         return _json_safe(_search(target, max_results=max_results))
-    except (ValueError, LookupError) as exc:
+    except Exception as exc:
         return {"error": str(exc), "target": target}
 
 
@@ -375,7 +489,7 @@ def preview_membership_catalog(
         return _json_safe(
             _preview(catalog_id, table_id=table_id, sample_size=sample_size)
         )
-    except (ValueError, LookupError) as exc:
+    except Exception as exc:
         return {"error": str(exc), "catalog_id": catalog_id, "table_id": table_id}
 
 
@@ -415,8 +529,11 @@ def download_membership_corpus(
     """
     from astro_pipeline.membership import build_membership_corpus
 
-    corpora_root = DATA_DIR.parent if DATA_DIR.name == "twa" else Path("data")
+    from astro_pipeline.manifest import validate_label
+
     try:
+        label = validate_label(label)
+        corpora_root = DATA_DIR.parent if DATA_DIR.name == "twa" else Path("data")
         return _json_safe(
             build_membership_corpus(
                 label=label,
@@ -432,7 +549,7 @@ def download_membership_corpus(
                 xp_continuous=xp_continuous,
             )
         )
-    except (ValueError, LookupError) as exc:
+    except Exception as exc:
         return {
             "error": str(exc),
             "label": label,
@@ -465,6 +582,12 @@ def corpus_status(label: str) -> dict:
     exists but no final paper_edges.parquet is written yet.
     """
     import pandas as pd
+    from astro_pipeline.manifest import validate_label
+
+    try:
+        label = validate_label(label)
+    except ValueError as exc:
+        return {"label": label, "exists": False, "error": str(exc)}
 
     corpora_root = DATA_DIR.parent if DATA_DIR.name == "twa" else Path("data")
     path = corpora_root / label
@@ -500,6 +623,7 @@ def corpus_status(label: str) -> dict:
 
     # SIMBAD progress
     simbad_path = path / "simbad_refs.parquet"
+    simbad_checkpoint_path = path / "simbad_refs.checkpoint.json"
     edges_path = path / "paper_edges.parquet"
     has_edges = edges_path.exists()
 
@@ -530,8 +654,25 @@ def corpus_status(label: str) -> dict:
         except Exception as e:
             out["simbad_read_error"] = str(e)
 
+    if simbad_checkpoint_path.exists():
+        try:
+            import json
+
+            checkpoint = json.loads(simbad_checkpoint_path.read_text(encoding="utf-8"))
+            out["n_sources_queried"] = len(checkpoint.get("completed", []))
+            out["n_sources_failed"] = len(checkpoint.get("failed", {}))
+            out["simbad_checkpoint_modified"] = _iso_mtime(simbad_checkpoint_path)
+            if out["n_sources_failed"]:
+                out["simbad_phase"] = "in_progress"
+        except Exception as e:
+            out["simbad_checkpoint_read_error"] = str(e)
+
     out["has_paper_edges"] = has_edges
     out["has_viz"] = (path / "source_paper_viz.html").exists()
+    out["n_xp_sampled_cached"] = len(list((path / "gaia_xp_sampled").glob("*.fits")))
+    out["n_xp_continuous_cached"] = len(
+        list((path / "gaia_xp_continuous").glob("*.fits"))
+    )
     return out
 
 
@@ -568,7 +709,8 @@ def list_corpora() -> list[dict]:
         members_csv = sub / "members.csv"
         members_parquet = sub / "members.parquet"
         has_edges = (sub / "paper_edges.parquet").exists()
-        if not (members_csv.exists() or members_parquet.exists() or has_edges):
+        manifest_path = sub / "manifest.json"
+        if not (members_csv.exists() or members_parquet.exists() or has_edges or manifest_path.exists()):
             continue
         n_members: Optional[int] = None
         try:
@@ -581,17 +723,42 @@ def list_corpora() -> list[dict]:
                 n_members = int(pd.read_parquet(sub / "paper_edges.parquet")["source_id"].nunique())
         except Exception:
             pass
+        build_status = None
+        if manifest_path.exists():
+            try:
+                import json
+
+                build_status = json.loads(manifest_path.read_text()).get("status")
+            except Exception:
+                build_status = "unreadable"
         out.append({
             "name": sub.name,
             "path": str(sub.resolve()),
             "n_members": n_members,
             "has_paper_edges": has_edges,
             "has_viz": (sub / "source_paper_viz.html").exists(),
+            "build_status": build_status,
+            "n_xp_sampled_cached": len(list((sub / "gaia_xp_sampled").glob("*.fits"))),
+            "n_xp_continuous_cached": len(
+                list((sub / "gaia_xp_continuous").glob("*.fits"))
+            ),
         })
     return out
 
 
 # --------------------------------------------------------------------- helpers
+def _cached_corpus_unavailable() -> dict[str, Any]:
+    return {
+        "error": "default cached corpus is not installed",
+        "data_dir": str(DATA_DIR),
+        "catalog": str(CATALOG),
+        "next_step": (
+            "Build a corpus with download_corpus/download_membership_corpus, "
+            "or configure ASTRO_PIPELINE_DATA_DIR and ASTRO_PIPELINE_CATALOG."
+        ),
+    }
+
+
 def _json_safe(obj: Any) -> Any:
     """Convert pandas/numpy scalars to native Python so MCP JSON serialization works."""
     import numpy as np

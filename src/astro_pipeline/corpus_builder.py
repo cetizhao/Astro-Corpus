@@ -19,6 +19,7 @@ The high-level entry point :func:`build_corpus_snapshot` returns a
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
 from dataclasses import asdict, dataclass, field
@@ -29,7 +30,7 @@ import pandas as pd
 
 from astro_pipeline.intake import resolve_members
 from astro_pipeline.io.writer import save_catalog_parquet
-from astro_pipeline.manifest import CorpusManifest
+from astro_pipeline.manifest import CorpusManifest, validate_label
 from astro_pipeline.sources.simbad_refs import build_paper_edges
 
 logger = logging.getLogger(__name__)
@@ -116,37 +117,58 @@ def build_corpus_snapshot(
             f"Exactly one of cone/name/region/catalog required; got {provided or 'none'}."
         )
     input_mode = provided[0]
+    label = validate_label(label)
 
     t0 = time.time()
     out_dir = Path(out_dir)
 
-    if cone:
-        ra, dec, radius = cone
-        input_summary = f"cone(ra={ra}, dec={dec}, radius={radius}deg)"
-    elif name:
-        input_summary = f"name={name!r}"
-    elif region:
-        center, radius = region
-        input_summary = f"region(center={center!r}, radius={radius}deg)"
-    else:  # catalog
-        input_summary = f"catalog={Path(catalog).name}"
+    input_summary = _describe_input(
+        cone=cone,
+        name=name,
+        region=region,
+        catalog=catalog,
+        limit=limit,
+    )
 
     logger.info("Building corpus %r: %s", label, input_summary)
+
+    manifest = CorpusManifest.open_or_create(
+        out_dir / "manifest.json",
+        label=label,
+        input_mode=input_mode,
+        input_summary=input_summary,
+        requested_products=_requested_products(
+            skip_simbad=skip_simbad,
+            xp_sampled=xp_sampled,
+            xp_continuous=xp_continuous,
+        ),
+    )
+    manifest.update_stage("resolve_members", status="running", completed=0)
 
     # --- 1. Resolve members ---
     try:
         members = resolve_members(
             cone=cone, name=name, region=region, catalog=catalog, limit=limit,
         )
-    except LookupError as e:
+    except Exception as e:
+        manifest.update_stage("resolve_members", status="failed", error=str(e))
+        manifest.add_error(f"member resolution failed: {e}")
+        manifest.finish("failed")
         return CorpusBuildResult(
             label=label, input_mode=input_mode, input_summary=input_summary,
             n_members=0, n_paper_edges=0, n_unique_papers=0,
             out_dir=str(out_dir), skipped_simbad=skip_simbad,
             elapsed_seconds=time.time() - t0, error=str(e),
+            manifest_json=str(manifest.path.resolve()),
         )
 
     logger.info("Resolved %d members", len(members))
+    manifest.update_stage(
+        "resolve_members",
+        status="completed",
+        total=len(members),
+        completed=len(members),
+    )
 
     return build_corpus_from_members(
         label=label,
@@ -160,6 +182,7 @@ def build_corpus_snapshot(
         xp_sampled=xp_sampled,
         xp_continuous=xp_continuous,
         started_at=t0,
+        manifest=manifest,
     )
 
 
@@ -176,33 +199,41 @@ def build_corpus_from_members(
     xp_sampled: bool = False,
     xp_continuous: bool = False,
     started_at: Optional[float] = None,
+    manifest: Optional[CorpusManifest] = None,
 ) -> CorpusBuildResult:
     """Persist an already-resolved Gaia member table as a corpus snapshot.
 
     This shared second half keeps user-uploaded catalogues and literature
     membership catalogues on the same output contract as cone/name builds.
     """
+    label = validate_label(label)
     t0 = started_at if started_at is not None else time.time()
     out_dir = Path(out_dir)
 
-    manifest = CorpusManifest.open_or_create(
-        out_dir / "manifest.json",
-        label=label,
-        input_mode=input_mode,
-        input_summary=input_summary,
-        requested_products={
-            "members": True,
-            "simbad_papers": not skip_simbad,
-            "visualization": not skip_simbad,
-            "gaia_xp_sampled": xp_sampled,
-            "gaia_xp_continuous": xp_continuous,
-        },
-    )
+    if manifest is None:
+        manifest = CorpusManifest.open_or_create(
+            out_dir / "manifest.json",
+            label=label,
+            input_mode=input_mode,
+            input_summary=input_summary,
+            requested_products=_requested_products(
+                skip_simbad=skip_simbad,
+                xp_sampled=xp_sampled,
+                xp_continuous=xp_continuous,
+            ),
+        )
+        manifest.update_stage(
+            "resolve_members",
+            status="completed",
+            total=len(members),
+            completed=len(members),
+            note="members DataFrame supplied directly",
+        )
     manifest_path = str(manifest.path.resolve())
 
     if members.empty:
         manifest.update_stage(
-            "members", status="failed", total=0, completed=0,
+            "save_members", status="failed", total=0, completed=0,
             error="no members resolved for the given input",
         )
         manifest.add_error("no members resolved for the given input")
@@ -223,7 +254,7 @@ def build_corpus_from_members(
     members.to_csv(members_csv, index=False)
     save_catalog_parquet(members, members_parquet)
     manifest.update_stage(
-        "members", status="completed", total=len(members), completed=len(members)
+        "save_members", status="completed", total=len(members), completed=len(members)
     )
     manifest.add_artifact("members_csv", members_csv, rows=len(members))
     manifest.add_artifact("members_parquet", members_parquet, rows=len(members))
@@ -260,14 +291,18 @@ def build_corpus_from_members(
         for error in xp_products.get("errors", []):
             manifest.add_warning(error)
     else:
-        manifest.update_stage("gaia_xp_sampled", status="not_requested")
-        manifest.update_stage("gaia_xp_continuous", status="not_requested")
+        _set_stage_if_absent(manifest, "gaia_xp_sampled", status="not_requested")
+        _set_stage_if_absent(manifest, "gaia_xp_continuous", status="not_requested")
 
     if skip_simbad:
         logger.info("--skip-simbad; stopping after members.*")
-        manifest.update_stage("simbad_papers", status="skipped")
-        manifest.update_stage("visualization", status="skipped")
-        terminal = "partial" if xp_products.get("errors") else "completed"
+        _set_stage_if_absent(manifest, "simbad_papers", status="skipped")
+        _set_stage_if_absent(manifest, "visualization", status="skipped")
+        terminal = (
+            "partial"
+            if xp_products.get("errors") or _has_incomplete_requested_stage(manifest)
+            else "completed"
+        )
         manifest.finish(terminal)
         return CorpusBuildResult(
             label=label, input_mode=input_mode, input_summary=input_summary,
@@ -290,6 +325,21 @@ def build_corpus_from_members(
     manifest.update_stage(
         "simbad_papers", status="running", total=len(members), completed=0
     )
+    simbad_progress: dict[str, Any] = {}
+
+    def update_simbad_progress(update: dict[str, Any]) -> None:
+        simbad_progress.update(update)
+        # Source lookup can finish before metadata enrichment, so keep the
+        # overall stage running until build_paper_edges returns.
+        manifest.update_stage(
+            "simbad_papers",
+            status="running",
+            total=int(update.get("total", len(members))),
+            completed=int(update.get("completed", 0)),
+            failed=int(update.get("failed", 0)),
+            remaining=int(update.get("remaining", len(members))),
+        )
+
     try:
         edges, refs = build_paper_edges(
             members,
@@ -297,6 +347,7 @@ def build_corpus_from_members(
             cache_path=out_dir / "simbad_refs.parquet",
             sleep_seconds=sleep_seconds,
             enrich=enrich,
+            progress_callback=update_simbad_progress,
         )
     except Exception as exc:
         message = f"SIMBAD paper stage failed: {exc}"
@@ -321,16 +372,29 @@ def build_corpus_from_members(
         )
     edges_path = out_dir / "paper_edges.parquet"
     edges.save(edges_path)
+    source_progress = refs.attrs.get("source_progress", simbad_progress)
+    simbad_failed = int(source_progress.get("failed", 0))
+    simbad_stage_status = "partial" if simbad_failed else "completed"
     manifest.update_stage(
         "simbad_papers",
-        status="completed",
+        status=simbad_stage_status,
         total=len(members),
-        completed=len(members),
+        completed=int(source_progress.get("completed", len(members))),
+        failed=simbad_failed,
+        remaining=int(source_progress.get("remaining", 0)),
         n_edges=len(edges),
         n_unique_papers=int(refs["bibcode"].nunique()) if not refs.empty else 0,
     )
+    if simbad_failed:
+        manifest.add_warning(
+            f"SIMBAD bibliography lookup failed for {simbad_failed} source(s); "
+            "rerun the same label to retry them from the source checkpoint"
+        )
     manifest.add_artifact("paper_edges_parquet", edges_path, rows=len(edges))
     manifest.add_artifact("simbad_refs_parquet", out_dir / "simbad_refs.parquet")
+    checkpoint_path = out_dir / "simbad_refs.checkpoint.json"
+    if checkpoint_path.exists():
+        manifest.add_artifact("simbad_refs_checkpoint", checkpoint_path)
 
     # --- Viz HTML ---
     # inline_echarts=True so the HTML is self-contained (no sibling file dep).
@@ -339,11 +403,13 @@ def build_corpus_from_members(
     from astro_pipeline.viz import build_overview_html
 
     viz_path = out_dir / "source_paper_viz.html"
-    echarts_src = out_dir.parent / "twa" / "echarts.min.js"
+    vendored_echarts = Path(__file__).parent / "viz" / "vendor" / "echarts.min.js"
+    legacy_echarts = out_dir.parent / "twa" / "echarts.min.js"
+    echarts_src = vendored_echarts if vendored_echarts.exists() else legacy_echarts
     inline_echarts = echarts_src.exists()
     if not inline_echarts:
         manifest.add_warning(
-            "echarts.min.js was not found under data/twa; HTML was generated with "
+            "vendored echarts.min.js was not found; HTML was generated with "
             "a sibling script reference and is not fully self-contained"
         )
     manifest.update_stage("visualization", status="running", total=1, completed=0)
@@ -389,7 +455,15 @@ def build_corpus_from_members(
         "Corpus %r built: %d members, %d edges, %d papers (%.1fs)",
         label, len(members), len(edges), n_papers, elapsed,
     )
-    terminal = "partial" if xp_products.get("errors") else "completed"
+    terminal = (
+        "partial"
+        if (
+            xp_products.get("errors")
+            or simbad_failed
+            or _has_incomplete_requested_stage(manifest)
+        )
+        else "completed"
+    )
     manifest.finish(terminal)
 
     return CorpusBuildResult(
@@ -415,6 +489,75 @@ def build_corpus_from_members(
 def result_to_dict(result: CorpusBuildResult) -> dict[str, Any]:
     """Serialize a CorpusBuildResult to a JSON-safe dict (for MCP/CLI output)."""
     return _json_safe(asdict(result))
+
+
+def _requested_products(
+    *, skip_simbad: bool, xp_sampled: bool, xp_continuous: bool
+) -> dict[str, bool]:
+    return {
+        "members": True,
+        "simbad_papers": not skip_simbad,
+        "visualization": not skip_simbad,
+        "gaia_xp_sampled": xp_sampled,
+        "gaia_xp_continuous": xp_continuous,
+    }
+
+
+def _set_stage_if_absent(
+    manifest: CorpusManifest, stage: str, **updates: Any
+) -> None:
+    if stage not in manifest.data.get("stages", {}):
+        manifest.update_stage(stage, **updates)
+
+
+def _has_incomplete_requested_stage(manifest: CorpusManifest) -> bool:
+    products = manifest.data.get("requested_products", {})
+    stages = manifest.data.get("stages", {})
+    product_stages = {
+        "simbad_papers": "simbad_papers",
+        "visualization": "visualization",
+        "gaia_xp_sampled": "gaia_xp_sampled",
+        "gaia_xp_continuous": "gaia_xp_continuous",
+    }
+    return any(
+        products.get(product)
+        and stages.get(stage, {}).get("status") != "completed"
+        for product, stage in product_stages.items()
+    )
+
+
+def _describe_input(
+    *,
+    cone: Optional[tuple[float, float, float]],
+    name: Optional[str],
+    region: Optional[tuple[str, float]],
+    catalog: Optional[str | Path],
+    limit: Optional[int],
+) -> str:
+    """Build the stable source-selection identity stored in a manifest."""
+    limit_text = "all" if limit is None else str(limit)
+    if cone:
+        ra, dec, radius = cone
+        return f"cone(ra={ra}, dec={dec}, radius={radius}deg); limit={limit_text}"
+    if name:
+        return f"name={name!r}; limit={limit_text}"
+    if region:
+        center, radius = region
+        return (
+            f"region(center={center!r}, radius={radius}deg); limit={limit_text}"
+        )
+
+    catalog_path = Path(catalog)  # type: ignore[arg-type]
+    if not catalog_path.is_file():
+        raise FileNotFoundError(f"Member catalog not found: {catalog_path}")
+    digest = hashlib.sha256()
+    with catalog_path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return (
+        f"catalog={catalog_path.name}; sha256={digest.hexdigest()}; "
+        f"limit={limit_text}"
+    )
 
 
 def _json_safe(obj: Any) -> Any:

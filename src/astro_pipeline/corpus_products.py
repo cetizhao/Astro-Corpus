@@ -83,6 +83,17 @@ def download_gaia_xp_products(
             if requested[product]:
                 summary[product]["status"] = "blocked"
                 summary[product]["error"] = "availability query failed"
+                if progress_callback:
+                    progress_callback(
+                        f"gaia_xp_{product}",
+                        {
+                            "status": "blocked",
+                            "total": len(source_ids),
+                            "completed": 0,
+                            "failed": len(source_ids),
+                            "error": "availability query failed",
+                        },
+                    )
         return summary
 
     product_specs = [

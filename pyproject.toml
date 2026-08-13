@@ -1,7 +1,7 @@
 [project]
 name = "astro-pipeline"
-version = "0.3.0"
-description = "Astronomical data pipeline for Gaia DR3, LAMOST DR11, SDSS DR17"
+version = "0.4.0"
+description = "Agent-ready astronomical corpus pipeline for Gaia DR3 and literature links"
 readme = "README.md"
 authors = [
     { name = "cetizhao", email = "cetizhao@163.com" }
@@ -18,6 +18,7 @@ dependencies = [
     "pyarrow>=24.0.0",
     "pydantic>=2.13.4",
     "pyyaml>=6.0.3",
+    "requests>=2.32.0",
     "rich>=15.0.0",
     "tenacity>=9.1.4",
     "tqdm>=4.67.3",
@@ -26,6 +27,12 @@ dependencies = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/astro_pipeline"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/astro_pipeline/viz/vendor/echarts.min.js" = "astro_pipeline/viz/vendor/echarts.min.js"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

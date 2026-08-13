@@ -4,7 +4,7 @@
 This is the **demonstrable data storage** artifact: a single self-describing
 JSONL file showing what the corpus currently knows about each Gaia source.
 Schema is deliberately minimal and derived from what the data actually
-contains -- it is meant to evolve once AISI gives format guidance.
+contains -- it is meant to evolve as downstream training requirements mature.
 
 Schema (one JSON object per line, per Gaia source):
 
@@ -81,7 +81,7 @@ from astro_pipeline.corpus import Corpus
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 logger = logging.getLogger("export_jsonl")
 
-PIPELINE_VERSION = "0.3.0"
+PIPELINE_VERSION = "0.4.0"
 DATA = Path("data/twa")
 CATALOG = Path("TWAxgdr3.csv")
 OUTPUT = DATA / "twa_corpus.jsonl"
@@ -242,8 +242,12 @@ def main() -> None:
     xp_sampled_data: dict[str, dict] = {}
     xp_cont_data: dict[str, dict] = {}
     xp_availability: dict[str, dict[str, bool]] = {}
-    availability_path = args.data_dir / "catalogs" / "twa_gaia_xp_availability.parquet"
-    if availability_path.exists():
+    availability_paths = [
+        args.data_dir / "catalogs" / "gaia_xp_availability.parquet",
+        args.data_dir / "catalogs" / "twa_gaia_xp_availability.parquet",
+    ]
+    availability_path = next((path for path in availability_paths if path.exists()), None)
+    if availability_path is not None:
         availability = pd.read_parquet(availability_path)
         for _, availability_row in availability.iterrows():
             gid = str(availability_row["source_id"])

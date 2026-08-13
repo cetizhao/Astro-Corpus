@@ -43,6 +43,31 @@ class GaiaSource(CatalogSource):
     def get_source_name(self) -> str:
         return "Gaia DR3"
 
+    def execute_adql(self, adql: str) -> pd.DataFrame:
+        """Execute a read-only Gaia TAP query anonymously and return a frame.
+
+        This method is intentionally a Python-internal primitive; MCP does not
+        expose arbitrary ADQL. Higher-level modules build validated queries on
+        top of it (for example the HEALPix bulk downloader).
+        """
+        normalized = adql.lstrip().upper()
+        if not normalized.startswith("SELECT"):
+            raise ValueError("Only read-only SELECT ADQL queries are supported")
+        self._logger.info("Gaia custom ADQL: %s", " ".join(adql.split())[:300])
+
+        @self._retry
+        def _do_query() -> pd.DataFrame:
+            # Bulk callers rely on explicit TOP/keyset pages. Never fall back
+            # to synchronous TAP here: its tighter service-side row cap could
+            # turn a failed large page into a shorter, apparently successful
+            # page and make the worker conclude that the chunk is complete.
+            job = Gaia.launch_job_async(
+                adql, dump_to_file=False, output_format="votable"
+            )
+            return job.get_results().to_pandas()
+
+        return _do_query()
+
     def _build_adql(
         self,
         query: ConeSearchQuery | ParameterQuery,
@@ -79,6 +104,11 @@ class GaiaSource(CatalogSource):
 
         if conditions:
             adql += " WHERE " + " AND ".join(conditions)
+        # TOP without ORDER BY does not define which rows are returned. A
+        # stable source-id order makes repeated limited corpus builds select
+        # the same source set, which is required for safe checkpoint reuse.
+        if query.limit:
+            adql += " ORDER BY source_id ASC"
         return adql
 
     def query_catalog(
@@ -110,8 +140,10 @@ class GaiaSource(CatalogSource):
                 job = Gaia.launch_job(adql, output_format="votable")
                 return job.get_results().to_pandas()
 
-        df = _do_query()
-        Gaia.ROW_LIMIT = original_limit
+        try:
+            df = _do_query()
+        finally:
+            Gaia.ROW_LIMIT = original_limit
         self._logger.info("Gaia returned %d rows", len(df))
 
         if output_path:
@@ -224,10 +256,15 @@ class GaiaSource(CatalogSource):
         """Query only sources that have XP (BP/RP) sampled spectra."""
         # TAP query; anonymous access is fine.
         adql = self._build_adql(query, extra_columns=["has_xp_sampled"])
+        order_clause = ""
+        if " ORDER BY " in adql:
+            adql, order_clause = adql.split(" ORDER BY ", maxsplit=1)
+            order_clause = f" ORDER BY {order_clause}"
         if "WHERE" in adql:
             adql += " AND has_xp_sampled = 'true'"
         else:
             adql += " WHERE has_xp_sampled = 'true'"
+        adql += order_clause
 
         original_limit = Gaia.ROW_LIMIT
         if query.limit:
@@ -246,8 +283,10 @@ class GaiaSource(CatalogSource):
                 job = Gaia.launch_job(adql, output_format="votable")
                 return job.get_results().to_pandas()
 
-        df = _do_query()
-        Gaia.ROW_LIMIT = original_limit
+        try:
+            df = _do_query()
+        finally:
+            Gaia.ROW_LIMIT = original_limit
         self._logger.info("Gaia XP sources: %d rows", len(df))
 
         if output_path:
@@ -285,12 +324,16 @@ class GaiaSource(CatalogSource):
         if any(not sid.isdigit() for sid in ids):
             raise ValueError("Gaia source IDs must contain digits only")
 
+        # For an uploaded ID list, limit means the first N caller-supplied
+        # identifiers, not an arbitrary TOP N chosen by the TAP service.
+        if query.limit:
+            ids = ids[: query.limit]
         id_list = ", ".join(ids)
-        limit_clause = f" TOP {query.limit}" if query.limit else ""
+        limit_clause = f" TOP {len(ids)}" if query.limit else ""
         adql = (
             f"SELECT{limit_clause} {columns} "
             f"FROM {self._gaia_config.db_schema}.gaia_source "
-            f"WHERE source_id IN ({id_list})"
+            f"WHERE source_id IN ({id_list}) ORDER BY source_id ASC"
         )
 
         self._logger.info("Gaia source ID query: %d IDs", len(query.source_ids))

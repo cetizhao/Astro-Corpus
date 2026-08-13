@@ -9,7 +9,11 @@ from astro_pipeline.spectra import (
     read_xp_continuous_params,
     read_xp_sampled,
 )
-from astro_pipeline.viz.source_paper import compute_overview, render_html
+from astro_pipeline.viz.source_paper import (
+    build_overview_html,
+    compute_overview,
+    render_html,
+)
 from scripts.export_jsonl import to_record
 
 
@@ -163,3 +167,50 @@ def test_overview_embeds_spectrum() -> None:
     assert payload["sources"][0]["has_xp"] is True
     assert "Gaia XP ${spectrumFormat}" in html
     assert "focus-spectrum" in html
+
+
+def test_vendored_echarts_asset_exists():
+    asset = Path(__file__).parents[1] / "src" / "astro_pipeline" / "viz" / "vendor" / "echarts.min.js"
+    text = asset.read_text(encoding="utf-8")
+    assert "Apache Software Foundation" in text[:2000]
+    assert 'version:"5.5.0"' in text
+
+
+def test_overview_html_can_be_one_self_contained_file(tmp_path: Path) -> None:
+    gaia_id = "123456789"
+    catalog_path = tmp_path / "members.csv"
+    edges_path = tmp_path / "paper_edges.parquet"
+    output_path = tmp_path / "source_paper_viz.html"
+    pd.DataFrame({
+        "Gaia": [gaia_id],
+        "RAICRS": [10.0],
+        "DEICRS": [-20.0],
+        "Gmag": [12.3],
+        "plx": [10.0],
+        "e_plx": [0.1],
+        "pmRA": [1.0],
+        "pmDE": [2.0],
+        "RUWE": [1.1],
+    }).to_csv(catalog_path, index=False)
+    pd.DataFrame({
+        "source_id": [gaia_id],
+        "arxiv_id": ["2401.00001"],
+        "bibcode": ["2024TEST"],
+        "title": ["Test paper"],
+        "doi": [""],
+        "journal": ["Test"],
+        "year": [2024],
+    }).to_parquet(edges_path, index=False)
+
+    build_overview_html(
+        output_path,
+        catalog_path=catalog_path,
+        edges_path=edges_path,
+        inline_echarts=True,
+        corpus_name="test-corpus",
+    )
+
+    html = output_path.read_text(encoding="utf-8")
+    assert '<script src="echarts.min.js"></script>' not in html
+    assert 'version:"5.5.0"' in html
+    assert "test-corpus Source-Paper Corpus" in html

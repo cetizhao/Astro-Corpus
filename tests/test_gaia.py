@@ -67,11 +67,70 @@ def test_source_id_adql_uses_top_not_non_adql_limit(gaia, monkeypatch):
 
     assert seen[0].startswith("SELECT TOP 1 ")
     assert " LIMIT " not in seen[0]
+    assert "WHERE source_id IN (123)" in seen[0]
+    assert seen[0].endswith("ORDER BY source_id ASC")
+
+
+def test_limited_source_id_query_selects_first_input_ids(gaia, monkeypatch):
+    class FakeJob:
+        def get_results(self):
+            return Table({"source_id": [100, 200]})
+
+    seen = []
+    monkeypatch.setattr(
+        "astro_pipeline.sources.gaia.Gaia.launch_job_async",
+        lambda adql, **kwargs: seen.append(adql) or FakeJob(),
+    )
+
+    gaia._query_by_ids(SourceIdQuery(source_ids=["200", "100", "999"], limit=2))
+
+    assert seen[0].startswith("SELECT TOP 2 ")
+    assert "WHERE source_id IN (200, 100)" in seen[0]
+    assert "999" not in seen[0]
+
+
+def test_limited_cone_query_has_deterministic_order(gaia):
+    adql = gaia._build_adql(
+        ConeSearchQuery(ra=10.0, dec=20.0, radius_deg=1.0, limit=200)
+    )
+    assert adql.startswith("SELECT TOP 200 ")
+    assert adql.endswith("ORDER BY source_id ASC")
+
+
+def test_limited_xp_cone_puts_filter_before_order(gaia, monkeypatch):
+    class FakeJob:
+        def get_results(self):
+            return Table({"source_id": [], "has_xp_sampled": []})
+
+    seen = []
+    monkeypatch.setattr(
+        "astro_pipeline.sources.gaia.Gaia.launch_job_async",
+        lambda adql, **kwargs: seen.append(adql) or FakeJob(),
+    )
+    gaia.query_xp_sources(
+        ConeSearchQuery(ra=10.0, dec=20.0, radius_deg=1.0, limit=10)
+    )
+
+    assert "has_xp_sampled = 'true' ORDER BY source_id ASC" in seen[0]
 
 
 def test_source_id_query_rejects_non_numeric_ids(gaia):
     with pytest.raises(ValueError, match="digits only"):
         gaia._query_by_ids(SourceIdQuery(source_ids=["123 OR 1=1"]))
+
+
+def test_custom_adql_does_not_fall_back_to_sync_tap(gaia, monkeypatch):
+    def fail_async(*args, **kwargs):
+        raise RuntimeError("async TAP unavailable")
+
+    monkeypatch.setattr("astro_pipeline.sources.gaia.Gaia.launch_job_async", fail_async)
+    monkeypatch.setattr(
+        "astro_pipeline.sources.gaia.Gaia.launch_job",
+        lambda *args, **kwargs: pytest.fail("must not use sync TAP for bulk pages"),
+    )
+
+    with pytest.raises(RuntimeError, match="async TAP unavailable"):
+        gaia.execute_adql("SELECT TOP 2 source_id FROM gaiadr3.gaia_source")
 
 
 def test_crossmatch_positions_keeps_nearest_candidate(gaia, monkeypatch):

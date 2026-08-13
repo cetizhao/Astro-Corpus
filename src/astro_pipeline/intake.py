@@ -223,9 +223,9 @@ def _crossmatch_to_gaia(
 ) -> pd.DataFrame:
     """Cross-match a position-only catalog to Gaia DR3.
 
-    Strategy: compute the catalog's coverage center + radius, fire one Gaia cone
-    query big enough to cover it, then nearest-neighbour match each user row to
-    the Gaia sources. Tight 1 arcsec match window by default.
+    Strategy: preserve user row order, apply ``limit`` to input rows, then use
+    bounded unions of small Gaia cones and local nearest-neighbour assignment.
+    Tight 1 arcsec match window by default.
     """
     logger.warning(
         "Position-only catalog cross-match (no Gaia source_id column) is less "
@@ -235,35 +235,23 @@ def _crossmatch_to_gaia(
         "with the Gaia Archive and providing a `Gaia` column instead."
     )
 
-    from astropy import units as u
-    from astropy.coordinates import SkyCoord
-
-    from astro_pipeline.crossmatch import compute_coverage_center_radius
-
-    center_ra, center_dec, radius_deg = compute_coverage_center_radius(df, ra_col, dec_col)
-    logger.info("Coverage center (%.3f, %.3f), radius %.3f deg", center_ra, center_dec, radius_deg)
-
+    work = df.head(limit).copy() if limit is not None else df.copy()
+    work["_catalog_row"] = range(len(work))
     cfg = PipelineConfig.load()
     src = GaiaSource(cfg.gaia, cfg.network)
-    res = src.query_catalog(
-        ConeSearchQuery(ra=center_ra, dec=center_dec, radius_deg=radius_deg + 0.05, limit=limit),
+    matched = src.crossmatch_positions(
+        work,
+        ra_col=ra_col,
+        dec_col=dec_col,
+        row_id_col="_catalog_row",
+        radius_arcsec=1.0,
+        batch_size=25,
+        extra_columns=QC_EXTRA_COLUMNS,
     )
-    gaia_df = res.data
-    if gaia_df.empty:
-        raise LookupError("Gaia returned no sources in the catalog's coverage area")
-
-    user_coords = SkyCoord(ra=df[ra_col].values * u.deg, dec=df[dec_col].values * u.deg)
-    gaia_coords = SkyCoord(
-        ra=gaia_df["ra"].values * u.deg, dec=gaia_df["dec"].values * u.deg
-    )
-    idx, sep2d, _ = user_coords.match_to_catalog_sky(gaia_coords)
-
-    max_sep_arcsec = 1.0
-    good = sep2d.arcsec < max_sep_arcsec
-    logger.info("Matched %d / %d user rows within %.1f arcsec",
-                int(good.sum()), len(df), max_sep_arcsec)
-
-    matched = gaia_df.iloc[idx[good]].reset_index(drop=True)
+    if matched.empty:
+        raise LookupError("No uploaded catalogue rows matched Gaia within 1 arcsec")
+    matched = matched.sort_values("_catalog_row").reset_index(drop=True)
+    matched = matched.drop(columns=["_catalog_row"], errors="ignore")
     return _canonicalize(matched)
 
 

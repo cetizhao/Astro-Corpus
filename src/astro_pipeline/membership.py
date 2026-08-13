@@ -29,6 +29,7 @@ from astroquery.vizier import Vizier
 from astro_pipeline.config import PipelineConfig
 from astro_pipeline.intake import QC_EXTRA_COLUMNS, _canonicalize
 from astro_pipeline.models.query import SourceIdQuery
+from astro_pipeline.manifest import CorpusManifest, validate_label
 from astro_pipeline.sources.gaia import GaiaSource
 
 logger = logging.getLogger(__name__)
@@ -298,15 +299,52 @@ def build_membership_corpus(
     xp_continuous: bool = False,
 ) -> dict[str, Any]:
     """Resolve a selected member table, save provenance, and build a corpus."""
-    resolution = resolve_membership_catalog(
-        catalog_id,
-        table_id=table_id,
-        limit=limit,
-        match_radius_arcsec=match_radius_arcsec,
-        match_batch_size=match_batch_size,
-    )
+    label = validate_label(label)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    limit_text = "all" if limit is None else str(limit)
+    input_summary = (
+        f"VizieR catalog={catalog_id}, table={table_id or 'auto'}, "
+        f"limit={limit_text}, match_radius={match_radius_arcsec}arcsec"
+    )
+    manifest = CorpusManifest.open_or_create(
+        out_dir / "manifest.json",
+        label=label,
+        input_mode="membership_catalog",
+        input_summary=input_summary,
+        requested_products={
+            "members": True,
+            "membership_catalog": True,
+            "simbad_papers": not skip_simbad,
+            "visualization": not skip_simbad,
+            "gaia_xp_sampled": xp_sampled,
+            "gaia_xp_continuous": xp_continuous,
+        },
+    )
+    manifest.update_stage("resolve_members", status="running", completed=0)
+    try:
+        resolution = resolve_membership_catalog(
+            catalog_id,
+            table_id=table_id,
+            limit=limit,
+            match_radius_arcsec=match_radius_arcsec,
+            match_batch_size=match_batch_size,
+        )
+    except Exception as exc:
+        manifest.update_stage("resolve_members", status="failed", error=str(exc))
+        manifest.add_error(f"membership catalogue resolution failed: {exc}")
+        manifest.finish("failed")
+        raise
+    manifest.update_stage(
+        "resolve_members",
+        status="completed",
+        total=len(resolution.original),
+        completed=len(resolution.members),
+        unmatched=len(resolution.unmatched),
+        catalog_id=resolution.catalog_id,
+        table_id=resolution.table_id,
+        match_method=resolution.match_method,
+    )
 
     original_csv = out_dir / "membership_catalog.csv"
     original_parquet = out_dir / "membership_catalog.parquet"
@@ -314,6 +352,15 @@ def build_membership_corpus(
     resolution.original.to_csv(original_csv, index=False)
     resolution.original.to_parquet(original_parquet, index=False)
     resolution.unmatched.to_csv(unmatched_csv, index=False)
+    manifest.add_artifact(
+        "membership_catalog_csv", original_csv, rows=len(resolution.original)
+    )
+    manifest.add_artifact(
+        "membership_catalog_parquet", original_parquet, rows=len(resolution.original)
+    )
+    manifest.add_artifact(
+        "unmatched_members_csv", unmatched_csv, rows=len(resolution.unmatched)
+    )
 
     from astro_pipeline.corpus_builder import build_corpus_from_members, result_to_dict
 
@@ -322,15 +369,13 @@ def build_membership_corpus(
         out_dir=out_dir,
         members=resolution.members,
         input_mode="membership_catalog",
-        input_summary=(
-            f"VizieR {resolution.catalog_id}/{resolution.table_id}; "
-            f"match={resolution.match_method}"
-        ),
+        input_summary=input_summary,
         skip_simbad=skip_simbad,
         sleep_seconds=sleep_seconds,
         enrich=enrich,
         xp_sampled=xp_sampled,
         xp_continuous=xp_continuous,
+        manifest=manifest,
     )
     output = result_to_dict(result)
     output.update(
