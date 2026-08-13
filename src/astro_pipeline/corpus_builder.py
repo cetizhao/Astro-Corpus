@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Optional
 
@@ -89,7 +89,8 @@ def build_corpus_snapshot(
     cone : ``(ra_deg, dec_deg, radius_deg)``.
     name : SIMBAD-resolvable source name (e.g. ``"TW Hya"``).
     region : ``(center_name, radius_deg)`` -- SIMBAD resolves the center,
-        then a Gaia cone search around it.
+        then a Gaia field-source cone search. This does not select physical
+        members; use :mod:`astro_pipeline.membership` for that.
     catalog : path to a CSV with a Gaia source_id column OR RA/Dec columns.
     limit : cap on members. Cone/region queries can return thousands; this
         prevents accidental huge downloads and long SIMBAD phases.
@@ -142,6 +143,39 @@ def build_corpus_snapshot(
 
     logger.info("Resolved %d members", len(members))
 
+    return build_corpus_from_members(
+        label=label,
+        out_dir=out_dir,
+        members=members,
+        input_mode=input_mode,
+        input_summary=input_summary,
+        skip_simbad=skip_simbad,
+        sleep_seconds=sleep_seconds,
+        enrich=enrich,
+        started_at=t0,
+    )
+
+
+def build_corpus_from_members(
+    *,
+    label: str,
+    out_dir: Path | str,
+    members: pd.DataFrame,
+    input_mode: str,
+    input_summary: str,
+    skip_simbad: bool = False,
+    sleep_seconds: float = 0.3,
+    enrich: bool = True,
+    started_at: Optional[float] = None,
+) -> CorpusBuildResult:
+    """Persist an already-resolved Gaia member table as a corpus snapshot.
+
+    This shared second half keeps user-uploaded catalogues and literature
+    membership catalogues on the same output contract as cone/name builds.
+    """
+    t0 = started_at if started_at is not None else time.time()
+    out_dir = Path(out_dir)
+
     if members.empty:
         return CorpusBuildResult(
             label=label, input_mode=input_mode, input_summary=input_summary,
@@ -151,7 +185,7 @@ def build_corpus_snapshot(
             error="no members resolved for the given input",
         )
 
-    # --- 2. Save members ---
+    # --- Save members ---
     out_dir.mkdir(parents=True, exist_ok=True)
     members_csv = out_dir / "members.csv"
     members_parquet = out_dir / "members.parquet"
@@ -170,7 +204,7 @@ def build_corpus_snapshot(
             elapsed_seconds=time.time() - t0,
         )
 
-    # --- 3. SIMBAD paper edges (inherits resumable cache via cache_path) ---
+    # --- SIMBAD paper edges (inherits resumable cache via cache_path) ---
     logger.info(
         "Querying SIMBAD for paper bibliography per source "
         "(sleep=%.2fs, enrich=%s; interruptible, resumable)...",
@@ -186,7 +220,7 @@ def build_corpus_snapshot(
     edges_path = out_dir / "paper_edges.parquet"
     edges.save(edges_path)
 
-    # --- 4. Viz HTML ---
+    # --- Viz HTML ---
     # inline_echarts=True so the HTML is self-contained (no sibling file dep).
     # The ~1 MB cost is acceptable and avoids the "blank page" failure mode
     # when the corpus dir is moved/shared without echarts.min.js.

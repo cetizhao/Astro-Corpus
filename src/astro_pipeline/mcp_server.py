@@ -132,7 +132,7 @@ def resolve_name(name: str) -> dict:
 
 @mcp.tool()
 def cone_search(ra: float, dec: float, radius_deg: float, limit: int = 50) -> list:
-    """Cone search Gaia DR3 around a sky position; return canonical fields per source.
+    """Cone search Gaia DR3 field sources; this does NOT select physical members.
 
     Parameters
     ----------
@@ -147,6 +147,9 @@ def cone_search(ra: float, dec: float, radius_deg: float, limit: int = 50) -> li
     list of dicts (one per source), each shaped like resolve_name's return.
 
     Live call (~2-5 s).
+
+    For members of a cluster/association, use search_membership_catalogs,
+    preview_membership_catalog, then download_membership_corpus instead.
     """
     try:
         df = resolve_members(cone=(ra, dec, radius_deg), limit=limit)
@@ -228,7 +231,10 @@ def download_corpus(
     label : directory name under data/ (e.g. "orion", "tw_hya_region").
     cone : [ra_deg, dec_deg, radius_deg] for a Gaia cone search.
     name : SIMBAD-resolvable source name (e.g. "TW Hya").
-    region : [center_name, radius_deg]; SIMBAD resolves the center.
+    region : [center_name, radius_deg]; SIMBAD resolves the center and returns
+        arbitrary Gaia field sources inside that cone. This is geometric and
+        does NOT mean members of the named cluster/association. Use the three
+        membership-catalogue tools for physical members.
     catalog_path : path to a CSV with Gaia ids OR RA/Dec columns.
     limit : cap on members (default 200; raise for bigger builds, but
         SIMBAD phase scales as ~0.3 s/source).
@@ -275,6 +281,113 @@ def download_corpus(
     except (ValueError, LookupError) as e:
         return {"error": str(e), "label": label}
     return result_to_dict(result)
+
+
+@mcp.tool()
+def search_membership_catalogs(target: str, max_results: int = 10) -> dict:
+    """Find published VizieR member catalogues for a cluster or association.
+
+    This is the correct first step when a user asks for "Taurus members",
+    "Pleiades members", etc. It is intentionally separate from a Gaia cone
+    search, which only returns all field sources in a geometric region.
+
+    Returns ranked catalogue candidates with catalog_id, title, relevance
+    signals, source URL, and a reminder to preview before choosing. The tool
+    does not automatically decide which scientific membership definition is
+    correct and does not apply hidden quality/probability cuts.
+
+    Live call to CDS VizieR. Next call preview_membership_catalog(catalog_id).
+    """
+    from astro_pipeline.membership import search_membership_catalogs as _search
+
+    try:
+        return _json_safe(_search(target, max_results=max_results))
+    except (ValueError, LookupError) as exc:
+        return {"error": str(exc), "target": target}
+
+
+@mcp.tool()
+def preview_membership_catalog(
+    catalog_id: str,
+    table_id: Optional[str] = None,
+    sample_size: int = 8,
+) -> dict:
+    """Inspect tables, columns and sample rows before choosing a member list.
+
+    A VizieR catalogue can contain separate established-member and candidate
+    tables. The preview labels those roles, detects Gaia IDs/coordinates and
+    membership-related columns, and explains the planned Gaia DR3 match.
+
+    Parameters
+    ----------
+    catalog_id : e.g. "J/AJ/156/271".
+    table_id : optional exact table, e.g. "J/AJ/156/271/table1". Omit to
+        preview all tables in the catalogue.
+    sample_size : 1-50 rows per table; preview never downloads the full table.
+    """
+    from astro_pipeline.membership import preview_membership_catalog as _preview
+
+    try:
+        return _json_safe(
+            _preview(catalog_id, table_id=table_id, sample_size=sample_size)
+        )
+    except (ValueError, LookupError) as exc:
+        return {"error": str(exc), "catalog_id": catalog_id, "table_id": table_id}
+
+
+@mcp.tool()
+def download_membership_corpus(
+    label: str,
+    catalog_id: str,
+    table_id: Optional[str] = None,
+    limit: int = 0,
+    match_radius_arcsec: float = 3.0,
+    skip_simbad: bool = False,
+    sleep_seconds: float = 0.3,
+    enrich: bool = True,
+) -> dict:
+    """Build a Gaia DR3 corpus from an explicitly selected member table.
+
+    Use only after search_membership_catalogs and preview_membership_catalog.
+    The full selected VizieR table is saved unchanged, then matched to Gaia
+    DR3 by source_id when available or by batched coordinates otherwise.
+    Literature columns (membership probability, population, spectral type,
+    flags, names, etc.) are preserved with a ``member_`` prefix. No scientific
+    filtering is silently applied.
+
+    Outputs under data/<label>/ include membership_catalog.csv/parquet,
+    members.csv/parquet, unmatched_members.csv and, unless skip_simbad=True,
+    paper edges plus the self-contained HTML visualization.
+
+    ``limit=0`` means all selected table rows; use a small positive value for
+    a test. ``match_radius_arcsec`` defaults to 3 arcsec because older member
+    lists can use pre-Gaia-DR3 epochs; inspect match separations and unmatched
+    rows, especially in dense fields or for high-proper-motion sources.
+    """
+    from astro_pipeline.membership import build_membership_corpus
+
+    corpora_root = DATA_DIR.parent if DATA_DIR.name == "twa" else Path("data")
+    try:
+        return _json_safe(
+            build_membership_corpus(
+                label=label,
+                out_dir=corpora_root / label,
+                catalog_id=catalog_id,
+                table_id=table_id,
+                limit=limit if limit > 0 else None,
+                match_radius_arcsec=match_radius_arcsec,
+                skip_simbad=skip_simbad,
+                sleep_seconds=sleep_seconds,
+                enrich=enrich,
+            )
+        )
+    except (ValueError, LookupError) as exc:
+        return {
+            "error": str(exc),
+            "label": label,
+            "catalog_id": catalog_id,
+            "table_id": table_id,
+        }
 
 
 @mcp.tool()

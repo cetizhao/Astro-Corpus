@@ -6,7 +6,11 @@ Single entry point ``resolve_members()`` accepts exactly one of:
   * ``catalog=path`` — user CSV with a Gaia source_id column OR just RA/Dec
     (auto cross-matched to Gaia)
   * ``name="TW Hya"`` — single source resolved via SIMBAD
-  * ``region=("TWA", 10.0)`` — region name + cone radius around SIMBAD center
+  * ``region=("TWA", 10.0)`` — named sky center + Gaia field-source cone
+
+``region`` is geometric only: it does *not* infer physical membership in the
+named association or cluster.  Published member-list discovery lives in
+``astro_pipeline.membership``.
 
 The returned DataFrame has canonical column names (``Gaia``, ``RAICRS``,
 ``DEICRS``, ``Plx_gdr3``, ...) matching what the existing TWA pipeline
@@ -81,7 +85,8 @@ def resolve_members(
         cross-matched to Gaia by position.
     name : SIMBAD-resolvable source name (e.g. ``"TW Hya"``).
     region : (center_name, radius_deg) -- SIMBAD resolves the center, then
-        cone-search Gaia around it.
+        cone-searches arbitrary Gaia field sources around it. This is not a
+        physical cluster/association membership selection.
     limit : optional cap on rows returned. Cone/region queries can return
         thousands; this prevents accidental huge downloads.
 
@@ -186,7 +191,7 @@ def _from_name(name: str) -> pd.DataFrame:
 
 
 def _from_region(center_name: str, radius_deg: float, *, limit: Optional[int]) -> pd.DataFrame:
-    """SIMBAD resolves center -> cone search around (center_ra, center_dec)."""
+    """SIMBAD center -> geometric Gaia cone (field sources, not members)."""
     from astroquery.simbad import Simbad
 
     simbad = Simbad()

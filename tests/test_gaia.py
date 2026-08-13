@@ -1,7 +1,8 @@
 import pytest
+import pandas as pd
 from astropy.table import Table
 from tests.conftest import get_config
-from astro_pipeline.models.query import ConeSearchQuery
+from astro_pipeline.models.query import ConeSearchQuery, SourceIdQuery
 from astro_pipeline.sources.gaia import GaiaSource
 
 
@@ -48,3 +49,54 @@ def test_continuous_download_defaults_to_small_batches(gaia, monkeypatch, tmp_pa
     assert all(retrieval_type == "XP_CONTINUOUS" for _, retrieval_type in calls)
     assert len(results) == 12
     assert all(result.success for result in results)
+
+
+def test_source_id_adql_uses_top_not_non_adql_limit(gaia, monkeypatch):
+    class FakeJob:
+        def get_results(self):
+            return Table({"source_id": [123]})
+
+    seen = []
+
+    def fake_async(adql, **kwargs):
+        seen.append(adql)
+        return FakeJob()
+
+    monkeypatch.setattr("astro_pipeline.sources.gaia.Gaia.launch_job_async", fake_async)
+    gaia._query_by_ids(SourceIdQuery(source_ids=["123"], limit=1))
+
+    assert seen[0].startswith("SELECT TOP 1 ")
+    assert " LIMIT " not in seen[0]
+
+
+def test_source_id_query_rejects_non_numeric_ids(gaia):
+    with pytest.raises(ValueError, match="digits only"):
+        gaia._query_by_ids(SourceIdQuery(source_ids=["123 OR 1=1"]))
+
+
+def test_crossmatch_positions_keeps_nearest_candidate(gaia, monkeypatch):
+    class FakeJob:
+        def get_results(self):
+            return Table(
+                {
+                    "source_id": [100, 101, 200],
+                    "ra": [10.0002, 10.00005, 11.0],
+                    "dec": [20.0, 20.0, 21.0],
+                }
+            )
+
+    monkeypatch.setattr(
+        "astro_pipeline.sources.gaia.Gaia.launch_job_async",
+        lambda *args, **kwargs: FakeJob(),
+    )
+    positions = pd.DataFrame({"row": [0, 1], "ra0": [10.0, 11.0], "dec0": [20.0, 21.0]})
+    result = gaia.crossmatch_positions(
+        positions,
+        ra_col="ra0",
+        dec_col="dec0",
+        row_id_col="row",
+        radius_arcsec=3.0,
+    )
+
+    assert result["source_id"].tolist() == [101, 200]
+    assert result["match_candidate_count"].tolist() == [2, 1]

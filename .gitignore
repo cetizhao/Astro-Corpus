@@ -35,6 +35,9 @@ data/
 # Claude Code local config and memory
 .claude/
 
+# Codex desktop local task metadata
+.codex/
+
 # Large astronomical data formats
 *.hdf5
 *.h5

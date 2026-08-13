@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -203,13 +204,25 @@ class GaiaSource(CatalogSource):
             cols.extend(extra_columns)
         columns = ", ".join(cols)
 
-        id_list = ", ".join(str(sid) for sid in query.source_ids)
+        ids = [str(sid).strip() for sid in query.source_ids if str(sid).strip()]
+        if not ids:
+            return CatalogResult(
+                source_name=self.get_source_name(),
+                data=pd.DataFrame(columns=cols),
+                row_count=0,
+                query_description="empty source ID query",
+                output_path=output_path,
+            )
+        if any(not sid.isdigit() for sid in ids):
+            raise ValueError("Gaia source IDs must contain digits only")
+
+        id_list = ", ".join(ids)
+        limit_clause = f" TOP {query.limit}" if query.limit else ""
         adql = (
-            f"SELECT {columns} FROM {self._gaia_config.db_schema}.gaia_source "
+            f"SELECT{limit_clause} {columns} "
+            f"FROM {self._gaia_config.db_schema}.gaia_source "
             f"WHERE source_id IN ({id_list})"
         )
-        if query.limit:
-            adql += f" LIMIT {query.limit}"
 
         self._logger.info("Gaia source ID query: %d IDs", len(query.source_ids))
 
@@ -238,6 +251,171 @@ class GaiaSource(CatalogSource):
             query_description=adql[:200],
             output_path=output_path,
         )
+
+    def crossmatch_positions(
+        self,
+        positions: pd.DataFrame,
+        *,
+        ra_col: str,
+        dec_col: str,
+        row_id_col: str = "membership_row_id",
+        radius_arcsec: float = 3.0,
+        batch_size: int = 25,
+        extra_columns: list[str] | None = None,
+    ) -> pd.DataFrame:
+        """Cross-match many positions to Gaia DR3 with batched small cones.
+
+        Each batch is one ordinary anonymous ADQL query containing a union of
+        small positional predicates.  Returned Gaia candidates are assigned
+        to the input coordinates locally.  This is intentionally different
+        from a single large cone query: a large cone can be truncated before
+        all input positions are represented, while Gaia TAP-upload jobs can
+        remain queued for minutes on a busy service.  The nearest Gaia source
+        is returned per input row together with the angular separation and
+        number of candidates in that row's match circle.
+
+        Unmatched input rows are omitted from the returned frame; callers can
+        recover them by joining on ``row_id_col``.
+        """
+        if radius_arcsec <= 0 or radius_arcsec > 60:
+            raise ValueError("radius_arcsec must be in the interval (0, 60]")
+        if batch_size < 1 or batch_size > 100:
+            raise ValueError("batch_size must be between 1 and 100")
+        missing = [c for c in (ra_col, dec_col) if c not in positions.columns]
+        if missing:
+            raise ValueError(f"Missing coordinate columns: {missing}")
+
+        work = positions.copy()
+        if row_id_col not in work.columns:
+            work[row_id_col] = range(len(work))
+        if work[row_id_col].duplicated().any():
+            raise ValueError(f"{row_id_col!r} must be unique")
+
+        work[ra_col] = pd.to_numeric(work[ra_col], errors="coerce")
+        work[dec_col] = pd.to_numeric(work[dec_col], errors="coerce")
+        finite = work[ra_col].map(math.isfinite) & work[dec_col].map(math.isfinite)
+        valid = finite & work[ra_col].between(0, 360, inclusive="both") & work[
+            dec_col
+        ].between(-90, 90, inclusive="both")
+        if (~valid).any():
+            self._logger.warning(
+                "Skipping %d catalogue rows with invalid coordinates",
+                int((~valid).sum()),
+            )
+        work = work.loc[valid, [row_id_col, ra_col, dec_col]].reset_index(drop=True)
+        if work.empty:
+            return pd.DataFrame(
+                columns=[
+                    row_id_col,
+                    "source_id",
+                    "match_sep_arcsec",
+                    "match_candidate_count",
+                ]
+            )
+
+        cols = list(self._gaia_config.default_columns)
+        if extra_columns:
+            cols.extend(c for c in extra_columns if c not in cols)
+        gaia_select = ", ".join(f"g.{col} AS {col}" for col in cols)
+        radius_deg = radius_arcsec / 3600.0
+        frames: list[pd.DataFrame] = []
+
+        for start in range(0, len(work), batch_size):
+            batch = work.iloc[start : start + batch_size].copy()
+            predicates = []
+            for _, row in batch.iterrows():
+                predicates.append(
+                    "1=CONTAINS(POINT('ICRS', g.ra, g.dec), "
+                    f"CIRCLE('ICRS', {float(row[ra_col]):.12f}, "
+                    f"{float(row[dec_col]):.12f}, {radius_deg:.12f}))"
+                )
+            adql = (
+                f"SELECT {gaia_select} "
+                f"FROM {self._gaia_config.db_schema}.gaia_source AS g "
+                "WHERE " + " OR ".join(f"({predicate})" for predicate in predicates)
+            )
+            self._logger.info(
+                "Gaia cone-union cross-match batch %d/%d (%d positions)",
+                start // batch_size + 1,
+                (len(work) + batch_size - 1) // batch_size,
+                len(batch),
+            )
+
+            @self._retry
+            def _do_query() -> pd.DataFrame:
+                try:
+                    job = Gaia.launch_job_async(
+                        adql,
+                        dump_to_file=False,
+                        output_format="votable",
+                    )
+                    return job.get_results().to_pandas()
+                except Exception as exc:
+                    self._logger.warning(
+                        "Async cone-union cross-match failed (%s), trying sync", exc
+                    )
+                    job = Gaia.launch_job(
+                        adql,
+                        output_format="votable",
+                    )
+                    return job.get_results().to_pandas()
+
+            candidates = _do_query()
+            if candidates.empty:
+                continue
+
+            from astropy import units as u
+            from astropy.coordinates import SkyCoord
+
+            input_coords = SkyCoord(
+                ra=batch[ra_col].to_numpy(dtype=float) * u.deg,
+                dec=batch[dec_col].to_numpy(dtype=float) * u.deg,
+            )
+            candidate_coords = SkyCoord(
+                ra=pd.to_numeric(candidates["ra"]).to_numpy() * u.deg,
+                dec=pd.to_numeric(candidates["dec"]).to_numpy() * u.deg,
+            )
+            # search_around_sky returns every pair within the requested radius.
+            # Calling it as candidate.search_around_sky(input) yields indices in
+            # input first and candidate second (Astropy's documented ordering).
+            input_idx, candidate_idx, separations, _ = candidate_coords.search_around_sky(
+                input_coords, radius_arcsec * u.arcsec
+            )
+            if len(input_idx) == 0:
+                continue
+            matched = candidates.iloc[candidate_idx].copy().reset_index(drop=True)
+            matched[row_id_col] = batch.iloc[input_idx][row_id_col].to_numpy()
+            matched["match_sep_arcsec"] = separations.arcsec
+            frames.append(matched)
+
+        if not frames:
+            return pd.DataFrame(
+                columns=[
+                    row_id_col,
+                    *cols,
+                    "match_sep_arcsec",
+                    "match_candidate_count",
+                ]
+            )
+
+        candidates = pd.concat(frames, ignore_index=True)
+        candidates["match_candidate_count"] = candidates.groupby(row_id_col)[
+            row_id_col
+        ].transform("size")
+        nearest = (
+            candidates.sort_values([row_id_col, "match_sep_arcsec", "source_id"])
+            .drop_duplicates(row_id_col, keep="first")
+            .reset_index(drop=True)
+        )
+        self._logger.info(
+            "Gaia position cross-match: %d/%d rows matched within %.2f arcsec; "
+            "%d rows had multiple candidates",
+            nearest[row_id_col].nunique(),
+            len(work),
+            radius_arcsec,
+            int((nearest["match_candidate_count"] > 1).sum()),
+        )
+        return nearest
 
     def download_spectra(
         self,

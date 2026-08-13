@@ -17,7 +17,7 @@ Examples
   # User-provided catalog (must have Gaia ids OR RA/Dec columns)
   python scripts/build_corpus.py --catalog my_sources.csv --out-dir data/demo/mine
 
-  # Region by name + radius
+  # Named sky center + radius (field sources, not physical members)
   python scripts/build_corpus.py --region "Pleiades" 5.0 --out-dir data/demo/pleiades
 
   # Skip SIMBAD (just resolve members -- much faster)
@@ -50,7 +50,8 @@ def main() -> None:
                    help="User CSV with a Gaia source_id column OR RA/Dec columns")
     g.add_argument("--name", help="SIMBAD-resolvable source name (e.g. 'TW Hya')")
     g.add_argument("--region", nargs=2, metavar=("CENTER", "RADIUS_DEG"),
-                   help="Region: SIMBAD-resolvable center name + cone radius (degrees)")
+                   help="Geometric field region: SIMBAD center + cone radius; "
+                        "does not select physical members")
 
     ap.add_argument("--out-dir", type=Path, required=True,
                     help="Output directory (created if missing)")
