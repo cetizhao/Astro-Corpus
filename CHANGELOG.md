@@ -3,6 +3,74 @@
 All notable changes to this project are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] — 2026-08-13
+
+### Summary
+
+Generalizes corpus acquisition beyond the original TWA demo. Agents can now
+distinguish geometric field searches from published physical membership,
+inspect and select VizieR member tables, build resumable Gaia+paper corpora with
+optional XP products, inspect exact progress, and materialize the Gaia DR3 main
+source table through bounded HEALPix partitions.
+
+### Added
+
+- `search_membership_catalogs`, `preview_membership_catalog`, and
+  `download_membership_corpus` MCP tools.
+- VizieR membership provenance: unchanged original table, `member_` namespaced
+  fields, Gaia DR3 match separations/candidate counts, and explicit unmatched
+  rows. No hidden membership or quality filtering.
+- Corpus-level Gaia XP Sampled/Continuous switches, availability tables,
+  retrieval-specific checkpoints, and visualization loading from any corpus.
+- Atomic `data/<label>/manifest.json`, read-only `download_plan`, enhanced
+  `corpus_status`, and local corpus XP counts.
+- Source-level SIMBAD checkpoints, including explicit completion for sources
+  with zero references and retry state for transient failures; no placeholder
+  paper rows are introduced.
+- `bulk_gaia.py` plus MCP/CLI plan-run-status interfaces for all rows/selected
+  columns in `gaiadr3.gaia_source`, using official source-ID HEALPix intervals,
+  ordered keyset pages, atomic Parquet parts, and per-pixel resume state.
+- `AGENTS.md` and integration, architecture, and operator documentation.
+
+### Changed
+
+- `region` and `cone` are documented and surfaced as geometric field-source
+  searches, never as physical cluster/association membership.
+- Position-only membership matching uses bounded unions of small ordinary ADQL
+  cones plus local nearest-neighbour assignment. This avoids global-cone row
+  truncation and observed TAP-upload queue delays.
+- Gaia TAP catalogue queries remain anonymous; only DataLink attempts login.
+- Corpus/XP visualization prefers Continuous products, falls back to Sampled,
+  and can target a non-default corpus by label.
+- Corpus and bulk labels are validated directory names and cannot escape their
+  output roots.
+- Corpus source-selection identity includes `limit`; uploaded CSV inputs also
+  include a SHA-256 fingerprint to prevent stale checkpoint reuse.
+- Generated corpus HTML inlines the package-vendored ECharts runtime and can be
+  opened or shared as one offline file.
+
+### Fixed
+
+- Gaia source-ID queries now emit valid ADQL `TOP n` instead of unsupported
+  trailing `LIMIT n`, and reject nonnumeric IDs.
+- Gaia `ROW_LIMIT` is restored with `try/finally` after catalogue/XP queries.
+- Bulk retry accounting includes pages committed before a later page failure
+  exactly once.
+- Bulk keyset pagination continues until an empty page rather than trusting a
+  short TAP page as end-of-range.
+- A DataLink login failure can no longer break otherwise valid anonymous TAP
+  astrometry work.
+- Exponential retry now covers astroquery's `requests` transport errors and
+  HTTP 408/429/5xx responses, while permanent 4xx errors fail immediately.
+
+### Verified
+
+- Taurus member workflow: VizieR `J/AJ/156/271/table1`, first three rows,
+  produced two Gaia DR3 matches and one explicit unmatched row on 2026-08-13.
+- Gaia bulk workflow: the level-12 pixel containing TW Hya downloaded three
+  `gaia_source` rows to one Parquet part and resumed idempotently.
+- The full default offline test suite passes; network tests remain opt-in.
+
 ## [0.3.0] — 2026-08-05
 
 ### Summary
