@@ -100,3 +100,24 @@ def test_crossmatch_positions_keeps_nearest_candidate(gaia, monkeypatch):
 
     assert result["source_id"].tolist() == [101, 200]
     assert result["match_candidate_count"].tolist() == [2, 1]
+
+
+def test_query_xp_availability_preserves_missing_source(gaia, monkeypatch):
+    def fake_by_ids(query, output_path=None, extra_columns=None):
+        frame = pd.DataFrame(
+            {
+                "source_id": [100],
+                "has_xp_sampled": [True],
+                "has_xp_continuous": [False],
+            }
+        )
+        from astro_pipeline.models.results import CatalogResult
+
+        return CatalogResult("Gaia", frame, 1)
+
+    monkeypatch.setattr(gaia, "_query_by_ids", fake_by_ids)
+    result = gaia.query_xp_availability(["100", "999"])
+
+    assert result.data["source_id"].tolist() == ["100", "999"]
+    assert result.data["gaia_source_found"].tolist() == [True, False]
+    assert result.data["has_xp_sampled"].tolist() == [True, False]

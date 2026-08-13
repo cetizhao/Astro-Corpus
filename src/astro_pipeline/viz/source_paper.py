@@ -465,11 +465,12 @@ function renderSpectrum(s) {
   wrap.style.display = 'block';
   if (!spectrum) {
     title.textContent = 'Gaia XP spectrum unavailable';
-    chartDom.innerHTML = '<div class="empty">No XP_SAMPLED data for this source.</div>';
+    chartDom.innerHTML = '<div class="empty">No cached XP Continuous or Sampled data for this source.</div>';
     return;
   }
 
-  title.textContent = `Gaia XP_SAMPLED · ${spectrum.wavelength.length} wavelength points`;
+  const spectrumFormat = (spectrum.format || 'sampled').toUpperCase();
+  title.textContent = `Gaia XP ${spectrumFormat} · ${spectrum.wavelength.length} wavelength points`;
   chartDom.innerHTML = '';
   const displayFlux = spectrum.flux.map(v => v == null ? null : v * 1e17);
   const displayError = spectrum.flux_error.map(v => v == null ? null : v * 1e17);
@@ -657,17 +658,31 @@ def build_overview_html(
 
     spectra_by_source: dict[str, dict] = {}
     if spectra_dir:
-        from astro_pipeline.spectra import read_xp_sampled
+        from astro_pipeline.spectra import read_xp_continuous, read_xp_sampled
 
         spectrum_root = Path(spectra_dir)
         for gaia_id in catalog[GAIA_ID_COL].astype(str):
-            spectrum_path = spectrum_root / f"{gaia_id}.fits"
-            if not spectrum_path.exists():
-                continue
-            try:
-                spectra_by_source[gaia_id] = read_xp_sampled(spectrum_path)
-            except ValueError:
-                continue
+            candidates = [
+                (
+                    spectrum_root / "gaia_xp_continuous" / f"{gaia_id}.fits",
+                    read_xp_continuous,
+                ),
+                (
+                    spectrum_root / "gaia_xp_sampled" / f"{gaia_id}.fits",
+                    read_xp_sampled,
+                ),
+                # Backward compatibility: older callers passed the sampled
+                # product directory rather than the corpus root.
+                (spectrum_root / f"{gaia_id}.fits", read_xp_sampled),
+            ]
+            for spectrum_path, reader in candidates:
+                if not spectrum_path.exists():
+                    continue
+                try:
+                    spectra_by_source[gaia_id] = reader(spectrum_path)
+                    break
+                except Exception:
+                    continue
 
     payload = compute_overview(
         catalog,

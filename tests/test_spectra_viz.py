@@ -161,5 +161,5 @@ def test_overview_embeds_spectrum() -> None:
     assert payload["spectra"][gaia_id] == spectrum
     assert payload["sources"][0]["id"] == gaia_id
     assert payload["sources"][0]["has_xp"] is True
-    assert "Gaia XP_SAMPLED" in html
+    assert "Gaia XP ${spectrumFormat}" in html
     assert "focus-spectrum" in html

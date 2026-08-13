@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import math
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 import pandas as pd
 from astroquery.gaia import Gaia
@@ -146,6 +146,75 @@ class GaiaSource(CatalogSource):
                 output_path=output_path,
             )
         return self._query_xp_by_cone(query, output_path)
+
+    def query_xp_availability(
+        self,
+        source_ids: Sequence[str],
+        output_path: Optional[Path] = None,
+        *,
+        batch_size: int = 2000,
+    ) -> CatalogResult:
+        """Return XP Sampled/Continuous availability for Gaia DR3 IDs.
+
+        Queries are anonymous and batched so a corpus with thousands of IDs
+        does not produce an oversized ADQL ``IN`` clause.  The output keeps
+        the caller's first-seen ID order and includes ``gaia_source_found`` so
+        a missing/obsolete ID is distinguishable from a source that exists but
+        has no XP product.
+        """
+        if batch_size < 1 or batch_size > 5000:
+            raise ValueError("batch_size must be between 1 and 5000")
+        ids: list[str] = []
+        seen: set[str] = set()
+        for raw_id in source_ids:
+            source_id = str(raw_id).strip()
+            if not source_id or source_id in seen:
+                continue
+            if not source_id.isdigit():
+                raise ValueError("Gaia source IDs must contain digits only")
+            seen.add(source_id)
+            ids.append(source_id)
+
+        availability_columns = ["has_xp_sampled", "has_xp_continuous"]
+        frames: list[pd.DataFrame] = []
+        for start in range(0, len(ids), batch_size):
+            result = self._query_by_ids(
+                SourceIdQuery(source_ids=ids[start : start + batch_size]),
+                extra_columns=availability_columns,
+            )
+            frames.append(result.data)
+
+        queried = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+        base = pd.DataFrame({"source_id": ids})
+        if queried.empty:
+            out = base.copy()
+            out["has_xp_sampled"] = False
+            out["has_xp_continuous"] = False
+            out["gaia_source_found"] = False
+        else:
+            queried = queried.copy()
+            queried["source_id"] = queried["source_id"].astype(str)
+            keep = ["source_id", *availability_columns]
+            out = base.merge(queried[keep], on="source_id", how="left", validate="one_to_one")
+            out["gaia_source_found"] = out[availability_columns].notna().any(axis=1)
+            for column in availability_columns:
+                out[column] = (
+                    out[column]
+                    .astype(str)
+                    .str.strip()
+                    .str.lower()
+                    .isin({"true", "1"})
+                )
+
+        if output_path:
+            save_catalog_parquet(out, output_path)
+        return CatalogResult(
+            source_name=self.get_source_name() + " (XP availability)",
+            data=out,
+            row_count=len(out),
+            query_description=f"XP availability for {len(ids)} Gaia DR3 source IDs",
+            output_path=output_path,
+        )
 
     def _query_xp_by_cone(
         self,
@@ -424,6 +493,7 @@ class GaiaSource(CatalogSource):
         resume: bool = True,
         retrieval_type: str = "XP_SAMPLED",
         batch_size: int | None = None,
+        progress_callback: Optional[Callable[[dict], None]] = None,
     ) -> list[SpectrumResult]:
         retrieval_type = retrieval_type.upper()
         if retrieval_type not in {"XP_SAMPLED", "XP_CONTINUOUS"}:
@@ -448,8 +518,20 @@ class GaiaSource(CatalogSource):
             ids = [id_ for id_ in ids if not checkpoint.is_completed(id_)]
             ids = self._filter_downloaded(ids, output_dir)
 
+        total_pending = len(ids)
         if not ids:
             self._logger.info("All Gaia spectra already downloaded")
+            if progress_callback:
+                progress_callback(
+                    {
+                        "retrieval_type": retrieval_type,
+                        "pending_at_start": 0,
+                        "processed": 0,
+                        "completed_this_run": 0,
+                        "failed_this_run": 0,
+                        "done": True,
+                    }
+                )
             return []
 
         self._logger.info("Downloading %d Gaia %s spectra via DataLink", len(ids), retrieval_type)
@@ -538,6 +620,19 @@ class GaiaSource(CatalogSource):
                         )
                     )
                 checkpoint.save()
+
+            if progress_callback:
+                processed = min(i + len(batch), total_pending)
+                progress_callback(
+                    {
+                        "retrieval_type": retrieval_type,
+                        "pending_at_start": total_pending,
+                        "processed": processed,
+                        "completed_this_run": sum(1 for r in results if r.success),
+                        "failed_this_run": sum(1 for r in results if not r.success),
+                        "done": processed >= total_pending,
+                    }
+                )
 
         checkpoint.save()
         self._logger.info(

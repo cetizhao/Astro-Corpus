@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
@@ -29,6 +29,7 @@ import pandas as pd
 
 from astro_pipeline.intake import resolve_members
 from astro_pipeline.io.writer import save_catalog_parquet
+from astro_pipeline.manifest import CorpusManifest
 from astro_pipeline.sources.simbad_refs import build_paper_edges
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,8 @@ class CorpusBuildResult:
     paper_edges_parquet: str = ""
     simbad_refs_parquet: str = ""
     viz_html: str = ""  # file:// URL or ""
+    manifest_json: str = ""
+    xp_products: dict[str, Any] = field(default_factory=dict)
     skipped_simbad: bool = False
     elapsed_seconds: float = 0.0
     error: Optional[str] = None
@@ -67,6 +70,8 @@ def build_corpus_snapshot(
     skip_simbad: bool = False,
     sleep_seconds: float = 0.3,
     enrich: bool = True,
+    xp_sampled: bool = False,
+    xp_continuous: bool = False,
 ) -> CorpusBuildResult:
     """Build a corpus snapshot from any input mode and persist to disk.
 
@@ -152,6 +157,8 @@ def build_corpus_snapshot(
         skip_simbad=skip_simbad,
         sleep_seconds=sleep_seconds,
         enrich=enrich,
+        xp_sampled=xp_sampled,
+        xp_continuous=xp_continuous,
         started_at=t0,
     )
 
@@ -166,6 +173,8 @@ def build_corpus_from_members(
     skip_simbad: bool = False,
     sleep_seconds: float = 0.3,
     enrich: bool = True,
+    xp_sampled: bool = False,
+    xp_continuous: bool = False,
     started_at: Optional[float] = None,
 ) -> CorpusBuildResult:
     """Persist an already-resolved Gaia member table as a corpus snapshot.
@@ -176,13 +185,35 @@ def build_corpus_from_members(
     t0 = started_at if started_at is not None else time.time()
     out_dir = Path(out_dir)
 
+    manifest = CorpusManifest.open_or_create(
+        out_dir / "manifest.json",
+        label=label,
+        input_mode=input_mode,
+        input_summary=input_summary,
+        requested_products={
+            "members": True,
+            "simbad_papers": not skip_simbad,
+            "visualization": not skip_simbad,
+            "gaia_xp_sampled": xp_sampled,
+            "gaia_xp_continuous": xp_continuous,
+        },
+    )
+    manifest_path = str(manifest.path.resolve())
+
     if members.empty:
+        manifest.update_stage(
+            "members", status="failed", total=0, completed=0,
+            error="no members resolved for the given input",
+        )
+        manifest.add_error("no members resolved for the given input")
+        manifest.finish("failed")
         return CorpusBuildResult(
             label=label, input_mode=input_mode, input_summary=input_summary,
             n_members=0, n_paper_edges=0, n_unique_papers=0,
             out_dir=str(out_dir), skipped_simbad=skip_simbad,
             elapsed_seconds=time.time() - t0,
             error="no members resolved for the given input",
+            manifest_json=manifest_path,
         )
 
     # --- Save members ---
@@ -191,9 +222,53 @@ def build_corpus_from_members(
     members_parquet = out_dir / "members.parquet"
     members.to_csv(members_csv, index=False)
     save_catalog_parquet(members, members_parquet)
+    manifest.update_stage(
+        "members", status="completed", total=len(members), completed=len(members)
+    )
+    manifest.add_artifact("members_csv", members_csv, rows=len(members))
+    manifest.add_artifact("members_parquet", members_parquet, rows=len(members))
+
+    # Optional Gaia XP products are independent of SIMBAD and therefore also
+    # work for quick ``skip_simbad`` corpus builds.
+    xp_products: dict[str, Any] = {}
+    if xp_sampled or xp_continuous:
+        from astro_pipeline.corpus_products import download_gaia_xp_products
+
+        def update_product_stage(stage: str, update: dict[str, Any]) -> None:
+            manifest.update_stage(stage, **update)
+
+        xp_products = download_gaia_xp_products(
+            members,
+            out_dir,
+            sampled=xp_sampled,
+            continuous=xp_continuous,
+            progress_callback=update_product_stage,
+        )
+        if xp_products.get("availability_path"):
+            manifest.add_artifact(
+                "gaia_xp_availability", xp_products["availability_path"]
+            )
+        for product in ("sampled", "continuous"):
+            info = xp_products.get(product, {})
+            if info.get("requested") and info.get("output_dir"):
+                manifest.add_artifact(
+                    f"gaia_xp_{product}",
+                    info["output_dir"],
+                    cached=info.get("cached", 0),
+                    available=info.get("available", 0),
+                )
+        for error in xp_products.get("errors", []):
+            manifest.add_warning(error)
+    else:
+        manifest.update_stage("gaia_xp_sampled", status="not_requested")
+        manifest.update_stage("gaia_xp_continuous", status="not_requested")
 
     if skip_simbad:
         logger.info("--skip-simbad; stopping after members.*")
+        manifest.update_stage("simbad_papers", status="skipped")
+        manifest.update_stage("visualization", status="skipped")
+        terminal = "partial" if xp_products.get("errors") else "completed"
+        manifest.finish(terminal)
         return CorpusBuildResult(
             label=label, input_mode=input_mode, input_summary=input_summary,
             n_members=len(members), n_paper_edges=0, n_unique_papers=0,
@@ -202,6 +277,8 @@ def build_corpus_from_members(
             members_parquet=str(members_parquet.resolve()),
             skipped_simbad=True,
             elapsed_seconds=time.time() - t0,
+            manifest_json=manifest_path,
+            xp_products=xp_products,
         )
 
     # --- SIMBAD paper edges (inherits resumable cache via cache_path) ---
@@ -210,15 +287,50 @@ def build_corpus_from_members(
         "(sleep=%.2fs, enrich=%s; interruptible, resumable)...",
         sleep_seconds, enrich,
     )
-    edges, refs = build_paper_edges(
-        members,
-        id_col="Gaia",
-        cache_path=out_dir / "simbad_refs.parquet",
-        sleep_seconds=sleep_seconds,
-        enrich=enrich,
+    manifest.update_stage(
+        "simbad_papers", status="running", total=len(members), completed=0
     )
+    try:
+        edges, refs = build_paper_edges(
+            members,
+            id_col="Gaia",
+            cache_path=out_dir / "simbad_refs.parquet",
+            sleep_seconds=sleep_seconds,
+            enrich=enrich,
+        )
+    except Exception as exc:
+        message = f"SIMBAD paper stage failed: {exc}"
+        manifest.update_stage("simbad_papers", status="failed", error=str(exc))
+        manifest.add_error(message)
+        manifest.finish("failed")
+        return CorpusBuildResult(
+            label=label,
+            input_mode=input_mode,
+            input_summary=input_summary,
+            n_members=len(members),
+            n_paper_edges=0,
+            n_unique_papers=0,
+            out_dir=str(out_dir.resolve()),
+            members_csv=str(members_csv.resolve()),
+            members_parquet=str(members_parquet.resolve()),
+            manifest_json=manifest_path,
+            xp_products=xp_products,
+            skipped_simbad=False,
+            elapsed_seconds=time.time() - t0,
+            error=message,
+        )
     edges_path = out_dir / "paper_edges.parquet"
     edges.save(edges_path)
+    manifest.update_stage(
+        "simbad_papers",
+        status="completed",
+        total=len(members),
+        completed=len(members),
+        n_edges=len(edges),
+        n_unique_papers=int(refs["bibcode"].nunique()) if not refs.empty else 0,
+    )
+    manifest.add_artifact("paper_edges_parquet", edges_path, rows=len(edges))
+    manifest.add_artifact("simbad_refs_parquet", out_dir / "simbad_refs.parquet")
 
     # --- Viz HTML ---
     # inline_echarts=True so the HTML is self-contained (no sibling file dep).
@@ -228,14 +340,48 @@ def build_corpus_from_members(
 
     viz_path = out_dir / "source_paper_viz.html"
     echarts_src = out_dir.parent / "twa" / "echarts.min.js"
-    build_overview_html(
-        output_path=viz_path,
-        catalog_path=members_csv,
-        edges_path=edges_path,
-        corpus_name=label,
-        inline_echarts=True,
-        echarts_path=echarts_src if echarts_src.exists() else None,
-    )
+    inline_echarts = echarts_src.exists()
+    if not inline_echarts:
+        manifest.add_warning(
+            "echarts.min.js was not found under data/twa; HTML was generated with "
+            "a sibling script reference and is not fully self-contained"
+        )
+    manifest.update_stage("visualization", status="running", total=1, completed=0)
+    try:
+        build_overview_html(
+            output_path=viz_path,
+            catalog_path=members_csv,
+            edges_path=edges_path,
+            corpus_name=label,
+            inline_echarts=inline_echarts,
+            echarts_path=echarts_src if inline_echarts else None,
+            spectra_dir=out_dir,
+        )
+    except Exception as exc:
+        message = f"visualization stage failed: {exc}"
+        manifest.update_stage("visualization", status="failed", error=str(exc))
+        manifest.add_error(message)
+        manifest.finish("partial")
+        return CorpusBuildResult(
+            label=label,
+            input_mode=input_mode,
+            input_summary=input_summary,
+            n_members=len(members),
+            n_paper_edges=len(edges),
+            n_unique_papers=int(refs["bibcode"].nunique()) if not refs.empty else 0,
+            out_dir=str(out_dir.resolve()),
+            members_csv=str(members_csv.resolve()),
+            members_parquet=str(members_parquet.resolve()),
+            paper_edges_parquet=str(edges_path.resolve()),
+            simbad_refs_parquet=str((out_dir / "simbad_refs.parquet").resolve()),
+            manifest_json=manifest_path,
+            xp_products=xp_products,
+            skipped_simbad=False,
+            elapsed_seconds=time.time() - t0,
+            error=message,
+        )
+    manifest.update_stage("visualization", status="completed", total=1, completed=1)
+    manifest.add_artifact("visualization_html", viz_path)
 
     n_papers = int(refs["bibcode"].nunique()) if not refs.empty else 0
     elapsed = time.time() - t0
@@ -243,6 +389,8 @@ def build_corpus_from_members(
         "Corpus %r built: %d members, %d edges, %d papers (%.1fs)",
         label, len(members), len(edges), n_papers, elapsed,
     )
+    terminal = "partial" if xp_products.get("errors") else "completed"
+    manifest.finish(terminal)
 
     return CorpusBuildResult(
         label=label,
@@ -257,6 +405,8 @@ def build_corpus_from_members(
         paper_edges_parquet=str(edges_path.resolve()),
         simbad_refs_parquet=str((out_dir / "simbad_refs.parquet").resolve()),
         viz_html=f"file://{viz_path.resolve()}",
+        manifest_json=manifest_path,
+        xp_products=xp_products,
         skipped_simbad=False,
         elapsed_seconds=elapsed,
     )

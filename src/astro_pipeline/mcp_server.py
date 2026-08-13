@@ -209,6 +209,8 @@ def download_corpus(
     skip_simbad: bool = False,
     sleep_seconds: float = 0.3,
     enrich: bool = True,
+    xp_sampled: bool = False,
+    xp_continuous: bool = False,
 ) -> dict:
     """Download a corpus snapshot and persist to ``data/<label>/`` on disk.
 
@@ -218,7 +220,8 @@ def download_corpus(
     Pipeline:
       1. Resolve members via Gaia DR3 (cone/name/region) or read user CSV.
       2. Query SIMBAD for paper bibliography per source (resumable).
-      3. Render interactive viz HTML.
+      3. Optionally download Gaia XP Sampled/Continuous FITS (resumable).
+      4. Render interactive viz HTML, including locally cached XP spectra.
     Output goes under ``data/<label>/`` (members.csv, members.parquet,
     paper_edges.parquet, simbad_refs.parquet, source_paper_viz.html).
 
@@ -247,6 +250,11 @@ def download_corpus(
     enrich : if False, skip per-bibcode metadata fetch (title/DOI/year).
         Source<->paper links are still built, but paper titles are empty.
         ~5-10x faster for dense fields. Use when you only need the linkage.
+    xp_sampled : if True, query availability and download XP_SAMPLED FITS.
+        Default False so a catalog request never triggers large downloads by
+        surprise. Requires Gaia DataLink access; checkpointed and resumable.
+    xp_continuous : if True, also download XP_CONTINUOUS coefficient FITS in
+        small batches. Default False; usually slower than Sampled.
 
     Returns
     -------
@@ -277,10 +285,46 @@ def download_corpus(
             skip_simbad=skip_simbad,
             sleep_seconds=sleep_seconds,
             enrich=enrich,
+            xp_sampled=xp_sampled,
+            xp_continuous=xp_continuous,
         )
     except (ValueError, LookupError) as e:
         return {"error": str(e), "label": label}
     return result_to_dict(result)
+
+
+@mcp.tool()
+def download_plan(
+    label: str,
+    input_mode: str,
+    input_summary: str,
+    expected_sources: int = 0,
+    skip_simbad: bool = False,
+    xp_sampled: bool = False,
+    xp_continuous: bool = False,
+) -> dict:
+    """Preview stages, outputs and known risks without downloading anything.
+
+    Use before a large or personalized corpus request. ``input_mode`` should
+    describe the intended route (cone, region, catalog, membership_catalog or
+    bulk_healpix); ``input_summary`` is a human-readable description. The plan
+    is read-only and can be shown to the user before invoking a download tool.
+    """
+    from astro_pipeline.manifest import make_download_plan
+
+    if not label.strip() or not input_mode.strip() or not input_summary.strip():
+        return {"error": "label, input_mode and input_summary must not be empty"}
+    return _json_safe(
+        make_download_plan(
+            label=label,
+            input_mode=input_mode,
+            input_summary=input_summary,
+            expected_sources=expected_sources if expected_sources > 0 else None,
+            skip_simbad=skip_simbad,
+            xp_sampled=xp_sampled,
+            xp_continuous=xp_continuous,
+        )
+    )
 
 
 @mcp.tool()
@@ -345,6 +389,8 @@ def download_membership_corpus(
     skip_simbad: bool = False,
     sleep_seconds: float = 0.3,
     enrich: bool = True,
+    xp_sampled: bool = False,
+    xp_continuous: bool = False,
 ) -> dict:
     """Build a Gaia DR3 corpus from an explicitly selected member table.
 
@@ -354,6 +400,9 @@ def download_membership_corpus(
     Literature columns (membership probability, population, spectral type,
     flags, names, etc.) are preserved with a ``member_`` prefix. No scientific
     filtering is silently applied.
+
+    Set xp_sampled/xp_continuous to download only the Gaia products marked
+    available for matched members. Both are off by default and resumable.
 
     Outputs under data/<label>/ include membership_catalog.csv/parquet,
     members.csv/parquet, unmatched_members.csv and, unless skip_simbad=True,
@@ -379,6 +428,8 @@ def download_membership_corpus(
                 skip_simbad=skip_simbad,
                 sleep_seconds=sleep_seconds,
                 enrich=enrich,
+                xp_sampled=xp_sampled,
+                xp_continuous=xp_continuous,
             )
         )
     except (ValueError, LookupError) as exc:
@@ -422,6 +473,18 @@ def corpus_status(label: str) -> dict:
         return {"label": label, "exists": False, "error": f"no corpus at {path}"}
 
     out: dict = {"label": label, "path": str(path.resolve()), "exists": True}
+
+    # New builds expose exact per-stage progress in an atomic manifest. Keep
+    # the legacy file-derived fields below for older corpora and convenience.
+    from astro_pipeline.manifest import read_manifest
+
+    manifest = read_manifest(path / "manifest.json")
+    if manifest is not None:
+        out["manifest"] = manifest
+        out["build_status"] = manifest.get("status")
+        out["stages"] = manifest.get("stages", {})
+        out["requested_products"] = manifest.get("requested_products", {})
+        out["manifest_modified"] = _iso_mtime(path / "manifest.json")
 
     # Members
     members_csv = path / "members.csv"

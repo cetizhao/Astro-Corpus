@@ -67,6 +67,10 @@ def main() -> None:
                     help="Skip per-bibcode metadata fetch (title/DOI/year). "
                          "Source<->paper links still built; just no paper titles. "
                          "5-10x faster for dense fields.")
+    ap.add_argument("--xp-sampled", action="store_true",
+                    help="Download available Gaia XP_SAMPLED FITS (resumable)")
+    ap.add_argument("--xp-continuous", action="store_true",
+                    help="Download available Gaia XP_CONTINUOUS FITS (resumable)")
     args = ap.parse_args()
 
     # Derive a label if not given
@@ -94,6 +98,8 @@ def main() -> None:
         skip_simbad=args.skip_simbad,
         sleep_seconds=args.sleep,
         enrich=not args.no_enrich,
+        xp_sampled=args.xp_sampled,
+        xp_continuous=args.xp_continuous,
     )
 
     if result.error:

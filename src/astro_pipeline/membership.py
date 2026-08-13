@@ -294,6 +294,8 @@ def build_membership_corpus(
     skip_simbad: bool = False,
     sleep_seconds: float = 0.3,
     enrich: bool = True,
+    xp_sampled: bool = False,
+    xp_continuous: bool = False,
 ) -> dict[str, Any]:
     """Resolve a selected member table, save provenance, and build a corpus."""
     resolution = resolve_membership_catalog(
@@ -327,6 +329,8 @@ def build_membership_corpus(
         skip_simbad=skip_simbad,
         sleep_seconds=sleep_seconds,
         enrich=enrich,
+        xp_sampled=xp_sampled,
+        xp_continuous=xp_continuous,
     )
     output = result_to_dict(result)
     output.update(
