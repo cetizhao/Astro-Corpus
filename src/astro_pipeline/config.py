@@ -3,7 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+
+from astro_pipeline.gaia_releases import (
+    normalize_gaia_release,
+    validate_gaia_schema,
+)
 
 
 class NetworkConfig(BaseModel):
@@ -27,8 +32,12 @@ class OutputConfig(BaseModel):
 
 class GaiaConfig(BaseModel):
     tap_url: str = "https://gea.esac.esa.int/tap-server"
-    db_schema: str = "gaiadr3"
+    release: str = "dr3"
+    # Stable releases may pin a schema.  Provisional releases such as DR4
+    # should set this to null and use TAP_SCHEMA runtime discovery.
+    db_schema: str | None = None
     default_query_timeout: int = 600
+    metadata_timeout_seconds: float = 10.0
     username: str = ""
     password: str = ""
     default_columns: list[str] = [
@@ -36,6 +45,13 @@ class GaiaConfig(BaseModel):
         "pmra", "pmdec", "phot_g_mean_mag", "phot_bp_mean_mag",
         "phot_rp_mean_mag", "radial_velocity", "ruwe",
     ]
+
+    @model_validator(mode="after")
+    def validate_release_schema(self) -> "GaiaConfig":
+        self.release = normalize_gaia_release(self.release)
+        if self.db_schema:
+            self.db_schema = validate_gaia_schema(self.release, self.db_schema)
+        return self
 
 
 class LamostConfig(BaseModel):
@@ -88,7 +104,12 @@ class PipelineConfig(BaseModel):
             for key, value in local_raw.items():
                 current = getattr(cfg, key, None)
                 if isinstance(current, BaseModel) and isinstance(value, dict):
-                    setattr(cfg, key, current.__class__(**{**current.model_dump(), **value}))
+                    merged = {**current.model_dump(), **value}
+                    if key == "gaia" and "release" in value and "db_schema" not in value:
+                        # A release switch must not inherit the previous
+                        # release's pinned schema from default.yaml.
+                        merged["db_schema"] = None
+                    setattr(cfg, key, current.__class__(**merged))
                 else:
                     setattr(cfg, key, value)
         return cfg

@@ -228,7 +228,12 @@ def resolve_membership_catalog(
     gaia_dr3_columns = detection["gaia_dr3_id_columns"]
     coordinate_pair = detection["coordinate_columns"]
     config = PipelineConfig.load()
-    gaia = GaiaSource(config.gaia, config.network)
+    # Published Gaia-ID columns detected by this workflow are explicitly DR3.
+    # A user's provisional DR4 config must not reinterpret them silently.
+    gaia_config = config.gaia.model_copy(
+        update={"release": "dr3", "db_schema": "gaiadr3"}
+    )
+    gaia = GaiaSource(gaia_config, config.network)
 
     if gaia_dr3_columns:
         source_col = gaia_dr3_columns[0]
@@ -320,6 +325,7 @@ def build_membership_corpus(
             "gaia_xp_sampled": xp_sampled,
             "gaia_xp_continuous": xp_continuous,
         },
+        gaia_release="dr3",
     )
     manifest.update_stage("resolve_members", status="running", completed=0)
     try:
@@ -376,6 +382,7 @@ def build_membership_corpus(
         xp_sampled=xp_sampled,
         xp_continuous=xp_continuous,
         manifest=manifest,
+        gaia_release="dr3",
     )
     output = result_to_dict(result)
     output.update(

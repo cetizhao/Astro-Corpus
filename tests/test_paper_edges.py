@@ -240,7 +240,8 @@ def _is_valid_edges(path: Path) -> bool:
 @pytest.mark.skipif(not _is_valid_edges(REAL_EDGES), reason="v0.2 paper_edges.parquet not built yet")
 class TestRealEdges:
     @pytest.fixture(scope="class")
-    def edges(self):
+    @staticmethod
+    def edges():
         return pd.read_parquet(REAL_EDGES)
 
     def test_has_required_columns(self, edges):

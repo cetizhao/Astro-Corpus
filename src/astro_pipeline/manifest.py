@@ -9,8 +9,12 @@ from pathlib import Path
 from typing import Any, Optional
 
 from astro_pipeline import __version__
+from astro_pipeline.gaia_releases import (
+    get_gaia_release_profile,
+    normalize_gaia_release,
+)
 
-MANIFEST_SCHEMA_VERSION = "1.0"
+MANIFEST_SCHEMA_VERSION = "1.1"
 SAFE_LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
 
@@ -45,17 +49,23 @@ class CorpusManifest:
         input_mode: str,
         input_summary: str,
         requested_products: dict[str, bool],
+        gaia_release: str = "dr3",
     ) -> "CorpusManifest":
         path = Path(path)
         label = validate_label(label)
+        gaia_release = normalize_gaia_release(gaia_release)
         now = utc_now()
         if path.exists():
             data = json.loads(path.read_text(encoding="utf-8"))
             previous = data.get("corpus", {})
+            previous_release = normalize_gaia_release(
+                previous.get("gaia_release", "dr3")
+            )
             if (
                 previous.get("label") not in (None, label)
                 or previous.get("input_mode") not in (None, input_mode)
                 or previous.get("input_summary") not in (None, input_summary)
+                or previous_release != gaia_release
             ):
                 raise ValueError(
                     f"Corpus label {label!r} already has a manifest for a different "
@@ -63,6 +73,7 @@ class CorpusManifest:
                     f"{previous.get('input_summary')}). Choose a new label or remove "
                     "the old corpus directory after reviewing it."
                 )
+            previous["gaia_release"] = gaia_release
             stored_products = data.setdefault("requested_products", {})
             for product, requested in requested_products.items():
                 # A corpus may add optional products on a later run, but an
@@ -77,6 +88,7 @@ class CorpusManifest:
                     "started_at": now,
                     "status": "running",
                     "requested_products": dict(requested_products),
+                    "gaia_release": gaia_release,
                 }
             )
         else:
@@ -87,6 +99,7 @@ class CorpusManifest:
                     "label": label,
                     "input_mode": input_mode,
                     "input_summary": input_summary,
+                    "gaia_release": gaia_release,
                 },
                 "status": "running",
                 "created_at": now,
@@ -101,6 +114,7 @@ class CorpusManifest:
                         "started_at": now,
                         "status": "running",
                         "requested_products": dict(requested_products),
+                        "gaia_release": gaia_release,
                     }
                 ],
             }
@@ -176,14 +190,24 @@ def make_download_plan(
     skip_simbad: bool,
     xp_sampled: bool,
     xp_continuous: bool,
+    gaia_release: str = "dr3",
 ) -> dict[str, Any]:
     """Return a read-only preflight plan suitable for an agent/user review."""
     label = validate_label(label)
+    profile = get_gaia_release_profile(gaia_release)
+    if (xp_sampled or xp_continuous) and not {
+        "XP_SAMPLED",
+        "XP_CONTINUOUS",
+    }.issubset(set(profile.datalink_products)):
+        raise ValueError(
+            f"{profile.display_name} does not declare DR3-style XP products; "
+            "use plan_gaia_product_download with a release-specific product"
+        )
     n_sources = expected_sources if expected_sources and expected_sources > 0 else None
     stages: list[dict[str, Any]] = [
         {
             "stage": "resolve_members",
-            "action": "Resolve Gaia DR3 sources from the selected input",
+            "action": f"Resolve {profile.display_name} sources from the selected input",
             "network": True,
             "resumable": False,
         },
@@ -243,6 +267,11 @@ def make_download_plan(
         "A named region/cone returns geometric field sources, not physical members.",
         "Gaia and CDS/SIMBAD services can throttle or queue requests; checkpointed stages can be rerun.",
     ]
+    if profile.status != "stable":
+        cautions.append(
+            f"{profile.display_name} profile is provisional: ordinary corpus "
+            "resolution is disabled until its schema and canonical column mapping are confirmed."
+        )
     if xp_sampled or xp_continuous:
         cautions.append(
             "Gaia DataLink may require credentials and can be intermittently unavailable; astrometry remains usable if XP is partial."
@@ -253,6 +282,8 @@ def make_download_plan(
         )
     return {
         "label": label,
+        "gaia_release": profile.key,
+        "gaia_archive_tag": profile.archive_tag,
         "input_mode": input_mode,
         "input_summary": input_summary,
         "expected_sources": n_sources,
@@ -268,5 +299,10 @@ def make_download_plan(
         "stages": stages,
         "cautions": cautions,
         "writes_data": False,
-        "next_step": "Call download_corpus or download_membership_corpus with matching options.",
+        "executable": profile.status == "stable",
+        "next_step": (
+            "Call download_corpus or download_membership_corpus with matching options."
+            if profile.status == "stable"
+            else "Call probe_gaia_archive, describe_gaia_table, and list_gaia_products; do not run a DR4 corpus build yet."
+        ),
     }

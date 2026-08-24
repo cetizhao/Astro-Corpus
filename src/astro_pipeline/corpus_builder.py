@@ -28,6 +28,11 @@ from typing import Any, Optional
 
 import pandas as pd
 
+from astro_pipeline.config import PipelineConfig
+from astro_pipeline.gaia_releases import (
+    get_gaia_release_profile,
+    normalize_gaia_release,
+)
 from astro_pipeline.intake import resolve_members
 from astro_pipeline.io.writer import save_catalog_parquet
 from astro_pipeline.manifest import CorpusManifest, validate_label
@@ -47,6 +52,7 @@ class CorpusBuildResult:
     n_paper_edges: int
     n_unique_papers: int
     out_dir: str
+    gaia_release: str = "dr3"
     members_csv: str = ""
     members_parquet: str = ""
     paper_edges_parquet: str = ""
@@ -118,6 +124,14 @@ def build_corpus_snapshot(
         )
     input_mode = provided[0]
     label = validate_label(label)
+    gaia_release = normalize_gaia_release(PipelineConfig.load().gaia.release)
+    release_profile = get_gaia_release_profile(gaia_release)
+    if release_profile.status != "stable":
+        raise NotImplementedError(
+            f"ordinary corpus resolution for {release_profile.display_name} is "
+            "disabled until its TAP schema and canonical column mapping are confirmed; "
+            "use Gaia Archive discovery and generic DataLink tools"
+        )
 
     t0 = time.time()
     out_dir = Path(out_dir)
@@ -142,6 +156,7 @@ def build_corpus_snapshot(
             xp_sampled=xp_sampled,
             xp_continuous=xp_continuous,
         ),
+        gaia_release=gaia_release,
     )
     manifest.update_stage("resolve_members", status="running", completed=0)
 
@@ -160,6 +175,7 @@ def build_corpus_snapshot(
             out_dir=str(out_dir), skipped_simbad=skip_simbad,
             elapsed_seconds=time.time() - t0, error=str(e),
             manifest_json=str(manifest.path.resolve()),
+            gaia_release=gaia_release,
         )
 
     logger.info("Resolved %d members", len(members))
@@ -183,6 +199,7 @@ def build_corpus_snapshot(
         xp_continuous=xp_continuous,
         started_at=t0,
         manifest=manifest,
+        gaia_release=gaia_release,
     )
 
 
@@ -200,6 +217,7 @@ def build_corpus_from_members(
     xp_continuous: bool = False,
     started_at: Optional[float] = None,
     manifest: Optional[CorpusManifest] = None,
+    gaia_release: str = "dr3",
 ) -> CorpusBuildResult:
     """Persist an already-resolved Gaia member table as a corpus snapshot.
 
@@ -207,6 +225,7 @@ def build_corpus_from_members(
     membership catalogues on the same output contract as cone/name builds.
     """
     label = validate_label(label)
+    gaia_release = normalize_gaia_release(gaia_release)
     t0 = started_at if started_at is not None else time.time()
     out_dir = Path(out_dir)
 
@@ -221,6 +240,7 @@ def build_corpus_from_members(
                 xp_sampled=xp_sampled,
                 xp_continuous=xp_continuous,
             ),
+            gaia_release=gaia_release,
         )
         manifest.update_stage(
             "resolve_members",
@@ -230,6 +250,14 @@ def build_corpus_from_members(
             note="members DataFrame supplied directly",
         )
     manifest_path = str(manifest.path.resolve())
+    manifest_release = normalize_gaia_release(
+        manifest.data.get("corpus", {}).get("gaia_release", "dr3")
+    )
+    if manifest_release != gaia_release:
+        raise ValueError(
+            f"members release {gaia_release!r} does not match manifest release "
+            f"{manifest_release!r}"
+        )
 
     if members.empty:
         manifest.update_stage(
@@ -245,12 +273,15 @@ def build_corpus_from_members(
             elapsed_seconds=time.time() - t0,
             error="no members resolved for the given input",
             manifest_json=manifest_path,
+            gaia_release=gaia_release,
         )
 
     # --- Save members ---
     out_dir.mkdir(parents=True, exist_ok=True)
     members_csv = out_dir / "members.csv"
     members_parquet = out_dir / "members.parquet"
+    members = members.copy()
+    members["gaia_release"] = gaia_release
     members.to_csv(members_csv, index=False)
     save_catalog_parquet(members, members_parquet)
     manifest.update_stage(
@@ -314,6 +345,7 @@ def build_corpus_from_members(
             elapsed_seconds=time.time() - t0,
             manifest_json=manifest_path,
             xp_products=xp_products,
+            gaia_release=gaia_release,
         )
 
     # --- SIMBAD paper edges (inherits resumable cache via cache_path) ---
@@ -369,6 +401,7 @@ def build_corpus_from_members(
             skipped_simbad=False,
             elapsed_seconds=time.time() - t0,
             error=message,
+            gaia_release=gaia_release,
         )
     edges_path = out_dir / "paper_edges.parquet"
     edges.save(edges_path)
@@ -445,6 +478,7 @@ def build_corpus_from_members(
             skipped_simbad=False,
             elapsed_seconds=time.time() - t0,
             error=message,
+            gaia_release=gaia_release,
         )
     manifest.update_stage("visualization", status="completed", total=1, completed=1)
     manifest.add_artifact("visualization_html", viz_path)
@@ -483,6 +517,7 @@ def build_corpus_from_members(
         xp_products=xp_products,
         skipped_simbad=False,
         elapsed_seconds=elapsed,
+        gaia_release=gaia_release,
     )
 
 

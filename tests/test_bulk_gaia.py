@@ -229,3 +229,48 @@ def test_bulk_label_cannot_escape_data_root(tmp_path, bad_label):
 def test_cli_root_rejects_path_like_label():
     with pytest.raises(ValueError, match="label"):
         _root("../outside")
+
+
+def test_bulk_plan_records_release_table_and_partition_contract(tmp_path):
+    result = create_bulk_plan(
+        label="release_aware",
+        root=tmp_path / "release_aware",
+        release="Gaia DR3",
+        table="gaia_source",
+        healpix_level=12,
+        pixel_start=0,
+        pixel_stop=1,
+    )
+    selection = result["selection"]
+    assert selection["release"] == "dr3"
+    assert selection["data_release"] == "Gaia DR3"
+    assert selection["schema"] == "gaiadr3"
+    assert selection["table"] == "gaiadr3.gaia_source"
+    assert selection["partition_strategy"] == "source_id_healpix12"
+
+
+def test_dr4_bulk_plan_is_disabled_until_partition_rule_is_confirmed(tmp_path):
+    with pytest.raises(ValueError, match="not confirmed"):
+        create_bulk_plan(
+            label="dr4_future",
+            root=tmp_path / "dr4_future",
+            release="dr4",
+            schema="gaiadr4",
+            table="gaia_source",
+            healpix_level=12,
+            pixel_start=0,
+            pixel_stop=1,
+        )
+
+
+def test_bulk_plan_rejects_schema_from_another_release(tmp_path):
+    with pytest.raises(ValueError, match="belongs to Gaia DR4"):
+        create_bulk_plan(
+            label="wrong_schema",
+            root=tmp_path / "wrong_schema",
+            release="dr3",
+            schema="gaiadr4",
+            healpix_level=12,
+            pixel_start=0,
+            pixel_stop=1,
+        )

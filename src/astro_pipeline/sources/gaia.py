@@ -1,21 +1,30 @@
 from __future__ import annotations
 
+import io
 import logging
 import math
+import re
 from pathlib import Path
 from typing import Callable, Optional, Sequence
 
 import pandas as pd
+import httpx
+from astropy.io.votable import parse_single_table
 from astroquery.gaia import Gaia
 
 from astro_pipeline.config import GaiaConfig, NetworkConfig
-from astro_pipeline.io.writer import DownloadCheckpoint, save_catalog_parquet
+from astro_pipeline.gaia_products import (
+    GaiaArtifact,
+    GaiaProductRequest,
+    download_gaia_product_request,
+)
+from astro_pipeline.gaia_releases import get_gaia_release_profile
+from astro_pipeline.io.writer import save_catalog_parquet
 from astro_pipeline.models.query import ConeSearchQuery, ParameterQuery, SourceIdQuery
 from astro_pipeline.models.results import CatalogResult, SpectrumResult
 from astro_pipeline.retry import make_retry_decorator
 from astro_pipeline.sources.base import CatalogSource
 
-Gaia.MAIN_GAIA_TABLE = "gaiadr3.gaia_source"
 Gaia.ROW_LIMIT = -1
 
 
@@ -25,6 +34,12 @@ class GaiaSource(CatalogSource):
         self._gaia_config = config
         self._retry = make_retry_decorator(network)
         self._logged_in = False
+        self._release_profile = get_gaia_release_profile(config.release)
+        self._db_schema = config.db_schema or self._release_profile.tap_schema
+        if self._db_schema:
+            Gaia.MAIN_GAIA_TABLE = (
+                f"{self._db_schema}.{self._release_profile.main_table}"
+            )
 
     def _ensure_login(self) -> None:
         if self._logged_in:
@@ -41,7 +56,27 @@ class GaiaSource(CatalogSource):
             self._logger.info("No Gaia credentials configured, using anonymous access")
 
     def get_source_name(self) -> str:
-        return "Gaia DR3"
+        return self._release_profile.display_name
+
+    @property
+    def release_profile(self):
+        return self._release_profile
+
+    @property
+    def db_schema(self) -> str | None:
+        return self._db_schema
+
+    def qualified_table(self, table: str | None = None) -> str:
+        """Return a validated release-qualified table or fail without guessing."""
+        table = table or self._release_profile.main_table
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table):
+            raise ValueError(f"invalid Gaia table name: {table!r}")
+        if not self._db_schema:
+            raise LookupError(
+                f"No TAP schema configured for {self._release_profile.display_name}; "
+                "run probe_gaia_archive first and configure the discovered schema"
+            )
+        return f"{self._db_schema}.{table}"
 
     def execute_adql(self, adql: str) -> pd.DataFrame:
         """Execute a read-only Gaia TAP query anonymously and return a frame.
@@ -68,6 +103,42 @@ class GaiaSource(CatalogSource):
 
         return _do_query()
 
+    def execute_metadata_adql(self, adql: str) -> pd.DataFrame:
+        """Run a small synchronous TAP_SCHEMA discovery query.
+
+        Discovery must not enter the long asynchronous queue used by catalogue
+        and bulk jobs. This entry point is intentionally restricted to
+        TAP_SCHEMA reads and is not exposed as arbitrary MCP ADQL.
+        """
+        normalized = " ".join(adql.split()).upper()
+        if not normalized.startswith("SELECT") or "TAP_SCHEMA." not in normalized:
+            raise ValueError("metadata ADQL is restricted to SELECT from TAP_SCHEMA")
+        self._logger.info("Gaia TAP_SCHEMA ADQL: %s", normalized[:300])
+
+        tap_base = self._gaia_config.tap_url.rstrip("/")
+        sync_url = (
+            f"{tap_base}/sync" if tap_base.endswith("/tap")
+            else f"{tap_base}/tap/sync"
+        )
+        response = httpx.post(
+            sync_url,
+            data={
+                "REQUEST": "doQuery",
+                "LANG": "ADQL",
+                "FORMAT": "votable",
+                "QUERY": adql,
+            },
+            timeout=min(
+                float(self._network.request_timeout_seconds),
+                float(self._gaia_config.metadata_timeout_seconds),
+            ),
+        )
+        response.raise_for_status()
+        table = parse_single_table(io.BytesIO(response.content)).to_table(
+            use_names_over_ids=True
+        )
+        return table.to_pandas()
+
     def _build_adql(
         self,
         query: ConeSearchQuery | ParameterQuery,
@@ -82,7 +153,7 @@ class GaiaSource(CatalogSource):
         # explicit TOP makes the cap deterministic. Without it, cone queries
         # over dense fields (e.g. 1 deg at Taurus) return the FULL cone.
         limit_clause = f" TOP {query.limit}" if query.limit else ""
-        adql = f"SELECT{limit_clause} {columns} FROM {self._gaia_config.db_schema}.gaia_source"
+        adql = f"SELECT{limit_clause} {columns} FROM {self.qualified_table()}"
 
         conditions: list[str] = []
         if isinstance(query, ConeSearchQuery):
@@ -186,7 +257,7 @@ class GaiaSource(CatalogSource):
         *,
         batch_size: int = 2000,
     ) -> CatalogResult:
-        """Return XP Sampled/Continuous availability for Gaia DR3 IDs.
+        """Return XP Sampled/Continuous availability for the configured release.
 
         Queries are anonymous and batched so a corpus with thousands of IDs
         does not produce an oversized ADQL ``IN`` clause.  The output keeps
@@ -194,6 +265,13 @@ class GaiaSource(CatalogSource):
         a missing/obsolete ID is distinguishable from a source that exists but
         has no XP product.
         """
+        if not {"XP_SAMPLED", "XP_CONTINUOUS"}.issubset(
+            set(self._release_profile.datalink_products)
+        ):
+            raise NotImplementedError(
+                f"{self._release_profile.display_name} does not declare DR3-style "
+                "XP_SAMPLED/XP_CONTINUOUS availability flags"
+            )
         if batch_size < 1 or batch_size > 5000:
             raise ValueError("batch_size must be between 1 and 5000")
         ids: list[str] = []
@@ -244,7 +322,10 @@ class GaiaSource(CatalogSource):
             source_name=self.get_source_name() + " (XP availability)",
             data=out,
             row_count=len(out),
-            query_description=f"XP availability for {len(ids)} Gaia DR3 source IDs",
+            query_description=(
+                f"XP availability for {len(ids)} "
+                f"{self._release_profile.display_name} source IDs"
+            ),
             output_path=output_path,
         )
 
@@ -332,7 +413,7 @@ class GaiaSource(CatalogSource):
         limit_clause = f" TOP {len(ids)}" if query.limit else ""
         adql = (
             f"SELECT{limit_clause} {columns} "
-            f"FROM {self._gaia_config.db_schema}.gaia_source "
+            f"FROM {self.qualified_table()} "
             f"WHERE source_id IN ({id_list}) ORDER BY source_id ASC"
         )
 
@@ -443,7 +524,7 @@ class GaiaSource(CatalogSource):
                 )
             adql = (
                 f"SELECT {gaia_select} "
-                f"FROM {self._gaia_config.db_schema}.gaia_source AS g "
+                f"FROM {self.qualified_table()} AS g "
                 "WHERE " + " OR ".join(f"({predicate})" for predicate in predicates)
             )
             self._logger.info(
@@ -538,6 +619,7 @@ class GaiaSource(CatalogSource):
         batch_size: int | None = None,
         progress_callback: Optional[Callable[[dict], None]] = None,
     ) -> list[SpectrumResult]:
+        """Backward-compatible DR3 XP wrapper around ``download_products``."""
         retrieval_type = retrieval_type.upper()
         if retrieval_type not in {"XP_SAMPLED", "XP_CONTINUOUS"}:
             raise ValueError(f"Unsupported Gaia XP retrieval type: {retrieval_type}")
@@ -546,141 +628,74 @@ class GaiaSource(CatalogSource):
         if batch_size < 1 or batch_size > 5000:
             raise ValueError("batch_size must be between 1 and Gaia DataLink's 5000-source limit")
 
-        self._ensure_login()
         if isinstance(identifiers, pd.DataFrame):
             ids = [str(sid) for sid in identifiers["source_id"].tolist()]
         else:
             ids = [str(sid) for sid in identifiers]
-
-        output_dir.mkdir(parents=True, exist_ok=True)
-        checkpoint = DownloadCheckpoint(
-            output_dir / "checkpoint.json", source_name=self.get_source_name()
+        artifacts = self.download_products(
+            GaiaProductRequest(
+                release=self._release_profile.key,
+                retrieval_type=retrieval_type,
+                identifiers=ids,
+                data_structure="RAW",
+                output_format="fits",
+                linking_parameter="SOURCE_ID",
+                batch_size=batch_size,
+            ),
+            output_dir,
+            resume=resume,
+            progress_callback=progress_callback,
         )
-
-        if resume:
-            ids = [id_ for id_ in ids if not checkpoint.is_completed(id_)]
-            ids = self._filter_downloaded(ids, output_dir)
-
-        total_pending = len(ids)
-        if not ids:
-            self._logger.info("All Gaia spectra already downloaded")
-            if progress_callback:
-                progress_callback(
-                    {
-                        "retrieval_type": retrieval_type,
-                        "pending_at_start": 0,
-                        "processed": 0,
-                        "completed_this_run": 0,
-                        "failed_this_run": 0,
-                        "done": True,
-                    }
-                )
-            return []
-
-        self._logger.info("Downloading %d Gaia %s spectra via DataLink", len(ids), retrieval_type)
-        results: list[SpectrumResult] = []
-
-        for i in range(0, len(ids), batch_size):
-            batch = ids[i : i + batch_size]
-            self._logger.info(
-                "Gaia %s batch %d/%d (%d sources)",
-                retrieval_type,
-                i // batch_size + 1,
-                (len(ids) + batch_size - 1) // batch_size,
-                len(batch),
+        results = [
+            SpectrumResult(
+                source_id=artifact.identifier,
+                path=(
+                    Path(artifact.normalized_path)
+                    if artifact.normalized_path
+                    else Path(output_dir) / f"{artifact.identifier}.fits"
+                ),
+                success=artifact.success,
+                error=artifact.error,
             )
-
-            @self._retry
-            def _fetch_batch(batch_ids=batch) -> dict:
-                return Gaia.load_data(
-                    ids=batch_ids,
-                    data_release="Gaia DR3",
-                    data_structure="RAW",
-                    retrieval_type=retrieval_type,
-                    format="fits",
-                )
-
-            try:
-                dl_results = _fetch_batch()
-                returned_ids: set[str] = set()
-                for _key, tables in (dl_results or {}).items():
-                    for table in tables:
-                        from astropy.table import Table
-
-                        if not isinstance(table, Table):
-                            table = Table(table)
-                        names = {name.lower(): name for name in table.colnames}
-                        sid_col = names.get("source_id") or names.get("sourceid")
-                        if not sid_col:
-                            self._logger.warning(
-                                "Gaia XP table has no source_id column: %s", table.colnames,
-                            )
-                            continue
-                        for row_index in range(len(table)):
-                            source_id = str(table[sid_col][row_index])
-                            out_path = output_dir / f"{source_id}.fits"
-                            try:
-                                table[row_index : row_index + 1].write(
-                                    str(out_path), format="fits", overwrite=True,
-                                )
-                                returned_ids.add(source_id)
-                                checkpoint.mark_completed(source_id)
-                                results.append(
-                                    SpectrumResult(source_id=source_id, path=out_path, success=True)
-                                )
-                            except Exception as e:
-                                self._logger.warning(
-                                    "Failed to save Gaia spectrum %s: %s", source_id, e,
-                                )
-                                checkpoint.mark_failed(source_id)
-                                results.append(
-                                    SpectrumResult(
-                                        source_id=source_id, path=out_path,
-                                        success=False, error=str(e),
-                                    )
-                                )
-
-                for source_id in set(batch) - returned_ids:
-                    checkpoint.mark_failed(source_id)
-                    results.append(
-                        SpectrumResult(
-                            source_id=source_id,
-                            path=output_dir / f"{source_id}.fits",
-                            success=False,
-                            error=f"Gaia DataLink returned no {retrieval_type} product",
-                        )
-                    )
-                checkpoint.save()
-            except Exception as e:
-                self._logger.error("Gaia DataLink batch failed: %s", e)
-                for id_ in batch:
-                    checkpoint.mark_failed(id_)
-                    results.append(
-                        SpectrumResult(
-                            source_id=id_,
-                            path=output_dir / f"{id_}.fits",
-                            success=False, error=str(e),
-                        )
-                    )
-                checkpoint.save()
-
-            if progress_callback:
-                processed = min(i + len(batch), total_pending)
-                progress_callback(
-                    {
-                        "retrieval_type": retrieval_type,
-                        "pending_at_start": total_pending,
-                        "processed": processed,
-                        "completed_this_run": sum(1 for r in results if r.success),
-                        "failed_this_run": sum(1 for r in results if not r.success),
-                        "done": processed >= total_pending,
-                    }
-                )
-
-        checkpoint.save()
+            for artifact in artifacts
+        ]
         self._logger.info(
             "Gaia spectra: %d success, %d failed",
             sum(1 for r in results if r.success),
             sum(1 for r in results if not r.success),
         )
         return results
+
+    def download_products(
+        self,
+        request: GaiaProductRequest,
+        output_dir: Path | str,
+        *,
+        resume: bool = True,
+        progress_callback: Optional[Callable[[dict], None]] = None,
+    ) -> list[GaiaArtifact]:
+        """Download any release-declared tabular DataLink product."""
+        if request.release != self._release_profile.key:
+            raise ValueError(
+                f"request release {request.release!r} does not match GaiaSource "
+                f"profile {self._release_profile.key!r}"
+            )
+        if request.retrieval_type == "CROWDED_FIELD_IMAGE":
+            raise NotImplementedError(
+                "CROWDED_FIELD_IMAGE contains a binary image payload that is not "
+                "returned in astroquery's table dictionary; blob transport is deferred "
+                "until the DR4 service is publicly testable"
+            )
+        self._ensure_login()
+
+        @self._retry
+        def load_data(**kwargs):
+            return Gaia.load_data(**kwargs)
+
+        return download_gaia_product_request(
+            request,
+            output_dir,
+            resume=resume,
+            loader=load_data,
+            progress_callback=progress_callback,
+        )

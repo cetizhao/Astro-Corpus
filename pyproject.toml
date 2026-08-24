@@ -1,7 +1,7 @@
 [project]
 name = "astro-pipeline"
-version = "0.4.0"
-description = "Agent-ready astronomical corpus pipeline for Gaia DR3 and literature links"
+version = "0.5.0"
+description = "Agent-ready, release-aware Gaia astronomical corpus pipeline"
 readme = "README.md"
 authors = [
     { name = "cetizhao", email = "cetizhao@163.com" }
@@ -11,7 +11,7 @@ dependencies = [
     "astropy>=7.2.0",
     "astroquery>=0.4.11",
     "gaiaxpy>=2.1.4",
-    "httpx>=0.28.1",
+    "httpx[socks]>=0.28.1",
     "matplotlib>=3.11.0",
     "mcp[cli]>=1.28.1",
     "pandas>=3.0.2",
@@ -27,6 +27,11 @@ dependencies = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/astro_pipeline"]

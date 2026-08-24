@@ -16,8 +16,10 @@ network:
 
 gaia:
   tap_url: "https://gea.esac.esa.int/tap-server"
+  release: "dr3"
   db_schema: "gaiadr3"
   default_query_timeout: 600
+  metadata_timeout_seconds: 10
   default_columns:
     - source_id
     - ra

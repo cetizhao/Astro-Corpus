@@ -9,6 +9,7 @@ contains -- it is meant to evolve as downstream training requirements mature.
 Schema (one JSON object per line, per Gaia source):
 
     {
+      "gaia_release":       str,   # release-qualified identity, e.g. "dr3"
       "gaia_id":            str,   # Gaia DR3 source_id
       "ra_deg":             float, # ICRS RA from catalog
       "dec_deg":            float, # ICRS Dec
@@ -77,18 +78,20 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from astro_pipeline.corpus import Corpus
+from astro_pipeline.gaia_releases import get_gaia_release_profile
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 logger = logging.getLogger("export_jsonl")
 
-PIPELINE_VERSION = "0.4.0"
+PIPELINE_VERSION = "0.5.0"
 DATA = Path("data/twa")
 CATALOG = Path("TWAxgdr3.csv")
 OUTPUT = DATA / "twa_corpus.jsonl"
 
 
-def _datalink_url(gaia_id: str) -> str:
-    designation = quote_plus(f"Gaia DR3 {gaia_id}")
+def _datalink_url(gaia_id: str, gaia_release: str = "dr3") -> str:
+    profile = get_gaia_release_profile(gaia_release)
+    designation = quote_plus(f"{profile.archive_tag} {gaia_id}")
     return f"https://gea.esac.esa.int/data-server/datalink/links?ID={designation}"
 
 
@@ -137,6 +140,10 @@ def to_record(
     dup = _f(extras, "duplicated_source")
     g_mag = _first(_f(ast, "Gmag_gdr3"), _f(extras, "Gmag_gdr3"), _f(extras, "Gmag"))
     gaia_id = str(lookup.get("gaia_id"))
+    gaia_release = str(
+        _first(_f(extras, "gaia_release"), lookup.get("gaia_release"), "dr3")
+    )
+    gaia_release = get_gaia_release_profile(gaia_release).key
     sampled_available = (
         xp_sampled is not None if xp_sampled_available is None else xp_sampled_available
     )
@@ -145,7 +152,7 @@ def to_record(
         if xp_continuous_available is None
         else xp_continuous_available
     )
-    datalink_url = _datalink_url(gaia_id)
+    datalink_url = _datalink_url(gaia_id, gaia_release)
     # Suggested quality cuts (informational; downstream may use stricter / looser).
     astrometry_ok = bool(ruwe is not None and ruwe < 1.4
                         and parallax_snr is not None and parallax_snr > 5)
@@ -153,6 +160,7 @@ def to_record(
                          and g_mag is not None and g_mag < 18.0)
 
     return {
+        "gaia_release": gaia_release,
         "gaia_id": gaia_id,
         "ra_deg": _f(ast, "RAICRS"),
         "dec_deg": _f(ast, "DEICRS"),
@@ -210,7 +218,10 @@ def to_record(
             for p in papers
         ],
         "n_papers": len(papers),
-        "provenance": {"pipeline_version": PIPELINE_VERSION},
+        "provenance": {
+            "pipeline_version": PIPELINE_VERSION,
+            "gaia_release": gaia_release,
+        },
     }
 
 

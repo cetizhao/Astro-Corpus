@@ -34,6 +34,7 @@ from typing import Optional
 import pandas as pd
 
 from astro_pipeline.io.exporter import find_gaia_id_col
+from astro_pipeline.gaia_releases import normalize_gaia_release
 from astro_pipeline.models.paper import PaperEdgeTable
 
 logger = logging.getLogger(__name__)
@@ -112,6 +113,7 @@ class Corpus:
         self.catalog_path = Path(catalog_path)
 
         self.catalog = self._load_catalog()
+        self.gaia_release = self._infer_gaia_release()
         self.paper_edges = self._load_paper_edges()
         self._cached_surveys = self._load_cached_surveys()
 
@@ -132,6 +134,30 @@ class Corpus:
             return PaperEdgeTable(path)
         logger.warning("No paper_edges.parquet in %s; paper links will be empty", self.data_dir)
         return PaperEdgeTable()
+
+    def _infer_gaia_release(self) -> str:
+        if "gaia_release" in self.catalog.columns:
+            releases = {
+                normalize_gaia_release(value)
+                for value in self.catalog["gaia_release"].dropna().astype(str)
+                if value.strip()
+            }
+            if len(releases) > 1:
+                raise ValueError(
+                    f"member catalog mixes Gaia releases: {sorted(releases)}"
+                )
+            if releases:
+                return next(iter(releases))
+        manifest_path = self.data_dir / "manifest.json"
+        if manifest_path.exists():
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                return normalize_gaia_release(
+                    manifest.get("corpus", {}).get("gaia_release", "dr3")
+                )
+            except (OSError, ValueError, json.JSONDecodeError) as exc:
+                logger.warning("Could not infer Gaia release from manifest: %s", exc)
+        return "dr3"
 
     def _load_cached_surveys(self) -> dict[str, pd.DataFrame]:
         """Load all cached survey parquets we may fall back to."""
@@ -277,6 +303,7 @@ class Corpus:
         """Source -> multimodal data + papers."""
         gid = str(gaia_id)
         result = {
+            "gaia_release": self.gaia_release,
             "gaia_id": gid,
             "resolved": False,
             "astrometry": {},
@@ -351,6 +378,7 @@ class Corpus:
         for gid in sorted(matched["source_id"].astype(str).unique()):
             src = self.lookup_source(gid, surveys=surveys)
             result["sources"].append({
+                "gaia_release": src.get("gaia_release", self.gaia_release),
                 "gaia_id": gid,
                 "name": src.get("name", ""),
                 "astrometry": src.get("astrometry", {}),
@@ -362,6 +390,7 @@ class Corpus:
         edge_df = self.paper_edges.df
         has_bib = "bibcode" in edge_df.columns if not edge_df.empty else False
         return {
+            "gaia_release": self.gaia_release,
             "catalog_sources": int(len(self.catalog)),
             "paper_edges": int(len(edge_df)),
             "unique_papers": int(edge_df["bibcode"].nunique()) if has_bib else 0,

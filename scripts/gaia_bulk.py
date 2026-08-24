@@ -25,6 +25,14 @@ def main() -> None:
     plan.add_argument("--pixel-stop", type=int, default=0, help="0 = end of sky")
     plan.add_argument("--columns", choices=("default", "all"), default="default")
     plan.add_argument("--page-size", type=int, default=100_000)
+    plan.add_argument("--release", default="dr3", help="Gaia release profile (default: dr3)")
+    plan.add_argument("--table", default="gaia_source", help="Unqualified TAP table name")
+    plan.add_argument("--schema", default=None, help="Confirmed TAP schema override")
+    plan.add_argument(
+        "--partition-strategy",
+        default=None,
+        help="Defaults to the release profile; DR4 remains disabled until confirmed",
+    )
 
     run = commands.add_parser("run", help="download bounded chunks from a saved plan")
     run.add_argument("label")
@@ -48,6 +56,10 @@ def main() -> None:
             pixel_stop=args.pixel_stop or None,
             columns_mode=args.columns,
             page_size=args.page_size,
+            release=args.release,
+            table=args.table,
+            schema=args.schema,
+            partition_strategy=args.partition_strategy,
         )
     elif args.command == "run":
         result = run_bulk_plan(

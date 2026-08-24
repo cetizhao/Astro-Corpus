@@ -106,6 +106,8 @@ def test_jsonl_record_uses_twa_aliases_and_xp_links() -> None:
     )
 
     assert record["parallax_mas"] == 21.4
+    assert record["gaia_release"] == "dr3"
+    assert record["provenance"]["gaia_release"] == "dr3"
     assert record["ruwe"] == 1.18
     assert record["g_mag"] == 14.5
     sampled_record = record["multimodal"]["gaia_xp"]["sampled"]

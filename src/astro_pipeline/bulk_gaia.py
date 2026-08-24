@@ -26,6 +26,11 @@ import pandas as pd
 
 from astro_pipeline import __version__
 from astro_pipeline.config import PipelineConfig
+from astro_pipeline.gaia_releases import (
+    get_gaia_release_profile,
+    normalize_gaia_release,
+    validate_gaia_schema,
+)
 from astro_pipeline.intake import QC_EXTRA_COLUMNS
 from astro_pipeline.manifest import validate_label
 from astro_pipeline.sources.gaia import GaiaSource
@@ -69,6 +74,10 @@ def create_bulk_plan(
     columns_mode: str = "default",
     custom_columns: Optional[list[str]] = None,
     page_size: int = 100_000,
+    release: str = "dr3",
+    table: str = "gaia_source",
+    schema: Optional[str] = None,
+    partition_strategy: Optional[str] = None,
 ) -> dict[str, Any]:
     """Create or reopen a non-destructive Gaia bulk-download plan.
 
@@ -92,7 +101,38 @@ def create_bulk_plan(
     if page_size < 1 or page_size > 1_000_000:
         raise ValueError("page_size must be between 1 and 1,000,000")
 
+    profile = get_gaia_release_profile(release)
+    table = _validate_column(table)
     config = PipelineConfig.load()
+    configured_release = normalize_gaia_release(config.gaia.release)
+    configured_schema = (
+        config.gaia.db_schema if configured_release == profile.key else None
+    )
+    resolved_schema = schema or configured_schema or profile.tap_schema
+    if not resolved_schema:
+        raise LookupError(
+            f"No TAP schema is confirmed for {profile.display_name}. Run "
+            "probe_gaia_archive and pass its resolved_schema after publication."
+        )
+    resolved_schema = validate_gaia_schema(
+        profile.key, _validate_column(resolved_schema)
+    )
+    strategy = partition_strategy or profile.source_id_partition
+    if not profile.source_id_partition_confirmed or strategy is None:
+        raise ValueError(
+            f"HEALPix source_id partitioning is not confirmed for "
+            f"{profile.display_name}; a bulk plan cannot be executed safely yet"
+        )
+    if strategy != "source_id_healpix12":
+        raise ValueError(
+            f"unsupported partition_strategy {strategy!r}; only "
+            "'source_id_healpix12' is implemented"
+        )
+    if table != profile.main_table and columns_mode == "default":
+        raise ValueError(
+            "columns_mode='default' is defined only for the release main table; "
+            "use columns_mode='custom' or 'all' for another table"
+        )
     columns = _resolve_columns(
         columns_mode,
         custom_columns=custom_columns,
@@ -101,8 +141,12 @@ def create_bulk_plan(
     plan_path = root / "bulk_plan.json"
     now = _utc_now()
     immutable = {
-        "data_release": "Gaia DR3",
-        "table": f"{config.gaia.db_schema}.gaia_source",
+        "release": profile.key,
+        "data_release": profile.archive_tag,
+        "schema": resolved_schema,
+        "table_name": table,
+        "table": f"{resolved_schema}.{table}",
+        "partition_strategy": strategy,
         "healpix_level": healpix_level,
         "pixel_start": pixel_start,
         "pixel_stop": stop,
@@ -126,7 +170,7 @@ def create_bulk_plan(
     plan = {
         "schema_version": PLAN_SCHEMA_VERSION,
         "pipeline_version": __version__,
-        "kind": "gaia_source_healpix_bulk",
+        "kind": "gaia_table_healpix_bulk",
         "label": label,
         "status": "planned",
         "created_at": now,
@@ -142,8 +186,8 @@ def create_bulk_plan(
             "failed_pixels": [],
         },
         "scope_note": (
-            "Covers gaiadr3.gaia_source only. Gaia auxiliary tables and "
-            "DataLink products are separate downloads."
+            f"Covers {resolved_schema}.{table} only for {profile.archive_tag}. "
+            "Gaia auxiliary tables and DataLink products are separate downloads."
         ),
         "safety": {
             "create_plan_downloads_data": False,
@@ -186,7 +230,13 @@ def run_bulk_plan(
 
     if query_runner is None:
         config = PipelineConfig.load()
-        source = GaiaSource(config.gaia, config.network)
+        gaia_config = config.gaia.model_copy(
+            update={
+                "release": selection.get("release", "dr3"),
+                "db_schema": selection.get("schema"),
+            }
+        )
+        source = GaiaSource(gaia_config, config.network)
         query_runner = source.execute_adql
 
     plan["status"] = "running"

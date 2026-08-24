@@ -133,6 +133,38 @@ def test_custom_adql_does_not_fall_back_to_sync_tap(gaia, monkeypatch):
         gaia.execute_adql("SELECT TOP 2 source_id FROM gaiadr3.gaia_source")
 
 
+def test_metadata_adql_is_sync_and_restricted_to_tap_schema(gaia, monkeypatch):
+    import io
+
+    buffer = io.BytesIO()
+    Table({"schema_name": ["gaiadr3"]}).write(buffer, format="votable")
+    calls = []
+
+    class FakeResponse:
+        content = buffer.getvalue()
+
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr(
+        "astro_pipeline.sources.gaia.httpx.post",
+        lambda url, **kwargs: calls.append((url, kwargs)) or FakeResponse(),
+    )
+    result = gaia.execute_metadata_adql(
+        "SELECT schema_name FROM TAP_SCHEMA.schemas"
+    )
+    assert result["schema_name"].tolist() == ["gaiadr3"]
+    assert len(calls) == 1
+    assert calls[0][0].endswith("/tap/sync")
+    assert "TAP_SCHEMA.schemas" in calls[0][1]["data"]["QUERY"]
+    assert calls[0][1]["timeout"] == 10.0
+
+    with pytest.raises(ValueError, match="restricted"):
+        gaia.execute_metadata_adql(
+            "SELECT source_id FROM gaiadr3.gaia_source"
+        )
+
+
 def test_crossmatch_positions_keeps_nearest_candidate(gaia, monkeypatch):
     class FakeJob:
         def get_results(self):

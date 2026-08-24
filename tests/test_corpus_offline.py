@@ -70,6 +70,7 @@ def test_lookup_source_resolves(data_dir: Path):
     c = _corpus(data_dir)
     res = c.lookup_source("111")
     assert res["resolved"] is True
+    assert res["gaia_release"] == "dr3"
     assert res["astrometry"]["RAICRS"] == 10.0
 
 
@@ -176,6 +177,7 @@ def test_bidirectional_inverse(data_dir: Path):
 def test_summary(data_dir: Path):
     c = _corpus(data_dir)
     s = c.summary()
+    assert s["gaia_release"] == "dr3"
     assert s["catalog_sources"] == 3
     assert s["paper_edges"] == 3
     assert s["unique_papers"] == 2

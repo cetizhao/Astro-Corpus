@@ -1,8 +1,9 @@
 """MCP server exposing astro-pipeline to AI agents (Claude Code, Cursor, Cline, ...).
 
 Tools cover cached corpus lookup, live Gaia/name queries, published membership
-catalogue discovery, resumable corpus/XP builds, progress inspection, and a
-bounded HEALPix downloader for the Gaia DR3 main source table.
+catalogue discovery, resumable corpus/DataLink builds, release capability
+discovery, progress inspection, and a bounded HEALPix downloader for confirmed
+Gaia table/partition contracts.
 
 Run standalone::
 
@@ -319,7 +320,14 @@ def download_corpus(
             xp_sampled=xp_sampled,
             xp_continuous=xp_continuous,
         )
-    except (ValueError, LookupError, FileNotFoundError, TypeError, IndexError) as e:
+    except (
+        ValueError,
+        LookupError,
+        FileNotFoundError,
+        TypeError,
+        IndexError,
+        NotImplementedError,
+    ) as e:
         return {"error": str(e), "label": label}
     return result_to_dict(result)
 
@@ -333,6 +341,7 @@ def download_plan(
     skip_simbad: bool = False,
     xp_sampled: bool = False,
     xp_continuous: bool = False,
+    gaia_release: str = "dr3",
 ) -> dict:
     """Preview stages, outputs and known risks without downloading anything.
 
@@ -355,8 +364,187 @@ def download_plan(
                 skip_simbad=skip_simbad,
                 xp_sampled=xp_sampled,
                 xp_continuous=xp_continuous,
+                gaia_release=gaia_release,
             )
         )
+    except ValueError as exc:
+        return {"error": str(exc), "label": label}
+
+
+@mcp.tool()
+def probe_gaia_archive(release: str = "dr4", schema: Optional[str] = None) -> dict:
+    """Discover whether a Gaia release schema/tables are live in TAP_SCHEMA.
+
+    This is the safe first DR4 call. It does not download catalogue rows and
+    never guesses ``gaiadr4``. Local profile expectations are returned
+    separately from live Archive confirmation.
+    """
+    from astro_pipeline.gaia_archive import probe_gaia_release
+
+    try:
+        source = _gaia_source_for_release(release, schema=schema)
+        return _json_safe(
+            probe_gaia_release(
+                release,
+                source.execute_metadata_adql,
+                schema_override=schema,
+            )
+        )
+    except (ValueError, LookupError) as exc:
+        return {"error": str(exc), "release": release, "schema": schema}
+
+
+@mcp.tool()
+def describe_gaia_table(
+    release: str,
+    table: str,
+    schema: Optional[str] = None,
+) -> dict:
+    """Read live TAP_SCHEMA column metadata for a release table; no data rows."""
+    from astro_pipeline.gaia_archive import describe_gaia_table as _describe
+
+    try:
+        source = _gaia_source_for_release(release, schema=schema)
+        return _json_safe(
+            _describe(
+                release,
+                table,
+                source.execute_metadata_adql,
+                schema_override=schema,
+            )
+        )
+    except Exception as exc:
+        return {
+            "error": str(exc),
+            "release": release,
+            "schema": schema,
+            "table": table,
+        }
+
+
+@mcp.tool()
+def list_gaia_products(
+    release: str = "dr4",
+    source_id: Optional[str] = None,
+) -> dict:
+    """List DataLink product hints and optionally confirm links for one source.
+
+    Without ``source_id`` this is local/read-only capability information.
+    With a source ID it performs one live DataLink links query. A product
+    declared by astroquery/profile is not reported as Archive-confirmed unless
+    the live source-specific response contains it.
+    """
+    from astro_pipeline.gaia_archive import list_gaia_datalink_products
+
+    try:
+        return _json_safe(
+            list_gaia_datalink_products(release, source_id=source_id)
+        )
+    except Exception as exc:
+        return {"error": str(exc), "release": release, "source_id": source_id}
+
+
+@mcp.tool()
+def plan_gaia_product_download(
+    release: str,
+    retrieval_type: str,
+    n_identifiers: int,
+    data_structure: str = "INDIVIDUAL",
+    output_format: str = "fits",
+    linking_parameter: str = "SOURCE_ID",
+    valid_data: bool = False,
+    batch_size: int = 5,
+) -> dict:
+    """Validate a release-qualified DataLink plan without writing or downloading."""
+    from astro_pipeline.gaia_products import plan_gaia_product_request
+
+    try:
+        return _json_safe(
+            plan_gaia_product_request(
+                release=release,
+                retrieval_type=retrieval_type,
+                n_identifiers=n_identifiers,
+                data_structure=data_structure,
+                output_format=output_format,
+                linking_parameter=linking_parameter,
+                valid_data=valid_data,
+                batch_size=batch_size,
+            )
+        )
+    except ValueError as exc:
+        return {"error": str(exc), "release": release, "retrieval_type": retrieval_type}
+
+
+@mcp.tool()
+def download_gaia_product(
+    label: str,
+    release: str,
+    retrieval_type: str,
+    identifiers: list[str],
+    data_structure: str = "INDIVIDUAL",
+    output_format: str = "fits",
+    linking_parameter: str = "SOURCE_ID",
+    valid_data: bool = False,
+    batch_size: int = 5,
+) -> dict:
+    """Download an explicit, bounded list of release-qualified DataLink products.
+
+    Outputs live under ``data/gaia_products/<label>/`` with checkpoint,
+    request contract, artifact provenance, Archive tables, and normalized
+    per-identifier files. At most 5,000 explicit identifiers are accepted;
+    ranges, Archive jobs, and implicit all-source downloads are intentionally
+    excluded. DR4 products work only after the Archive serves them.
+    """
+    from astro_pipeline.gaia_products import GaiaProductRequest
+    from astro_pipeline.manifest import validate_label
+
+    try:
+        label = validate_label(label)
+        if len(identifiers) > 5000:
+            raise ValueError("at most 5000 explicit identifiers are allowed per MCP call")
+        request = GaiaProductRequest(
+            release=release,
+            retrieval_type=retrieval_type,
+            identifiers=identifiers,
+            data_structure=data_structure,
+            output_format=output_format,
+            linking_parameter=linking_parameter,
+            valid_data=valid_data,
+            batch_size=batch_size,
+        )
+        source = _gaia_source_for_release(request.release)
+        output_dir = Path("data") / "gaia_products" / label
+        artifacts = source.download_products(request, output_dir, resume=True)
+        return _json_safe(
+            {
+                "label": label,
+                "release": request.release,
+                "retrieval_type": request.retrieval_type,
+                "output_dir": str(output_dir.resolve()),
+                "n_success": sum(item.success for item in artifacts),
+                "n_failed": sum(not item.success for item in artifacts),
+                "artifacts": [item.to_dict() for item in artifacts],
+                "resumable": True,
+            }
+        )
+    except Exception as exc:
+        return {
+            "error": str(exc),
+            "label": label,
+            "release": release,
+            "retrieval_type": retrieval_type,
+        }
+
+
+@mcp.tool()
+def gaia_product_status(label: str) -> dict:
+    """Read generic Gaia DataLink request/checkpoint/artifact progress locally."""
+    from astro_pipeline.gaia_products import gaia_product_status as _status
+    from astro_pipeline.manifest import validate_label
+
+    try:
+        label = validate_label(label)
+        return _json_safe(_status(Path("data") / "gaia_products" / label))
     except ValueError as exc:
         return {"error": str(exc), "label": label}
 
@@ -370,8 +558,12 @@ def create_gaia_bulk_plan(
     columns_mode: str = "default",
     custom_columns: Optional[list[str]] = None,
     page_size: int = 100000,
+    release: str = "dr3",
+    table: str = "gaia_source",
+    schema: Optional[str] = None,
+    partition_strategy: Optional[str] = None,
 ) -> dict:
-    """Create a resumable plan for Gaia DR3 main-table HEALPix chunks.
+    """Create a resumable plan for a confirmed Gaia table/partition contract.
 
     This is a planning call only: it writes ``data/gaia_bulk/<label>/bulk_plan.json``
     but downloads zero Gaia rows. ``pixel_stop=0`` means all pixels from
@@ -379,10 +571,8 @@ def create_gaia_bulk_plan(
     short pixel range for a test. ``columns_mode`` can be ``default`` (compact
     astrometry/photometry/QC/XP flags), ``custom``, or ``all``.
 
-    Scope is exactly ``gaiadr3.gaia_source``. "all" columns does not include
-    auxiliary Gaia tables, epoch photometry, XP/RVS files or other DataLink
-    products. The source_id/HEALPix partition rule follows official Gaia DR3
-    documentation and chunks are keyset-paginated without sampling.
+    DR3 defaults to ``gaiadr3.gaia_source``. DR4 is intentionally refused until
+    its source-ID partition rule is confirmed in the published data model.
     """
     from astro_pipeline.bulk_gaia import create_bulk_plan
     from astro_pipeline.manifest import validate_label
@@ -400,9 +590,13 @@ def create_gaia_bulk_plan(
                 columns_mode=columns_mode,
                 custom_columns=custom_columns,
                 page_size=page_size,
+                release=release,
+                table=table,
+                schema=schema,
+                partition_strategy=partition_strategy,
             )
         )
-    except ValueError as exc:
+    except (ValueError, LookupError) as exc:
         return {"error": str(exc), "label": label}
 
 
@@ -724,11 +918,13 @@ def list_corpora() -> list[dict]:
         except Exception:
             pass
         build_status = None
+        manifest_data: dict[str, Any] = {}
         if manifest_path.exists():
             try:
                 import json
 
-                build_status = json.loads(manifest_path.read_text()).get("status")
+                manifest_data = json.loads(manifest_path.read_text())
+                build_status = manifest_data.get("status")
             except Exception:
                 build_status = "unreadable"
         out.append({
@@ -738,6 +934,9 @@ def list_corpora() -> list[dict]:
             "has_paper_edges": has_edges,
             "has_viz": (sub / "source_paper_viz.html").exists(),
             "build_status": build_status,
+            "gaia_release": manifest_data.get("corpus", {}).get(
+                "gaia_release", "dr3"
+            ) if manifest_data else None,
             "n_xp_sampled_cached": len(list((sub / "gaia_xp_sampled").glob("*.fits"))),
             "n_xp_continuous_cached": len(
                 list((sub / "gaia_xp_continuous").glob("*.fits"))
@@ -747,6 +946,32 @@ def list_corpora() -> list[dict]:
 
 
 # --------------------------------------------------------------------- helpers
+def _gaia_source_for_release(release: str, *, schema: Optional[str] = None):
+    from astro_pipeline.config import PipelineConfig
+    from astro_pipeline.gaia_releases import (
+        get_gaia_release_profile,
+        validate_gaia_schema,
+    )
+    from astro_pipeline.sources.gaia import GaiaSource
+
+    config = PipelineConfig.load()
+    profile = get_gaia_release_profile(release)
+    configured_release = get_gaia_release_profile(config.gaia.release).key
+    db_schema = (
+        schema
+        if schema is not None
+        else config.gaia.db_schema
+        if configured_release == profile.key
+        else profile.tap_schema
+    )
+    if db_schema is not None:
+        db_schema = validate_gaia_schema(profile.key, db_schema)
+    gaia_config = config.gaia.model_copy(
+        update={"release": profile.key, "db_schema": db_schema}
+    )
+    return GaiaSource(gaia_config, config.network)
+
+
 def _cached_corpus_unavailable() -> dict[str, Any]:
     return {
         "error": "default cached corpus is not installed",

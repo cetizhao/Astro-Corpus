@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from astro_pipeline import corpus_products
 from astro_pipeline import corpus_builder
@@ -12,6 +13,7 @@ from astro_pipeline.corpus_builder import _describe_input, build_corpus_from_mem
 from astro_pipeline.manifest import CorpusManifest, make_download_plan, read_manifest
 from astro_pipeline.models.paper import PaperEdgeTable
 from astro_pipeline.models.results import CatalogResult, SpectrumResult
+from astro_pipeline.config import PipelineConfig
 
 
 def _members() -> pd.DataFrame:
@@ -161,6 +163,28 @@ def test_manifest_keeps_previously_requested_optional_products(tmp_path):
     assert second.data["stages"]["gaia_xp_sampled"]["status"] == "partial"
 
 
+def test_manifest_release_is_part_of_corpus_identity(tmp_path):
+    path = tmp_path / "manifest.json"
+    manifest = CorpusManifest.open_or_create(
+        path,
+        label="release_identity",
+        input_mode="catalog",
+        input_summary="same ids",
+        requested_products={"members": True},
+        gaia_release="dr3",
+    )
+    manifest.finish("completed")
+    with pytest.raises(ValueError, match="different input"):
+        CorpusManifest.open_or_create(
+            path,
+            label="release_identity",
+            input_mode="catalog",
+            input_summary="same ids",
+            requested_products={"members": True},
+            gaia_release="dr4",
+        )
+
+
 def test_build_from_members_writes_completed_manifest_when_skipping_network(tmp_path):
     result = build_corpus_from_members(
         label="offline",
@@ -179,6 +203,10 @@ def test_build_from_members_writes_completed_manifest_when_skipping_network(tmp_
     assert manifest["stages"]["save_members"]["completed"] == 2
     assert manifest["stages"]["simbad_papers"]["status"] == "skipped"
     assert manifest["stages"]["gaia_xp_sampled"]["status"] == "not_requested"
+    assert manifest["corpus"]["gaia_release"] == "dr3"
+    members = pd.read_parquet(tmp_path / "members.parquet")
+    assert members["gaia_release"].tolist() == ["dr3", "dr3"]
+    assert result.gaia_release == "dr3"
 
 
 def test_download_plan_is_read_only_and_explains_region_semantics(tmp_path, monkeypatch):
@@ -197,6 +225,50 @@ def test_download_plan_is_read_only_and_explains_region_semantics(tmp_path, monk
     assert plan["requested_products"]["gaia_xp_sampled"] is True
     assert any("not physical members" in caution for caution in plan["cautions"])
     assert not (tmp_path / "data").exists()
+
+
+def test_dr4_corpus_plan_refuses_dr3_xp_product_names():
+    with pytest.raises(ValueError, match="does not declare DR3-style XP"):
+        make_download_plan(
+            label="future",
+            input_mode="catalog",
+            input_summary="DR4 IDs",
+            expected_sources=2,
+            skip_simbad=True,
+            xp_sampled=True,
+            xp_continuous=False,
+            gaia_release="dr4",
+        )
+
+
+def test_dr4_corpus_plan_is_read_only_and_not_executable():
+    plan = make_download_plan(
+        label="future",
+        input_mode="catalog",
+        input_summary="DR4 IDs",
+        expected_sources=2,
+        skip_simbad=True,
+        xp_sampled=False,
+        xp_continuous=False,
+        gaia_release="dr4",
+    )
+    assert plan["writes_data"] is False
+    assert plan["executable"] is False
+    assert "probe_gaia_archive" in plan["next_step"]
+
+
+def test_dr4_ordinary_corpus_build_fails_before_writing(monkeypatch, tmp_path):
+    config = PipelineConfig()
+    config.gaia = config.gaia.model_copy(update={"release": "dr4", "db_schema": None})
+    monkeypatch.setattr(corpus_builder.PipelineConfig, "load", lambda: config)
+
+    with pytest.raises(NotImplementedError, match="ordinary corpus resolution"):
+        corpus_builder.build_corpus_snapshot(
+            label="future",
+            out_dir=tmp_path / "future",
+            name="TW Hya",
+        )
+    assert not (tmp_path / "future").exists()
 
 
 def test_corpus_label_cannot_escape_output_directory(tmp_path):
