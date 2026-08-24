@@ -1,8 +1,8 @@
 # astro-pipeline 详细说明
 
-> **版本 0.4.0（2026-08-13）** — 新增 VizieR 成员星表搜索/预览/下载、
-> 通用 corpus XP Sampled/Continuous、原子 manifest 进度，以及 Gaia DR3
-> `gaia_source` 的 HEALPix 分块下载底座。开发主线继续聚焦 **Gaia + arXiv**；
+> **版本 0.5.0（2026-08-24）** — 新增 Gaia release profile、TAP/DataLink
+> runtime discovery、通用 release-aware 产品下载与 DR4 安全预适配；DR4 schema
+> 和 HEALPix 规则未确认前不会猜测或启用 bulk。开发主线继续聚焦 **Gaia + arXiv**；
 > LAMOST/SDSS 适配保留可用但暂不投入新开发。
 > 详见 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -12,6 +12,10 @@
 
 - **开发者**：知道代码在哪里、每一步做什么、怎么扩展。
 - **下游使用者**：理解这个 pipeline 能把公开天文数据库转成统一、可复用、可被 AI 调用的数据接口。
+
+非计算机专业的天体物理学习者可从
+[工程与 AI 语料学习指南](docs/learning-guide.md) 开始。该文档按概念依赖组织本项目的
+带读、练习、答案和学习进度，不要求先通读本 README。
 
 ## 1. 项目定位
 
@@ -28,11 +32,11 @@
   -> 供检索、训练、知识库或 agent skill 调用
 ```
 
-当前策略是 **pipeline 优先、按需获取、演示可跑通**。一般任务不需要把 Gaia 全量数据下载到本地；v0.4.0 同时保留了可分块物化 `gaiadr3.gaia_source` 的能力，供确有本地全表需求时使用。后续仍根据下游消费者的具体格式要求适配输出。
+当前策略是 **pipeline 优先、按需获取、演示可跑通**。一般任务不需要把 Gaia 全量数据下载到本地；v0.5.0 保留可分块物化 `gaiadr3.gaia_source` 的能力，并为 DR4 预留可发现但不猜测的接口。后续仍根据下游消费者的具体格式要求适配输出。
 
 ## 2. 当前实现状态
 
-当前代码已经实现一个可被 MCP agent 调用的数据获取与 corpus 框架。**v0.2.1 起开发主线收窄至 Gaia + arXiv**——LAMOST/SDSS 适配仍可调用，但不在近期开发计划内。v0.4.0 把输入从单一天区扩展到用户 CSV、公开成员星表和可恢复的大规模 Gaia 分块任务。
+当前代码已经实现一个可被 MCP agent 调用的数据获取与 corpus 框架。**v0.2.1 起开发主线收窄至 Gaia + arXiv**——LAMOST/SDSS 适配仍可调用，但不在近期开发计划内。v0.5.0 进一步把 Gaia release、远程产品和 Archive 能力变成显式契约。
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
@@ -43,6 +47,8 @@
 | 用户星表 | 已实现 | CSV 中的 Gaia ID 或 RA/Dec 位置匹配 |
 | corpus manifest / 进度 | 已实现 | `manifest.json` 原子更新，MCP 可读阶段与 XP 进度 |
 | Gaia 主表大规模下载 | 已实现·底座 | 按 `source_id` HEALPix 区间和游标分页保存 Parquet；默认一次一块 |
+| Gaia DR4 接口预适配 | 已实现·安全关闭 | runtime 探测 schema/表/产品；source identity 带 release；未确认分区前拒绝 DR4 bulk |
+| 通用 Gaia DataLink 产品 | 已实现·表格产品 | release/product/format/structure 显式请求，保存 checkpoint、checksum 与 artifact provenance |
 | LAMOST DR11 星表查询 | 已实现 · 暂缓 | 通过 VizieR 查询 LRS 星表；v0.2.1 起不在主线 |
 | LAMOST 光谱下载 | 已实现 · 暂缓 | 按 `obsid` 下载 FITS；v0.2.1 起不在主线 |
 | SDSS DR17 星表查询 | 已实现 · 暂缓 | 通过 `astroquery.sdss` 查询 PhotoObj 与 SpecObj JOIN |
@@ -72,7 +78,7 @@
 
 补充说明：
 
-- Gaia DR3 是当前代码的稳定基准；Gaia DR4 预计在 2026 年底前后发布，代码通过 `db_schema` 预留了切换版本的入口。
+- Gaia DR3 是当前稳定基准。DR4 profile 为 provisional：代码通过 `TAP_SCHEMA` 和 DataLink links 实时发现能力，不把预期表名或 astroquery 产品清单当成已发布事实。详见 [DR4 readiness](docs/dr4-readiness.md)。
 - LAMOST DR11 v2.0 已在 2025 年面向全球发布，当前配置使用 DR11 的公开地址和 VizieR 星表编号。
 - SDSS 代码使用 DR17，因为它是 SDSS-IV 的最终完整发布，接口成熟；SDSS-V 已有更新公开版本，后续可作为新 `SdssSource` 配置或新 source 扩展。
 
@@ -99,6 +105,9 @@ astro-pipeline/
     membership.py           # VizieR 成员目录搜索、预览、Gaia DR3 匹配
     manifest.py             # corpus 原子 manifest / 下载计划
     bulk_gaia.py            # Gaia gaia_source HEALPix 分块下载底座
+    gaia_releases.py        # DR3 稳定 / DR4 provisional release profiles
+    gaia_archive.py         # TAP_SCHEMA 与 DataLink live discovery
+    gaia_products.py        # 通用 release-aware DataLink 请求和 artifacts
     mcp_server.py           # 跨 agent 的 MCP 工具接口
     models/
       query.py              # 查询输入模型
@@ -570,10 +579,11 @@ crossmatch/
 
 `scripts/export_jsonl.py` 已实现一个**简化 schema** 的 JSONL 导出（每行一个 Gaia 源）。下游 schema 约定明确后会在 `to_record()` 适配层里调整，不影响上游。
 
-**当前 schema**（v0.4.0 沿用，对应 `data/twa/twa_corpus.jsonl`）：
+**当前 schema**（v0.5.0，对应 `data/twa/twa_corpus.jsonl`）：
 
 ```json
 {
+  "gaia_release": "dr3",
   "gaia_id": "5401795662560500352",
   "ra_deg": 165.4659,
   "dec_deg": -34.7048,
@@ -614,7 +624,7 @@ crossmatch/
      "year": 2023, "url": "https://arxiv.org/abs/2305.03557"}
   ],
   "n_papers": 2154,
-  "provenance": {"pipeline_version": "0.4.0"}
+  "provenance": {"pipeline_version": "0.5.0", "gaia_release": "dr3"}
 }
 ```
 
@@ -692,6 +702,8 @@ v0.2 已修复其中数项（见下表「状态」列）。剩余项为后续改
 | corpus 查询 MCP | Gaia id / arxiv id | 源↔论文结构化数据 | 已实现 |
 | 成员目录 MCP | 星团/协会名 | 原目录 + Gaia 匹配表 | 已实现 |
 | Gaia bulk MCP | HEALPix 计划 | 分区 Parquet | 已实现·底座 |
+| Gaia release discovery MCP | DR3/DR4 + 可选 source ID | live schema/列/产品能力 | 已实现 |
+| 通用 DataLink MCP | release + 产品 + 显式 IDs | artifacts + checkpoint | 已实现·有界 |
 | 跨巡天 cross-match | 两个任意星表 | 匹配表 | 暂缓 |
 | 质量控制 skill | 原始星表 | 清洗星表 | 待编写 |
 | 语料导出 skill | 统一知识表 | JSONL/Markdown | 待编写 |
@@ -709,6 +721,7 @@ v0.2 已修复其中数项（见下表「状态」列）。剩余项为后续改
 | 成员目录语料 | `data/<label>/membership_catalog.*` + `members.*` | 原表、Gaia 匹配、未匹配行均可审计 |
 | 下载状态 | `data/<label>/manifest.json` | 阶段、计数、警告、错误和产物原子更新 |
 | Gaia 主表分块 | `data/gaia_bulk/<label>/` | HEALPix 区间无重叠、游标分页、可恢复 |
+| Gaia 通用产品 | `data/gaia_products/<label>/` | 请求契约、Archive 表、按 ID 文件、checksum 和 checkpoint |
 | 交互式可视化 | `data/twa/source_paper_viz*.html` | 6 张图 + 搜索/点击 focus + 天测与 XP 光谱面板 |
 | JSONL 语料导出 | `data/twa/twa_corpus.jsonl` | 67 源、每行 schema 见 §8.5 |
 | SIMBAD 论文边表 | `data/twa/paper_edges.parquet` | 6505 边、76% 有 arxiv_id |
@@ -719,7 +732,7 @@ v0.2 已修复其中数项（见下表「状态」列）。剩余项为后续改
 
 ## 12. 一句话总结
 
-`astro-pipeline` 的本质是把 Gaia 等公开天文档案库包装成统一的查询、下载、匹配和导出工作流。**当前阶段（v0.4.0）聚焦 Gaia + arXiv 链路**：双向「源↔论文」、公开成员目录、用户/天区输入、Gaia XP、进度 manifest、分块主表下载、HTML 与 JSONL 已具备；下一步关键是把质量控制、科学特征和更多 Gaia 产品做成可配置层，而不是默认隐式筛选。
+`astro-pipeline` 的本质是把 Gaia 等公开天文档案库包装成统一的查询、下载、匹配和导出工作流。**当前阶段（v0.5.0）聚焦 Gaia + arXiv 链路**：DR3 corpus 功能稳定，DR4 的 schema/产品发现与 release-aware 接口已准备，但未公布部分保持关闭；下一步关键是根据正式 DR4 data model 激活映射和产品解析，而不是提前猜字段。
 
 ## 13. 新合作者上手（bootstrap）
 
@@ -797,7 +810,7 @@ uv run python scripts/gaia_bulk.py run gaia_demo --max-chunks 1
 
 ## 14. MCP 集成（让 AI agent 调用本 pipeline）
 
-本仓库自带 [MCP server](https://modelcontextprotocol.io/)（`src/astro_pipeline/mcp_server.py`），覆盖 corpus 查询、名称/天区输入、公开成员目录、XP 下载、进度查询和 Gaia 主表分块。用户可以只描述目标，不必亲自运行命令。
+本仓库自带 [MCP server](https://modelcontextprotocol.io/)（`src/astro_pipeline/mcp_server.py`），覆盖 corpus 查询、名称/天区输入、公开成员目录、XP/通用 DataLink 下载、release discovery、进度查询和 Gaia 主表分块。用户可以只描述目标，不必亲自运行命令。
 
 ### 14.1 三条主要工作流
 
@@ -806,6 +819,8 @@ uv run python scripts/gaia_bulk.py run gaia_demo --max-chunks 1
 | 某个天区的所有 Gaia 场源 | `download_plan` → `download_corpus(cone/region=...)` → `corpus_status` |
 | Taurus/Pleiades 等物理成员 | `search_membership_catalogs` → `preview_membership_catalog` → `download_membership_corpus` |
 | 大规模物化 Gaia 主表 | `create_gaia_bulk_plan` → `run_gaia_bulk_download` → `gaia_bulk_status` |
+| 检查 Gaia DR4 是否上线 | `probe_gaia_archive` → `describe_gaia_table` → `list_gaia_products` |
+| 下载显式 Gaia 产品 | `plan_gaia_product_download` → `download_gaia_product` → `gaia_product_status` |
 
 `region` 只是以名称为中心的几何锥形搜索，不等于成员。成员工作流保留原 VizieR 表、成员概率/标志、Gaia 匹配角距离和未匹配行，不默认筛选。
 

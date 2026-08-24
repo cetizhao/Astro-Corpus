@@ -48,6 +48,8 @@ useful yet, but live search and all corpus-building tools remain available.
 | An uploaded source list | `download_corpus(catalog_path=...)` | Gaia IDs or RA/Dec in a local CSV |
 | Members of a cluster/association | Search → preview → membership download | Published membership definition selected explicitly |
 | A large part or all of `gaia_source` | Bulk plan → bounded worker → status | HEALPix-partitioned Parquet dataset |
+| Inspect upcoming DR4 support | Probe → describe table → list products | Live Archive facts kept separate from provisional profile hints |
+| Explicit DataLink product list | Product plan → bounded download | Release-qualified product artifacts with checkpoint/provenance |
 
 The distinction between a region and membership is scientifically important.
 For example, `region=["Taurus", 2]` returns foreground/background field stars
@@ -108,6 +110,11 @@ corpus exists but an optional product or visualization is incomplete;
 `failed` means a required stage failed. Reusing a label for a different input
 is refused to prevent mixed corpora.
 
+`download_plan(gaia_release="dr4")` is currently read-only and returns
+`executable=false`. Ordinary DR4 corpus normalization remains disabled until
+the final column model is published; use the release-discovery and generic
+DataLink tools instead.
+
 ## Gaia bulk workflow
 
 This route is for materializing `gaiadr3.gaia_source`, not for a normal corpus.
@@ -133,6 +140,29 @@ ORDER BY source_id ASC
 
 No random sampling or query truncation is used.
 
+DR4 bulk execution is currently disabled even if a caller supplies a guessed
+`gaiadr4` schema. Run `probe_gaia_archive(release="dr4")` first; the source-ID
+partition strategy must additionally be confirmed from the published data
+model before a DR4 plan becomes executable.
+
+## Release and DataLink workflow
+
+1. `probe_gaia_archive(release="dr4")` checks live `TAP_SCHEMA` without
+   guessing a schema.
+2. `describe_gaia_table(release, table)` retrieves live column metadata only.
+3. `list_gaia_products(release)` returns profile/astroquery capability hints;
+   provide `source_id` to confirm source-specific links from the live service.
+4. `plan_gaia_product_download(...)` validates format, structure, product and
+   batch count without writing.
+5. `download_gaia_product(...)` accepts at most 5,000 explicit numeric IDs and
+   writes under `data/gaia_products/<label>/`.
+6. `gaia_product_status(label)` reads local request/checkpoint/artifact progress.
+
+Supported table-oriented output formats are VOTable, VOTable Plain, FITS, CSV,
+and ECSV. Data structures are `INDIVIDUAL` and `RAW`; the deprecated
+`COMBINED` structure is intentionally absent. `CROWDED_FIELD_IMAGE` remains
+blocked because its binary image payload needs a blob-preserving transport.
+
 ## Tool reference
 
 | Tool | Network | Writes data | Purpose |
@@ -153,6 +183,12 @@ No random sampling or query truncation is used.
 | `create_gaia_bulk_plan` | no | plan only | Define `gaia_source` HEALPix partitions |
 | `run_gaia_bulk_download` | yes | yes | Process bounded bulk chunks |
 | `gaia_bulk_status` | no | no | Read bulk plan progress |
+| `probe_gaia_archive` | yes | no | Discover release schema/tables via TAP_SCHEMA |
+| `describe_gaia_table` | yes | no | Read live table column metadata |
+| `list_gaia_products` | optional | no | Profile hints; source ID enables live DataLink confirmation |
+| `plan_gaia_product_download` | no | no | Validate a release-qualified product plan |
+| `download_gaia_product` | yes | yes | Download explicit bounded DataLink identifiers |
+| `gaia_product_status` | no | no | Read generic DataLink progress and provenance |
 
 ## Known warnings an agent should surface
 

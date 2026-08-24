@@ -3,6 +3,42 @@
 All notable changes to this project are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] — 2026-08-24
+
+### Added
+
+- Stable DR3 and provisional DR4 release profiles with release-qualified source
+  identity, reference epochs, expected source tables, and DataLink products.
+- Runtime TAP discovery through `TAP_SCHEMA` without guessing a DR4 schema.
+- Generic release-aware DataLink request/artifact contracts, bounded explicit
+  downloads, checksums, source checkpoints, and artifact provenance.
+- SOCKS-aware HTTP discovery so Gaia metadata probes respect local proxy
+  environments instead of hanging in astroquery's unbounded connection path.
+- Declared pytest as a development dependency so a clean `uv sync` can run the
+  documented verification command.
+- MCP tools `probe_gaia_archive`, `describe_gaia_table`,
+  `list_gaia_products`, `plan_gaia_product_download`, and
+  `download_gaia_product`, plus local `gaia_product_status` inspection.
+
+### Changed
+
+- Corpus manifests and member tables record `gaia_release`; a label cannot be
+  reused across releases even when numeric source IDs are equal.
+- Existing DR3 XP downloads now use the generic DataLink layer while retaining
+  `<source_id>.fits`, checkpoints, and visualization compatibility.
+- Gaia bulk plans now record release, archive tag, schema, table, and partition
+  strategy.
+
+### Safety
+
+- DR4 TAP schema and final columns remain discoverable rather than hardcoded.
+- DR4 HEALPix bulk execution is disabled until its source-ID partition rule is
+  officially confirmed.
+- Client-declared DataLink products are reported separately from products
+  confirmed by a live source-specific Archive response.
+- Binary `CROWDED_FIELD_IMAGE` downloads are refused until a blob-preserving
+  transport can be validated against the public DR4 service.
+
 ## [0.4.0] — 2026-08-13
 
 ### Summary

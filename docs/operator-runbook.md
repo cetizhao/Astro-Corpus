@@ -67,6 +67,30 @@ explicit unmatched row. Live counts can change only if an external catalogue
 or matching service changes; the invariant is that totals and unmatched rows
 remain auditable.
 
+## Gaia release discovery smoke
+
+Discovery reads only `TAP_SCHEMA`; it downloads no catalogue rows:
+
+```python
+from astro_pipeline.config import PipelineConfig
+from astro_pipeline.gaia_archive import probe_gaia_release
+from astro_pipeline.sources.gaia import GaiaSource
+
+config = PipelineConfig.load()
+source = GaiaSource(config.gaia, config.network)
+print(probe_gaia_release("dr3", source.execute_metadata_adql))
+print(probe_gaia_release("dr4", source.execute_metadata_adql))
+```
+
+Expected before DR4 publication: DR3 resolves to `gaiadr3`; DR4 returns
+`archive_reachable=true` but `published_in_tap=false`, or a structured network
+error if the Archive is unavailable. Never turn a missing DR4 schema into a
+guessed `gaiadr4` value. Metadata requests have a separate 10-second timeout.
+
+For DataLink, first use `list_gaia_products(release="dr4")` without a source
+to inspect client hints. Passing a source ID performs a live link query and is
+the only result that may mark products as source-specific Archive-confirmed.
+
 ## Progress and resume
 
 For corpus builds inspect:
@@ -112,6 +136,10 @@ used only after storage and service impact are understood.
 | Blank HTML / ECharts warning | Vendored JavaScript is missing/corrupt | Restore `src/astro_pipeline/viz/vendor/echarts.min.js` and rebuild |
 | Bulk plan is `partial` | Worker stopped at first failed pixel | Inspect `last_error`; rerun same label |
 | Label rejected | Labels are directory names, not paths | Use letters/digits plus `.`, `_`, or `-` only |
+| DR4 probe finds no schema | DR4 is not published in TAP or Archive is unavailable | Keep the profile provisional; do not guess the schema |
+| DR4 bulk plan rejected | Source-ID partition rule is not confirmed | Wait for the official data model and update the release profile |
+| `Using SOCKS proxy ... socksio` | Environment uses a SOCKS proxy without optional HTTP support | Run `uv sync`; v0.5 declares `httpx[socks]` |
+| `CROWDED_FIELD_IMAGE` rejected | Astroquery omits the binary image from its returned table dictionary | Wait for the blob-preserving transport adapter |
 
 ## Data sharing and Git
 
