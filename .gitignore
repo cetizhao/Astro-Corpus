@@ -35,8 +35,9 @@ data/
 # Claude Code local config and memory
 .claude/
 
-# Codex desktop local task metadata
-.codex/
+# Codex desktop local task metadata; keep the portable project MCP config.
+.codex/*
+!.codex/config.toml
 
 # Large astronomical data formats
 *.hdf5

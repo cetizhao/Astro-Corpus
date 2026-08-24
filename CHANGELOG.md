@@ -19,6 +19,8 @@ All notable changes to this project are documented here. Versions follow
 - MCP tools `probe_gaia_archive`, `describe_gaia_table`,
   `list_gaia_products`, `plan_gaia_product_download`, and
   `download_gaia_product`, plus local `gaia_product_status` inspection.
+- Portable project-scoped Codex MCP configuration in `.codex/config.toml`,
+  alongside `.mcp.json` for other compatible clients.
 
 ### Changed
 

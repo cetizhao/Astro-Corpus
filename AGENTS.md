@@ -1,7 +1,8 @@
 # Agent working notes
 
 This repository is a Gaia-first astronomical corpus pipeline. The stable
-agent interface is the MCP server configured by the root `.mcp.json`.
+agent interface is the MCP server configured by `.codex/config.toml` for Codex
+and the root `.mcp.json` for compatible clients such as Claude Code.
 
 ## Non-negotiable semantics
 

@@ -717,7 +717,7 @@ v0.2 已修复其中数项（见下表「状态」列）。剩余项为后续改
 | Pipeline 代码 | `src/astro_pipeline/` | 能查询 Gaia/LAMOST/SDSS 小样本 |
 | 配置文件 | `config/*.yaml` | 可切换数据目录、网络参数、数据源版本 |
 | 双向 corpus API | `astro_pipeline.corpus` CLI/Python | `source/paper/summary` 三个子命令端到端可用 |
-| MCP agent 接口 | `.mcp.json` + `mcp_server.py` | clone 后可搜索/预览/下载/查进度 |
+| MCP agent 接口 | `.codex/config.toml` + `.mcp.json` + `mcp_server.py` | Codex/Claude clone 后可搜索、预览、下载和查进度 |
 | 成员目录语料 | `data/<label>/membership_catalog.*` + `members.*` | 原表、Gaia 匹配、未匹配行均可审计 |
 | 下载状态 | `data/<label>/manifest.json` | 阶段、计数、警告、错误和产物原子更新 |
 | Gaia 主表分块 | `data/gaia_bulk/<label>/` | HEALPix 区间无重叠、游标分页、可恢复 |
@@ -830,7 +830,9 @@ uv run python scripts/gaia_bulk.py run gaia_demo --max-chunks 1
 
 ### 14.2 Clone 后连接
 
-仓库根目录的 `.mcp.json` 使用项目相对命令。支持项目 MCP 配置的 agent 在 clone 后从仓库根目录启动即可：
+Codex 使用仓库内的 `.codex/config.toml`，Claude Code 等兼容客户端可读取根目录
+`.mcp.json`；两者都使用项目相对命令。clone 后信任该项目并重启 Codex，再用 `/mcp`
+确认 `astro-corpus` 已连接：
 
 ```bash
 git clone <repo>

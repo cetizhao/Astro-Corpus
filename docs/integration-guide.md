@@ -13,7 +13,25 @@ uv sync
 uv run pytest -q
 ```
 
-The root `.mcp.json` is project-relative and is the shared configuration:
+Codex uses the project-scoped `.codex/config.toml` after the repository is
+trusted. It starts the STDIO server with:
+
+```toml
+[mcp_servers.astro-corpus]
+command = "uv"
+args = ["run", "python", "-m", "astro_pipeline.mcp_server"]
+startup_timeout_sec = 30
+tool_timeout_sec = 600
+enabled = true
+```
+
+Save MCP settings and restart Codex; use `/mcp` to verify that `astro-corpus`
+is active. MCP tool definitions are loaded into a task's tool context, so after
+adding or changing tools, restart Codex and reopen the task (start a new task if
+the existing task still shows the old tool list).
+
+The root `.mcp.json` provides the equivalent project-relative configuration for
+clients that read that convention, including Claude Code:
 
 ```json
 {
@@ -26,7 +44,7 @@ The root `.mcp.json` is project-relative and is the shared configuration:
 }
 ```
 
-An MCP client that reads project configuration can clone the repository and
+An MCP client that reads either project convention can clone the repository and
 start from its root. Other clients use the equivalent command with the repo as
 their working directory:
 

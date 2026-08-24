@@ -1,0 +1,11 @@
+[mcp_servers.astro-corpus]
+command = "uv"
+args = [
+    "run",
+    "python",
+    "-m",
+    "astro_pipeline.mcp_server",
+]
+startup_timeout_sec = 30
+tool_timeout_sec = 600
+enabled = true
