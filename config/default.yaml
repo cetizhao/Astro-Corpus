@@ -19,7 +19,7 @@ gaia:
   release: "dr3"
   db_schema: "gaiadr3"
   default_query_timeout: 600
-  metadata_timeout_seconds: 10
+  metadata_timeout_seconds: 30
   default_columns:
     - source_id
     - ra

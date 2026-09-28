@@ -3,6 +3,23 @@
 All notable changes to this project are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Gaia small catalogue, source-ID and position-matching queries use bounded
+  synchronous TAP instead of waiting in the asynchronous job queue.
+- Gaia TAP now honors environment proxies and enforces both per-request and
+  total query deadlines, including retries and polling. Bulk remains async-only;
+  job cleanup has a separate bounded, non-fatal allowance.
+- TAP `ERROR` and `OVERFLOW` responses cannot become empty or silently truncated
+  catalogues. Async phase/result retries reuse the existing job rather than
+  submitting duplicates.
+- Catalogue and metadata startup no longer imports astroquery's networked Gaia
+  singleton; server-announcement requests cannot bypass the TAP query deadline.
+- Metadata discovery defaults to a 30-second total query budget instead of a
+  10-second request timeout that could reject otherwise available services.
+
 ## [0.5.0] — 2026-08-24
 
 ### Added

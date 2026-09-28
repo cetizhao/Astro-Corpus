@@ -45,9 +45,10 @@ strategy.
 `gaia_archive.py` is the live facts layer. It discovers schemas, tables and
 columns from `TAP_SCHEMA`, and can inspect DataLink links for one source. MCP
 results keep local client hints separate from live Archive confirmation.
-Metadata probes use a separate 10-second per-request timeout so an unavailable
-Archive does not block an agent as long as a catalogue/bulk job may legitimately
-run.
+Metadata probes use a separate 30-second total network budget per query,
+including retries, so an unavailable Archive does not block an agent as long
+as a catalogue/bulk job may legitimately run. TAP transport and cleanup bounds
+are documented in the [operator runbook](operator-runbook.md).
 
 `gaia_products.py` defines the request identity:
 

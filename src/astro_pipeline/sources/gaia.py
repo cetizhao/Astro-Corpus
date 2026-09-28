@@ -1,31 +1,24 @@
 from __future__ import annotations
 
-import io
 import logging
 import math
 import re
 from pathlib import Path
-from typing import Callable, Optional, Sequence
+from typing import TYPE_CHECKING, Callable, Optional, Sequence
 
 import pandas as pd
-import httpx
-from astropy.io.votable import parse_single_table
-from astroquery.gaia import Gaia
 
 from astro_pipeline.config import GaiaConfig, NetworkConfig
-from astro_pipeline.gaia_products import (
-    GaiaArtifact,
-    GaiaProductRequest,
-    download_gaia_product_request,
-)
 from astro_pipeline.gaia_releases import get_gaia_release_profile
+from astro_pipeline.gaia_tap import GaiaTapClient, SYNC_MAXREC
 from astro_pipeline.io.writer import save_catalog_parquet
 from astro_pipeline.models.query import ConeSearchQuery, ParameterQuery, SourceIdQuery
 from astro_pipeline.models.results import CatalogResult, SpectrumResult
 from astro_pipeline.retry import make_retry_decorator
 from astro_pipeline.sources.base import CatalogSource
 
-Gaia.ROW_LIMIT = -1
+if TYPE_CHECKING:
+    from astro_pipeline.gaia_products import GaiaArtifact, GaiaProductRequest
 
 
 class GaiaSource(CatalogSource):
@@ -33,18 +26,17 @@ class GaiaSource(CatalogSource):
         super().__init__(config, network)
         self._gaia_config = config
         self._retry = make_retry_decorator(network)
+        self._tap = GaiaTapClient(config, network)
         self._logged_in = False
         self._release_profile = get_gaia_release_profile(config.release)
         self._db_schema = config.db_schema or self._release_profile.tap_schema
-        if self._db_schema:
-            Gaia.MAIN_GAIA_TABLE = (
-                f"{self._db_schema}.{self._release_profile.main_table}"
-            )
 
     def _ensure_login(self) -> None:
         if self._logged_in:
             return
         if self._gaia_config.username and self._gaia_config.password:
+            from astroquery.gaia import Gaia
+
             self._logger.info("Logging in to Gaia archive as %s", self._gaia_config.username)
             Gaia.login(
                 user=self._gaia_config.username,
@@ -90,18 +82,8 @@ class GaiaSource(CatalogSource):
             raise ValueError("Only read-only SELECT ADQL queries are supported")
         self._logger.info("Gaia custom ADQL: %s", " ".join(adql.split())[:300])
 
-        @self._retry
-        def _do_query() -> pd.DataFrame:
-            # Bulk callers rely on explicit TOP/keyset pages. Never fall back
-            # to synchronous TAP here: its tighter service-side row cap could
-            # turn a failed large page into a shorter, apparently successful
-            # page and make the worker conclude that the chunk is complete.
-            job = Gaia.launch_job_async(
-                adql, dump_to_file=False, output_format="votable"
-            )
-            return job.get_results().to_pandas()
-
-        return _do_query()
+        # Bulk pages must never fall back to a row-capped synchronous result.
+        return self._tap.query(adql, asynchronous=True)
 
     def execute_metadata_adql(self, adql: str) -> pd.DataFrame:
         """Run a small synchronous TAP_SCHEMA discovery query.
@@ -115,29 +97,14 @@ class GaiaSource(CatalogSource):
             raise ValueError("metadata ADQL is restricted to SELECT from TAP_SCHEMA")
         self._logger.info("Gaia TAP_SCHEMA ADQL: %s", normalized[:300])
 
-        tap_base = self._gaia_config.tap_url.rstrip("/")
-        sync_url = (
-            f"{tap_base}/sync" if tap_base.endswith("/tap")
-            else f"{tap_base}/tap/sync"
+        return self._tap.query(
+            adql, timeout=self._gaia_config.metadata_timeout_seconds,
         )
-        response = httpx.post(
-            sync_url,
-            data={
-                "REQUEST": "doQuery",
-                "LANG": "ADQL",
-                "FORMAT": "votable",
-                "QUERY": adql,
-            },
-            timeout=min(
-                float(self._network.request_timeout_seconds),
-                float(self._gaia_config.metadata_timeout_seconds),
-            ),
+
+    def _query_catalog_adql(self, adql: str, limit: int | None) -> pd.DataFrame:
+        return self._tap.query(
+            adql, asynchronous=not (limit is not None and 0 < limit <= SYNC_MAXREC),
         )
-        response.raise_for_status()
-        table = parse_single_table(io.BytesIO(response.content)).to_table(
-            use_names_over_ids=True
-        )
-        return table.to_pandas()
 
     def _build_adql(
         self,
@@ -148,10 +115,7 @@ class GaiaSource(CatalogSource):
         if extra_columns:
             cols.extend(extra_columns)
         columns = ", ".join(cols)
-        # Explicit TOP n in the SQL. Gaia.ROW_LIMIT (a module global) is
-        # advisory and not reliably applied by all astroquery versions; an
-        # explicit TOP makes the cap deterministic. Without it, cone queries
-        # over dense fields (e.g. 1 deg at Taurus) return the FULL cone.
+        # An explicit TOP bounds the result independently of client defaults.
         limit_clause = f" TOP {query.limit}" if query.limit else ""
         adql = f"SELECT{limit_clause} {columns} FROM {self.qualified_table()}"
 
@@ -194,27 +158,8 @@ class GaiaSource(CatalogSource):
             return self._query_by_ids(query, output_path, extra_columns=None)
 
         adql = self._build_adql(query)
-        original_limit = Gaia.ROW_LIMIT
-        if query.limit:
-            Gaia.ROW_LIMIT = query.limit
-        self._logger.info("Gaia ADQL (ROW_LIMIT=%s): %s", Gaia.ROW_LIMIT, adql[:200])
-
-        @self._retry
-        def _do_query() -> pd.DataFrame:
-            try:
-                job = Gaia.launch_job_async(
-                    adql, dump_to_file=False, output_format="votable",
-                )
-                return job.get_results().to_pandas()
-            except Exception as e:
-                self._logger.warning("Async query failed (%s), trying sync", e)
-                job = Gaia.launch_job(adql, output_format="votable")
-                return job.get_results().to_pandas()
-
-        try:
-            df = _do_query()
-        finally:
-            Gaia.ROW_LIMIT = original_limit
+        self._logger.info("Gaia ADQL: %s", adql[:200])
+        df = self._query_catalog_adql(adql, query.limit)
         self._logger.info("Gaia returned %d rows", len(df))
 
         if output_path:
@@ -347,27 +292,8 @@ class GaiaSource(CatalogSource):
             adql += " WHERE has_xp_sampled = 'true'"
         adql += order_clause
 
-        original_limit = Gaia.ROW_LIMIT
-        if query.limit:
-            Gaia.ROW_LIMIT = query.limit
-        self._logger.info("Gaia XP query (ROW_LIMIT=%s): %s", Gaia.ROW_LIMIT, adql[:200])
-
-        @self._retry
-        def _do_query() -> pd.DataFrame:
-            try:
-                job = Gaia.launch_job_async(
-                    adql, dump_to_file=False, output_format="votable",
-                )
-                return job.get_results().to_pandas()
-            except Exception as e:
-                self._logger.warning("Async query failed (%s), trying sync", e)
-                job = Gaia.launch_job(adql, output_format="votable")
-                return job.get_results().to_pandas()
-
-        try:
-            df = _do_query()
-        finally:
-            Gaia.ROW_LIMIT = original_limit
+        self._logger.info("Gaia XP query: %s", adql[:200])
+        df = self._query_catalog_adql(adql, query.limit)
         self._logger.info("Gaia XP sources: %d rows", len(df))
 
         if output_path:
@@ -419,19 +345,7 @@ class GaiaSource(CatalogSource):
 
         self._logger.info("Gaia source ID query: %d IDs", len(query.source_ids))
 
-        @self._retry
-        def _do_query() -> pd.DataFrame:
-            try:
-                job = Gaia.launch_job_async(
-                    adql, dump_to_file=False, output_format="votable",
-                )
-                return job.get_results().to_pandas()
-            except Exception as e:
-                self._logger.warning("Async ID query failed (%s), trying sync", e)
-                job = Gaia.launch_job(adql, output_format="votable")
-                return job.get_results().to_pandas()
-
-        df = _do_query()
+        df = self._query_catalog_adql(adql, len(ids))
         self._logger.info("Gaia source ID query returned %d rows", len(df))
 
         if output_path:
@@ -534,26 +448,7 @@ class GaiaSource(CatalogSource):
                 len(batch),
             )
 
-            @self._retry
-            def _do_query() -> pd.DataFrame:
-                try:
-                    job = Gaia.launch_job_async(
-                        adql,
-                        dump_to_file=False,
-                        output_format="votable",
-                    )
-                    return job.get_results().to_pandas()
-                except Exception as exc:
-                    self._logger.warning(
-                        "Async cone-union cross-match failed (%s), trying sync", exc
-                    )
-                    job = Gaia.launch_job(
-                        adql,
-                        output_format="votable",
-                    )
-                    return job.get_results().to_pandas()
-
-            candidates = _do_query()
+            candidates = self._tap.query(adql)
             if candidates.empty:
                 continue
 
@@ -620,6 +515,8 @@ class GaiaSource(CatalogSource):
         progress_callback: Optional[Callable[[dict], None]] = None,
     ) -> list[SpectrumResult]:
         """Backward-compatible DR3 XP wrapper around ``download_products``."""
+        from astro_pipeline.gaia_products import GaiaProductRequest
+
         retrieval_type = retrieval_type.upper()
         if retrieval_type not in {"XP_SAMPLED", "XP_CONTINUOUS"}:
             raise ValueError(f"Unsupported Gaia XP retrieval type: {retrieval_type}")
@@ -666,6 +563,11 @@ class GaiaSource(CatalogSource):
         )
         return results
 
+    def _load_data(self, **kwargs):
+        from astroquery.gaia import Gaia
+
+        return Gaia.load_data(**kwargs)
+
     def download_products(
         self,
         request: GaiaProductRequest,
@@ -675,6 +577,8 @@ class GaiaSource(CatalogSource):
         progress_callback: Optional[Callable[[dict], None]] = None,
     ) -> list[GaiaArtifact]:
         """Download any release-declared tabular DataLink product."""
+        from astro_pipeline.gaia_products import download_gaia_product_request
+
         if request.release != self._release_profile.key:
             raise ValueError(
                 f"request release {request.release!r} does not match GaiaSource "
@@ -690,7 +594,7 @@ class GaiaSource(CatalogSource):
 
         @self._retry
         def load_data(**kwargs):
-            return Gaia.load_data(**kwargs)
+            return self._load_data(**kwargs)
 
         return download_gaia_product_request(
             request,

@@ -10,7 +10,6 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 import pandas as pd
 from astropy.io.votable import parse_single_table
-from astroquery.gaia import Gaia
 
 from astro_pipeline.gaia_releases import (
     GaiaReleaseProfile,
@@ -127,6 +126,8 @@ def list_gaia_datalink_products(
     timeout_seconds: float = 30.0,
 ) -> dict[str, Any]:
     """List client-declared products and optionally source-specific live links."""
+    from astroquery.gaia import Gaia
+
     profile = get_gaia_release_profile(release)
     client_products = {
         str(value).upper() for value in Gaia.VALID_DATALINK_RETRIEVAL_TYPES

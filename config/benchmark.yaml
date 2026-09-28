@@ -18,7 +18,7 @@ gaia:
   tap_url: "https://gea.esac.esa.int/tap-server"
   db_schema: "gaiadr3"
   default_query_timeout: 120
-  metadata_timeout_seconds: 10
+  metadata_timeout_seconds: 30
   username: ""
   password: ""
   default_columns:

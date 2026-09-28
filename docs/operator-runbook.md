@@ -34,6 +34,41 @@ If DataLink login is unavailable, TAP must remain anonymous; logging in and
 then failing DataLink authentication can invalidate an otherwise working TAP
 session.
 
+## Gaia TAP routing and timeouts
+
+Catalogue/XP queries with an explicit positive limit up to 2,000 rows and
+source-ID queries with at most 2,000 selected IDs use synchronous TAP. Small
+position-matching batches also use synchronous TAP. Larger or unbounded
+catalogue queries use asynchronous UWS jobs. Bulk `execute_adql` always uses
+async, even for a small `TOP`, and never falls back to sync.
+
+All TAP requests use HTTPX and honor the normal `HTTP_PROXY`, `HTTPS_PROXY`,
+`ALL_PROXY`, and `NO_PROXY` environment handling. TAP startup and metadata
+probing do not import astroquery's Gaia singleton, which otherwise fetches
+server announcements before any query deadline can apply. The separate
+DataLink/login transport still uses astroquery, loaded only for product work.
+
+- `network.request_timeout_seconds` bounds each HTTP exchange, including the
+  response body; connection setup is capped at 10 seconds or the smaller
+  request budget.
+- `gaia.default_query_timeout` bounds the complete query's network work,
+  including submission, polling, result retrieval, retries and retry sleeps.
+  It defaults to 600 seconds (120 in the benchmark configuration).
+- `gaia.metadata_timeout_seconds` is a separate total budget for each
+  `TAP_SCHEMA` query, defaulting to 30 seconds. It does not enter the async queue.
+- Async job cleanup is best-effort and can add at most 15 seconds after query
+  completion/failure. A cleanup failure logs the job URL without discarding a
+  successful result or masking the original error. Set agent tool timeouts
+  above the query budget plus this cleanup allowance.
+
+Retries of phase/result requests reuse the same job. Submission retries are
+limited to connection-establishment failures. An ambiguous failed submission
+is not blindly repeated, because the server may already have created a job.
+TAP `QUERY_STATUS=ERROR` and `OVERFLOW`, including status elements
+after the table, are failures rather than empty or complete catalogues. A
+position-matching overflow requires a smaller batch/radius; it must not be
+interpreted as missing members. Bulk failures remain resumable via checkpoint.
+
 ## Corpus smoke tests
 
 Fast member-only source test:
@@ -85,7 +120,7 @@ print(probe_gaia_release("dr4", source.execute_metadata_adql))
 Expected before DR4 publication: DR3 resolves to `gaiadr3`; DR4 returns
 `archive_reachable=true` but `published_in_tap=false`, or a structured network
 error if the Archive is unavailable. Never turn a missing DR4 schema into a
-guessed `gaiadr4` value. Metadata requests have a separate 10-second timeout.
+guessed `gaiadr4` value. Each metadata query has a separate 30-second total budget.
 
 For DataLink, first use `list_gaia_products(release="dr4")` without a source
 to inspect client hints. Passing a source ID performs a live link query and is

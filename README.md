@@ -215,6 +215,12 @@ astro-pipeline/
 | `lamost` | LAMOST DR11 地址、光谱下载地址、VizieR 星表编号 |
 | `sdss` | SDSS SkyServer/SAS 地址、data release |
 
+Gaia TAP 查询的 `gaia.default_query_timeout` 是包含重试、轮询和结果读取的总网络时限；
+`network.request_timeout_seconds` 限制单次 HTTP 请求；元数据探测使用独立的
+`gaia.metadata_timeout_seconds`（默认 30 秒）。小型查询走同步接口，bulk 保持异步，
+截断结果会报错而不是写入完整语料。详细路由和任务清理时限见
+[operator runbook](docs/operator-runbook.md#gaia-tap-routing-and-timeouts)。
+
 当前默认输出目录：
 
 ```text

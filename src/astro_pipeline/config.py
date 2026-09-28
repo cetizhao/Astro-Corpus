@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from astro_pipeline.gaia_releases import (
     normalize_gaia_release,
@@ -36,8 +36,8 @@ class GaiaConfig(BaseModel):
     # Stable releases may pin a schema.  Provisional releases such as DR4
     # should set this to null and use TAP_SCHEMA runtime discovery.
     db_schema: str | None = None
-    default_query_timeout: int = 600
-    metadata_timeout_seconds: float = 10.0
+    default_query_timeout: float = Field(default=600, gt=0, allow_inf_nan=False)
+    metadata_timeout_seconds: float = Field(default=30, gt=0, allow_inf_nan=False)
     username: str = ""
     password: str = ""
     default_columns: list[str] = [
