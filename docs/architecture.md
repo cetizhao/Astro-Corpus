@@ -13,9 +13,11 @@ trainer.
 Natural-language request
   → MCP tool selection
   → input resolver (name / cone / CSV / membership catalogue)
-  → canonical Gaia DR3 member table
+  → canonical Gaia DR3 member table + retained input-row provenance
+  → shared SQLite index and immutable content-addressed objects
   → optional Gaia XP products
   → SIMBAD source-paper edges
+  → pinned run snapshot + label compatibility views
   → Parquet / FITS / JSONL / self-contained HTML
 ```
 
@@ -47,6 +49,11 @@ failure mode, where a global row limit could truncate candidates before all
 coordinates were represented. It also avoids TAP upload jobs that were
 observed to remain queued for minutes.
 
+The shared library can satisfy exact release-qualified source-ID lookups, but it
+is not a sky-coverage index. Cone, named-region, and coordinate-match selections
+still query Gaia; the presence of cached sources cannot prove that a local cone
+is complete.
+
 ## Canonical members table
 
 Core Gaia columns use the existing names required by corpus and visualization
@@ -66,6 +73,12 @@ Quality fields such as BP/RP excess, astrometric excess noise, visibility
 periods, good AL observations, and duplicate flag are preserved without an
 automatic quality cut.
 
+The global `sources` relation deduplicates reusable attributes by
+`(gaia_release, source_id)`. Run-local input and sample-member relations do not:
+each original row, match decision, ordinal, and duplicate occurrence remains
+available. This separates reusable source identity from the scientific meaning
+of a selected sample.
+
 For literature membership corpora, every source-table column is namespaced as
 `member_<original_name>`. Provenance columns identify catalogue/table, match
 method/radius, angular separation, and candidate multiplicity. This keeps the
@@ -74,24 +87,39 @@ published sample definition available to downstream reviewers.
 ## Corpus directory contract
 
 ```text
+data/_library/
+  index.sqlite3
+  objects/sha256/<prefix>/<digest>.<extension>
+  staging/
+
 data/<label>/
   manifest.json
-  members.csv
+  runs/<run_id>/                   # immutable published run snapshot
+    manifest.json
+    inputs/<csv-sha256>.csv        # uploaded CSV, when applicable
+    input_rows.parquet
+    input_matches.parquet
+    members.csv
+    members.parquet
+    product_refs.json
+    ...
+  members.csv                      # active-run compatibility views
   members.parquet
   membership_catalog.csv          # membership workflow only
   membership_catalog.parquet      # membership workflow only
-  unmatched_members.csv            # membership workflow only
+  unmatched_members.csv           # membership workflow only
   catalogs/
     gaia_xp_availability.parquet   # if XP requested
   gaia_xp_sampled/
-    <source_id>.fits
+    product_refs.json
     checkpoint.json
   gaia_xp_continuous/
-    <source_id>.fits
+    product_refs.json
     checkpoint.json
   simbad_refs.checkpoint.json
   simbad_refs.parquet
   paper_edges.parquet
+  product_refs.json
   source_paper_viz.html
 ```
 
@@ -106,21 +134,74 @@ a SHA-256 content fingerprint, so replacing a same-named CSV cannot reuse old
 checkpoints silently. Product-specific checkpoints remain the detailed resume
 source.
 
+A library-backed build records `current_run_id` for the attempt. Indexed member
+snapshots with a `completed` or `partial` pipeline status can be published;
+terminal failed runs retain the previous active snapshot. The immutable run
+manifest and SQLite prepared-run record are persisted before compatibility views
+or `active_run_id` change. Readers resolve `runs/<active_run_id>/`, never a mixture
+of mutable top-level files. A late view/index failure leaves an explicitly
+prepared, `view_pending` run for recovery rather than relabeling valid committed
+data as failed. A manifest with `snapshot_run_id` is already pinned and does not
+redirect to a newer run. Publication is not a promise that optional products all
+succeeded; inspect stage outcomes.
+
+`product_refs.json` records the complete product contract and exact immutable
+`version_id`/blob checksum selected by that run. References can point into the
+shared content-addressed store, or a standalone export can copy those pinned
+bytes and rewrite the storage descriptor. Version-2 references are
+authoritative; missing or corrupt pins do not silently fall back to a newer
+library version or an unrelated legacy file.
+
 `paper_edges.parquet` links a Gaia source to a SIMBAD-curated bibliography. It
 is not paper-text substring matching. Core columns are `source_id`, `arxiv_id`,
 `bibcode`, `title`, `year`, `journal`, `doi`, and `main_id`.
 
-The SIMBAD checkpoint separately records successfully queried sources,
-including sources with zero references, and retryable failures. It never adds
-placeholder paper rows to `simbad_refs.parquet`. Reference rows and checkpoint
-state are atomically replaced after each bounded source batch.
+The global literature layer keeps immutable source-reference snapshots,
+per-bibcode metadata observations, and DOI-to-arXiv observations in separate
+namespaces. Fresh observations are reused across labels. Positive observations
+default to a 30-day TTL; explicit negative observations such as zero references
+or no arXiv match default to one day. Failures remain retryable and do not
+replace the last successful current pointer. A successful refresh replaces the
+current snapshot (including removing obsolete edges) while retaining history.
+
+Label-local SIMBAD Parquet/checkpoint files are compatibility projections. They
+record requested-source progress, including successful zero-reference sources
+and retryable failures, but do not override global TTL or refresh policy and do
+not pull edges from unrelated corpora.
+
+## Shared-library concurrency and lifecycle
+
+Per-source, per-product, and per-corpus leases carry monotonically increasing
+fencing tokens. Remote calls and file preparation happen outside SQLite write
+transactions; only short index/publication steps hold a transaction. Lease waits
+and SQLite busy waits are bounded, so contention fails explicitly instead of
+hanging indefinitely. Database/object commits and corpus compatibility-view
+renames assert the current token. Product label reference/checkpoint/artifact
+replacements remain inside one short fenced transaction, preventing a lease
+check-versus-replace race. Batch leases use one renewal worker for the group.
+
+Read-only library APIs open SQLite in query-only mode and do not create or
+migrate an absent database. Write paths initialize the schema on demand. Legacy
+import requires matching declared contracts, checksums, and parsed product
+identifier evidence before making a product reusable. Unsupported or conflicting
+payloads remain inventory-only, and original legacy selection provenance is not
+invented. The system retains historical runs, observations,
+product versions, and immutable objects; it has no automatic pruning or garbage
+collection. Verification may report orphan/staging files but never deletes
+them.
+
+Detailed configuration, administration, import/export, and backup procedures are
+in [library.md](library.md).
 
 ## XP products and visualization
 
 Gaia availability is queried anonymously from `gaiadr3.gaia_source`. DataLink
 downloads are opt-in and can use configured credentials. Sampled and Continuous
-products have separate directories/checkpoints. The builder treats DataLink
-failure as an optional-product warning, leaving members and paper data usable.
+products have separate checkpoints and pinned reference documents. Their bytes
+are published as immutable shared objects and reused by release-qualified
+product identity; a standalone export materializes copies. The builder treats
+DataLink failure as an optional-product warning, leaving members and paper data
+usable.
 
 The HTML embeds member data, paper edges, and cached spectra. It prefers
 Continuous and falls back to Sampled. `gaiaxpy` reconstructs Continuous
@@ -183,8 +264,16 @@ schema does not bypass this safety boundary.
   are validated before query construction.
 - Bulk planning downloads no rows; running defaults to one chunk.
 - Outputs are atomic where they represent progress state or a complete page.
+- Global source/product identity deduplicates reusable state without deleting
+  duplicate input rows or membership provenance.
+- Read-only library queries never initialize or migrate an absent SQLite file;
+  legacy import is dry-run by default and explicit apply never mutates its source.
+- Product reference views pin exact versions; shared-reference and standalone
+  exports have different, explicit storage contracts. Use `--run-id` for a
+  reproducible export and do not export a mutable label tree during a build.
 - Credentials are loaded from gitignored local configuration and never placed
-  in manifests.
+  in manifests. Library databases, objects, and generated corpus data are also
+  excluded from Git.
 - Network retries use bounded exponential backoff for transport failures and
   HTTP 408/429/5xx from both `httpx` and astroquery's `requests` stack;
   permanent authentication/query 4xx errors are not retried blindly.

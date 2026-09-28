@@ -111,6 +111,23 @@ class Corpus:
         self.data_dir = Path(data_dir)
         self.offline = offline
         self.catalog_path = Path(catalog_path)
+        self.root_data_dir = self.data_dir
+        self.run_id = None
+        from astro_pipeline.library.refs import active_corpus_dir, ProductReferenceError
+        try:
+            snapshot = active_corpus_dir(self.data_dir)
+        except ProductReferenceError as exc:
+            raise FileNotFoundError(str(exc)) from exc
+        if snapshot != self.data_dir:
+            if self.catalog_path.parent.resolve() == self.data_dir.resolve() and self.catalog_path.name in {"members.csv", "members.parquet"}:
+                self.catalog_path = snapshot / self.catalog_path.name
+            self.data_dir = snapshot
+            self.run_id = snapshot.name
+        else:
+            manifest_path = self.data_dir / "manifest.json"
+            if manifest_path.exists():
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                self.run_id = manifest.get("snapshot_run_id")
 
         self.catalog = self._load_catalog()
         self.gaia_release = self._infer_gaia_release()
@@ -126,7 +143,9 @@ class Corpus:
             if alt.exists():
                 return pd.read_parquet(alt)
             raise FileNotFoundError(f"Member catalog not found: {path}")
-        return pd.read_csv(path)
+        if path.suffix.lower() == ".parquet":
+            return pd.read_parquet(path)
+        return pd.read_csv(path, dtype={GAIA_ID_COL: "string"})
 
     def _load_paper_edges(self) -> PaperEdgeTable:
         path = self.data_dir / "paper_edges.parquet"
@@ -170,9 +189,18 @@ class Corpus:
         }
         for key, name in mapping.items():
             p = cat_dir / name
+            if key == "gaia_xp" and not p.exists():
+                p = cat_dir / "gaia_xp_availability.parquet"
             if p.exists():
                 try:
                     df = pd.read_parquet(p)
+                    if key == "gaia_xp" and p.name == "gaia_xp_availability.parquet":
+                        flags = [column for column in ("has_xp_sampled", "has_xp_continuous") if column in df]
+                        if flags:
+                            available = pd.Series(False, index=df.index)
+                            for column in flags:
+                                available |= df[column].astype(str).str.lower().isin({"true", "1"})
+                            df = df.loc[available]
                     if not _looks_like_html(df):
                         out[key] = df
                 except Exception as e:
@@ -387,11 +415,26 @@ class Corpus:
         return result
 
     def summary(self) -> dict:
+        from astro_pipeline.library.refs import resolve_product
         edge_df = self.paper_edges.df
         has_bib = "bibcode" in edge_df.columns if not edge_df.empty else False
+        source_ids = set(self.catalog.get(GAIA_ID_COL, pd.Series(dtype=str)).dropna().astype(str))
+        cached_products = {}
+        for product in ("sampled", "continuous"):
+            count = 0
+            for source_id in source_ids:
+                try:
+                    resolve_product(self.data_dir, source_id, f"XP_{product.upper()}", release=self.gaia_release)
+                except (LookupError, OSError, ValueError, RuntimeError):
+                    continue
+                count += 1
+            cached_products[f"gaia_xp_{product}_cached"] = count
         return {
             "gaia_release": self.gaia_release,
             "catalog_sources": int(len(self.catalog)),
+            "unique_sources": len(source_ids),
+            "run_id": self.run_id,
+            **cached_products,
             "paper_edges": int(len(edge_df)),
             "unique_papers": int(edge_df["bibcode"].nunique()) if has_bib else 0,
             "papers_with_arxiv": int((edge_df["arxiv_id"].astype(str) != "").sum()) if not edge_df.empty else 0,

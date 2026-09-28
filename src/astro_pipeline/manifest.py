@@ -4,11 +4,14 @@ from __future__ import annotations
 import json
 import re
 from copy import deepcopy
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 from astro_pipeline import __version__
+from astro_pipeline.library.files import atomic_file
+from astro_pipeline.library.identity import canonical_json, identity_hash, json_value
 from astro_pipeline.gaia_releases import (
     get_gaia_release_profile,
     normalize_gaia_release,
@@ -39,6 +42,50 @@ class CorpusManifest:
     def __init__(self, path: Path, data: dict[str, Any]) -> None:
         self.path = path
         self.data = data
+        self.write_guard = None
+        self.defer_finish = False
+
+    @classmethod
+    def validate_input(
+        cls, path: Path | str, *, label: str, input_mode: str,
+        input_summary: str, gaia_release: str = "dr3",
+        input_contract: Optional[dict[str, Any]] = None,
+    ) -> Optional[dict[str, Any]]:
+        path = Path(path)
+        label = validate_label(label)
+        release = normalize_gaia_release(gaia_release)
+        if not path.exists():
+            if path.parent.exists() and any(
+                entry.name != ".DS_Store" for entry in path.parent.iterdir()
+            ):
+                raise ValueError(
+                    "Non-empty corpus directory has no manifest; import it read-only "
+                    "or choose a new label instead of overwriting legacy data"
+                )
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict) or not isinstance(data.get("corpus"), dict):
+            raise ValueError("Invalid corpus manifest; refusing to overwrite it")
+        if data.get("schema_version") not in {None, "1.0", "1.1", "2.0"}:
+            raise ValueError("Unsupported corpus manifest version; refusing to overwrite it")
+        previous = data.get("corpus", {})
+        stored_contract = previous.get("input_contract")
+        selection_changed = (
+            canonical_json(stored_contract) != canonical_json(input_contract)
+            if stored_contract is not None and input_contract is not None
+            else previous.get("input_summary") not in (None, input_summary)
+        )
+        if (
+            previous.get("label") not in (None, label)
+            or previous.get("input_mode") not in (None, input_mode)
+            or normalize_gaia_release(previous.get("gaia_release", "dr3")) != release
+            or selection_changed
+        ):
+            raise ValueError(
+                f"Corpus label {label!r} already has a manifest for a different "
+                "input; choose a new label to preserve the existing corpus"
+            )
+        return data
 
     @classmethod
     def open_or_create(
@@ -50,29 +97,18 @@ class CorpusManifest:
         input_summary: str,
         requested_products: dict[str, bool],
         gaia_release: str = "dr3",
+        input_contract: Optional[dict[str, Any]] = None,
     ) -> "CorpusManifest":
         path = Path(path)
         label = validate_label(label)
         gaia_release = normalize_gaia_release(gaia_release)
         now = utc_now()
-        if path.exists():
-            data = json.loads(path.read_text(encoding="utf-8"))
+        data = cls.validate_input(
+            path, label=label, input_mode=input_mode, input_summary=input_summary,
+            gaia_release=gaia_release, input_contract=input_contract,
+        )
+        if data is not None:
             previous = data.get("corpus", {})
-            previous_release = normalize_gaia_release(
-                previous.get("gaia_release", "dr3")
-            )
-            if (
-                previous.get("label") not in (None, label)
-                or previous.get("input_mode") not in (None, input_mode)
-                or previous.get("input_summary") not in (None, input_summary)
-                or previous_release != gaia_release
-            ):
-                raise ValueError(
-                    f"Corpus label {label!r} already has a manifest for a different "
-                    f"input ({previous.get('input_mode')}: "
-                    f"{previous.get('input_summary')}). Choose a new label or remove "
-                    "the old corpus directory after reviewing it."
-                )
             previous["gaia_release"] = gaia_release
             stored_products = data.setdefault("requested_products", {})
             for product, requested in requested_products.items():
@@ -118,6 +154,10 @@ class CorpusManifest:
                     }
                 ],
             }
+        if input_contract is not None:
+            data["corpus"]["input_contract"] = json_value(input_contract)
+            data["corpus"]["input_hash"] = identity_hash(input_contract, namespace="request")
+            data["corpus"]["input_summary"] = input_summary
         manifest = cls(path, data)
         manifest.save()
         return manifest
@@ -152,6 +192,11 @@ class CorpusManifest:
     def finish(self, status: str) -> None:
         if status not in {"completed", "partial", "failed"}:
             raise ValueError(f"Invalid terminal manifest status: {status}")
+        if self.defer_finish:
+            self.data["pipeline_status"] = status
+            self.data["status"] = "finalizing"
+            self.save()
+            return
         now = utc_now()
         self.data["status"] = status
         self.data["updated_at"] = now
@@ -166,12 +211,14 @@ class CorpusManifest:
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.data["updated_at"] = utc_now()
-        temporary = self.path.with_suffix(self.path.suffix + ".tmp")
-        temporary.write_text(
-            json.dumps(self.data, ensure_ascii=False, indent=2, default=str) + "\n",
-            encoding="utf-8",
-        )
-        temporary.replace(self.path)
+        with self.write_guard() if self.write_guard is not None else nullcontext():
+            atomic_file(
+                self.path,
+                lambda temporary: temporary.write_text(
+                    json.dumps(self.data, ensure_ascii=False, indent=2, default=str) + "\n",
+                    encoding="utf-8",
+                ),
+            )
 
 
 def read_manifest(path: Path | str) -> Optional[dict[str, Any]]:

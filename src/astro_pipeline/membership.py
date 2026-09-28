@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional
 from urllib.parse import quote
@@ -50,6 +50,8 @@ class MembershipResolution:
     unmatched: pd.DataFrame
     match_method: str
     match_radius_arcsec: Optional[float]
+    all_rows: Optional[pd.DataFrame] = None
+    table_schema: list[dict[str, Any]] = field(default_factory=list)
 
 
 def search_membership_catalogs(target: str, max_results: int = 10) -> dict[str, Any]:
@@ -193,6 +195,7 @@ def resolve_membership_catalog(
     limit: Optional[int] = None,
     match_radius_arcsec: float = 3.0,
     match_batch_size: int = 25,
+    id_fetcher=None,
 ) -> MembershipResolution:
     """Fetch one selected membership table and cross-match it to Gaia DR3.
 
@@ -217,10 +220,9 @@ def resolve_membership_catalog(
     )[0]
     metadata = _catalog_metadata(vizier, catalog_id)
     description = str(table.meta.get("description", "") or "")
-    original = _table_to_dataframe(table)
-    if limit is not None:
-        original = original.head(limit).copy()
-    original.insert(0, "membership_catalog_row", range(len(original)))
+    all_rows = _table_to_dataframe(table)
+    all_rows.insert(0, "membership_catalog_row", range(len(all_rows)))
+    original = all_rows.head(limit).copy() if limit is not None else all_rows.copy()
     if original.empty:
         raise LookupError(f"Selected VizieR table {selected_id!r} is empty")
 
@@ -242,6 +244,7 @@ def resolve_membership_catalog(
             gaia=gaia,
             source_col=source_col,
             coordinate_pair=coordinate_pair,
+            id_fetcher=id_fetcher,
         )
         match_method = f"gaia_dr3_source_id:{source_col}"
         radius: Optional[float] = None
@@ -285,6 +288,8 @@ def resolve_membership_catalog(
         unmatched=unmatched,
         match_method=match_method,
         match_radius_arcsec=radius,
+        all_rows=all_rows,
+        table_schema=_column_metadata(table),
     )
 
 
@@ -302,10 +307,21 @@ def build_membership_corpus(
     enrich: bool = True,
     xp_sampled: bool = False,
     xp_continuous: bool = False,
+    refresh: bool = False,
 ) -> dict[str, Any]:
     """Resolve a selected member table, save provenance, and build a corpus."""
     label = validate_label(label)
     out_dir = Path(out_dir)
+    from astro_pipeline.library import get_library
+    library = get_library()
+    if library is not None:
+        return _build_indexed_membership(
+            library=library, label=label, out_dir=out_dir, catalog_id=catalog_id,
+            table_id=table_id, limit=limit, match_radius_arcsec=match_radius_arcsec,
+            match_batch_size=match_batch_size, skip_simbad=skip_simbad,
+            sleep_seconds=sleep_seconds, enrich=enrich, xp_sampled=xp_sampled,
+            xp_continuous=xp_continuous, refresh=refresh,
+        )
     out_dir.mkdir(parents=True, exist_ok=True)
     limit_text = "all" if limit is None else str(limit)
     input_summary = (
@@ -405,12 +421,142 @@ def build_membership_corpus(
     return output
 
 
+def _build_indexed_membership(
+    *, library, label, out_dir, catalog_id, table_id, limit, match_radius_arcsec,
+    match_batch_size, skip_simbad, sleep_seconds, enrich, xp_sampled, xp_continuous,
+    refresh,
+):
+    from astro_pipeline.corpus_builder import build_corpus_from_members, result_to_dict
+    from astro_pipeline.intake import InputResolution
+    from astro_pipeline.library.build import LibraryRun, id_cache_fetcher
+    from astro_pipeline.library.files import atomic_file
+    from astro_pipeline.library.identity import canonical_json, identity_hash, json_value
+    from astro_pipeline.manifest import read_manifest
+
+    catalog_id = _validate_vizier_id(catalog_id, "catalog_id")
+    if table_id is not None:
+        table_id = _validate_vizier_id(table_id, "table_id")
+    if limit is not None and limit < 1:
+        raise ValueError("limit must be positive or None")
+    previous = read_manifest(out_dir / "manifest.json") or {}
+    previous_selector = previous.get("corpus", {}).get("input_contract", {}).get("selector", {})
+    effective_table = table_id
+    if effective_table is not None and "/" not in effective_table:
+        effective_table = f"{catalog_id}/{effective_table}"
+    if effective_table is None and previous_selector.get("catalog_id") == catalog_id:
+        effective_table = previous_selector.get("table_id")
+    selector = {
+        "catalog_id": catalog_id, "table_id": effective_table,
+        "match_radius_arcsec": float(match_radius_arcsec),
+    }
+    contract = {"release": "dr3", "input_mode": "membership_catalog", "limit": limit, "selector": selector}
+    limit_text = "all" if limit is None else str(limit)
+    summary = f"VizieR catalog={catalog_id}, table={table_id or 'auto'}, limit={limit_text}, match_radius={match_radius_arcsec}arcsec"
+    products = {
+        "members": True, "membership_catalog": True, "simbad_papers": not skip_simbad,
+        "visualization": not skip_simbad, "gaia_xp_sampled": xp_sampled,
+        "gaia_xp_continuous": xp_continuous,
+    }
+    with LibraryRun(
+        store=library, out_dir=out_dir, label=label, input_mode="membership_catalog",
+        input_summary=summary, contract=contract, release="dr3", requested_products=products,
+        options={"refresh": refresh, "requested_table_id": table_id, "skip_simbad": skip_simbad},
+    ) as run:
+        run.manifest.update_stage("resolve_members", status="running", completed=0)
+        resolution = resolve_membership_catalog(
+            catalog_id, table_id=effective_table, limit=limit,
+            match_radius_arcsec=match_radius_arcsec, match_batch_size=match_batch_size,
+            id_fetcher=id_cache_fetcher(library, "dr3", refresh=refresh),
+        )
+        if effective_table is not None and resolution.table_id != effective_table:
+            raise ValueError("Resolved membership table changed; choose a new label")
+        contract = {**contract, "selector": {**selector, "table_id": resolution.table_id}}
+        all_rows = resolution.all_rows if resolution.all_rows is not None else resolution.original
+        metadata = resolution_metadata(resolution)
+        metadata["table_content_hash"] = identity_hash(
+            {"rows": _json_records(all_rows), "schema": resolution.table_schema},
+            namespace="vizier-table",
+        )
+        run.set_resolved_contract(contract, metadata)
+        selected = set(resolution.original["membership_catalog_row"].astype(int))
+        matched = {int(row["membership_catalog_row"]): row for row in _json_records(resolution.members)}
+        input_rows = []
+        matches = []
+        for ordinal, row in enumerate(_json_records(all_rows)):
+            row_id = int(row["membership_catalog_row"])
+            member = matched.get(row_id)
+            status = "not_selected_by_limit" if row_id not in selected else "matched" if member else "unmatched"
+            if status == "unmatched" and resolution.match_method.startswith("gaia_dr3_source_id:"):
+                id_column = resolution.match_method.split(":", 1)[1]
+                status = "id_not_found" if _normalise_gaia_id(row.get(id_column)) else "invalid"
+            input_rows.append({"input_row_id": row_id, "ordinal": ordinal, "status": status, "raw_json": canonical_json(row)})
+            matches.append({
+                "input_row_id": row_id, "source_id": member.get("Gaia") if member else None,
+                "status": status, "match_method": resolution.match_method,
+                "match_sep_arcsec": member.get("membership_match_sep_arcsec") if member else None,
+                "match_candidate_count": member.get("membership_match_candidate_count", 1) if member else 0,
+            })
+        members = resolution.members.copy()
+        if "membership_catalog_row" in members:
+            members["input_row_id"] = members["membership_catalog_row"]
+        rich = InputResolution(
+            members=members, input_rows=pd.DataFrame(input_rows),
+            matches=pd.DataFrame(json_value(matches)), contract=contract,
+            resolved_input=metadata,
+        )
+        run.set_resolution(rich)
+        run.manifest.update_stage(
+            "resolve_members", status="completed", total=len(resolution.original),
+            completed=len(members), unmatched=len(resolution.unmatched),
+            catalog_id=resolution.catalog_id, table_id=resolution.table_id,
+            match_method=resolution.match_method,
+        )
+        frames = {
+            "membership_catalog.csv": resolution.original,
+            "membership_catalog.parquet": resolution.original,
+            "membership_catalog_full.parquet": all_rows,
+            "unmatched_members.csv": resolution.unmatched,
+        }
+        for name, frame in frames.items():
+            path = run.run_dir / name
+            if path.suffix == ".csv":
+                atomic_file(path, lambda temporary, frame=frame: frame.to_csv(temporary, index=False))
+            else:
+                atomic_file(path, lambda temporary, frame=frame: frame.to_parquet(temporary, index=False))
+            run.record_file(name.replace(".", "_"), path, len(frame))
+        if members.empty:
+            run.index_members(members)
+        result = build_corpus_from_members(
+            label=label, out_dir=run.run_dir, members=members, input_mode="membership_catalog",
+            input_summary=summary, skip_simbad=skip_simbad, sleep_seconds=sleep_seconds,
+            enrich=enrich, xp_sampled=xp_sampled, xp_continuous=xp_continuous,
+            manifest=run.manifest, gaia_release="dr3", library_run=run, refresh=refresh,
+        )
+        output = result_to_dict(run.finish(result))
+        visible = run.out_dir if run.published else run.run_dir
+        output.update({
+            "membership_catalog_id": resolution.catalog_id, "membership_table_id": resolution.table_id,
+            "membership_table_description": resolution.table_description,
+            "membership_catalog_title": resolution.catalog_title,
+            "membership_match_method": resolution.match_method,
+            "membership_match_radius_arcsec": resolution.match_radius_arcsec,
+            "n_catalog_rows": len(resolution.original), "n_catalog_total_rows": len(all_rows),
+            "n_gaia_matched": len(members), "n_unmatched": len(resolution.unmatched),
+            "membership_catalog_csv": str(visible / "membership_catalog.csv"),
+            "membership_catalog_parquet": str(visible / "membership_catalog.parquet"),
+            "unmatched_members_csv": str(visible / "unmatched_members.csv"),
+            "filtering_applied": False,
+        })
+        return output
+
+
 def _match_by_gaia_id(
     original: pd.DataFrame,
     *,
     gaia: GaiaSource,
     source_col: str,
     coordinate_pair: Optional[list[str]],
+    id_fetcher=None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     work = original.copy()
     work["_membership_gaia_id"] = work[source_col].map(_normalise_gaia_id)
@@ -418,11 +564,14 @@ def _match_by_gaia_id(
     ids = work.loc[valid, "_membership_gaia_id"].drop_duplicates().tolist()
     gaia_frames: list[pd.DataFrame] = []
     for start in range(0, len(ids), 2000):
-        result = gaia._query_by_ids(
-            SourceIdQuery(source_ids=ids[start : start + 2000]),
-            extra_columns=QC_EXTRA_COLUMNS + ["has_xp_sampled", "has_xp_continuous"],
-        )
-        gaia_frames.append(result.data)
+        if id_fetcher is not None:
+            gaia_frames.append(id_fetcher(ids[start : start + 2000]))
+        else:
+            result = gaia._query_by_ids(
+                SourceIdQuery(source_ids=ids[start : start + 2000]),
+                extra_columns=QC_EXTRA_COLUMNS + ["has_xp_sampled", "has_xp_continuous"],
+            )
+            gaia_frames.append(result.data)
     native = pd.concat(gaia_frames, ignore_index=True) if gaia_frames else pd.DataFrame()
     canonical = _canonicalize(native)
     if canonical.empty:
@@ -700,13 +849,15 @@ def _table_to_dataframe(table: Any) -> pd.DataFrame:
 def _normalise_gaia_id(value: Any) -> Optional[str]:
     if value is None or pd.isna(value):
         return None
-    if isinstance(value, float) and value.is_integer():
+    if isinstance(value, float):
+        if not value.is_integer() or abs(value) >= 2**53:
+            return None
         value = int(value)
     text = str(value).strip()
     text = re.sub(r"^Gaia\s+DR3\s+", "", text, flags=re.IGNORECASE)
     if re.fullmatch(r"\d+\.0", text):
         text = text[:-2]
-    return text if text.isdigit() else None
+    return (text.lstrip("0") or "0") if text.isascii() and text.isdigit() else None
 
 
 def _normalise_name(value: str) -> str:
@@ -751,7 +902,10 @@ def _json_value(value: Any) -> Any:
 
 def resolution_metadata(resolution: MembershipResolution) -> dict[str, Any]:
     """Serialize non-tabular resolution metadata for manifests/tests."""
-    raw = asdict(resolution)
-    for key in ("original", "members", "unmatched"):
-        raw.pop(key, None)
-    return raw
+    return {
+        name: getattr(resolution, name)
+        for name in (
+            "catalog_id", "table_id", "table_description", "catalog_title",
+            "match_method", "match_radius_arcsec", "table_schema",
+        )
+    }

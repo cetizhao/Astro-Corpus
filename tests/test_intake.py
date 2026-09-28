@@ -152,9 +152,10 @@ def test_position_catalog_uses_batched_match_and_applies_limit_first(
         def crossmatch_positions(self, positions, **kwargs):
             captured["positions"] = positions.copy()
             captured["kwargs"] = kwargs
+            row_id_col = kwargs["row_id_col"]
             return pd.DataFrame(
                 {
-                    "_catalog_row": [1, 0],
+                    row_id_col: [1, 0],
                     "source_id": [200, 100],
                     "ra": [11.0, 10.0],
                     "dec": [21.0, 20.0],

@@ -24,6 +24,9 @@ def download_gaia_xp_products(
     sampled_batch_size: int = 500,
     continuous_batch_size: int = 5,
     progress_callback: Optional[ProgressCallback] = None,
+    library_store=None,
+    run_id: str | None = None,
+    refresh: bool = False,
 ) -> dict[str, Any]:
     """Query XP availability and download requested products with resume.
 
@@ -55,10 +58,38 @@ def download_gaia_xp_products(
         )
 
     config = PipelineConfig.load()
-    gaia = GaiaSource(config.gaia, config.network)
+    from astro_pipeline.gaia_releases import normalize_gaia_release, get_gaia_release_profile
+    releases = (
+        {normalize_gaia_release(value) for value in members["gaia_release"].dropna().astype(str)}
+        if "gaia_release" in members else {normalize_gaia_release(config.gaia.release)}
+    )
+    if len(releases) != 1:
+        summary["errors"].append("XP products require a single explicit Gaia release")
+        return summary
+    release = next(iter(releases))
+    gaia_config = config.gaia.model_copy(update={
+        "release": release,
+        "db_schema": config.gaia.db_schema if release == config.gaia.release else get_gaia_release_profile(release).tap_schema,
+    })
+    if library_store is None:
+        gaia = GaiaSource(gaia_config, config.network)
+    else:
+        gaia = GaiaSource(
+            gaia_config, config.network, library_store=library_store,
+            library_run_id=run_id, library_refresh=refresh,
+        )
     try:
-        result = gaia.query_xp_availability(source_ids, availability_path)
-        availability = result.data
+        if library_store is None:
+            result = gaia.query_xp_availability(source_ids, availability_path)
+            availability = result.data
+        else:
+            from astro_pipeline.library.availability import cached_availability
+            from astro_pipeline.io.writer import save_catalog_parquet
+            availability, hits = cached_availability(
+                gaia, source_ids, library_store, release=release, refresh=refresh,
+            )
+            save_catalog_parquet(availability, availability_path)
+            summary["availability_cache_hits"] = hits
         summary["availability_path"] = str(availability_path.resolve())
         if progress_callback:
             progress_callback(
@@ -103,7 +134,7 @@ def download_gaia_xp_products(
     for product, flag_column, retrieval_type, batch_size in product_specs:
         if not requested[product]:
             continue
-        mask = availability[flag_column].fillna(False).astype(bool)
+        mask = availability[flag_column].astype(str).str.strip().str.lower().isin({"true", "1"})
         available_ids = availability.loc[mask, "source_id"].astype(str).tolist()
         product_dir = out_dir / f"gaia_xp_{product}"
         info = summary[product]
@@ -147,15 +178,32 @@ def download_gaia_xp_products(
                 retrieval_type=retrieval_type,
                 batch_size=batch_size,
                 progress_callback=on_batch,
-            )
+            ) if available_ids else []
             cached = _count_cached(product_dir, available_ids)
             failed = sum(not item.success for item in downloads)
+            downloaded = sum(item.success for item in downloads)
+            shared_hits = 0
+            if library_store is not None and (product_dir / "product_refs.json").exists():
+                import json
+                items = json.loads((product_dir / "product_refs.json").read_text())["items"]
+                requested_items = [item for item in items if item["identifier"] in available_ids]
+                downloaded = sum(
+                    item.get("status") == "ready"
+                    and item.get("cache_status") in {"downloaded", "refreshed", "repaired"}
+                    for item in requested_items
+                )
+                shared_hits = sum(
+                    item.get("status") == "ready"
+                    and item.get("cache_status") in {"hit", "peer_hit", "peer_refresh"}
+                    for item in requested_items
+                )
             status = "completed" if cached == len(available_ids) else "partial"
             info.update(
                 {
                     "status": status,
                     "cached": cached,
-                    "downloaded_this_run": sum(item.success for item in downloads),
+                    "downloaded_this_run": downloaded,
+                    "shared_cache_hits": shared_hits,
                     "failed_this_run": failed,
                     "missing": len(available_ids) - cached,
                 }
@@ -203,6 +251,5 @@ def _empty_product_summary(requested: bool) -> dict[str, Any]:
 
 
 def _count_cached(directory: Path, source_ids: list[str]) -> int:
-    if not directory.exists():
-        return 0
-    return sum((directory / f"{source_id}.fits").exists() for source_id in source_ids)
+    from astro_pipeline.library.refs import count_cached_products
+    return count_cached_products(directory, source_ids)

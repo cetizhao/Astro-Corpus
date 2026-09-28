@@ -4,6 +4,15 @@ output:
   spectra_dir: "./data/spectra"
   checkpoints_dir: "./data/checkpoints"
 
+library:
+  enabled: true
+  root: null
+  busy_timeout_ms: 5000
+  lease_seconds: 120
+  wait_timeout_seconds: 30
+  positive_ttl_seconds: 2592000
+  negative_ttl_seconds: 86400
+
 logging:
   level: "INFO"
 

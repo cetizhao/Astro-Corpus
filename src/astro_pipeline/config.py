@@ -67,8 +67,19 @@ class SdssConfig(BaseModel):
     data_release: int = 17
 
 
+class LibraryConfig(BaseModel):
+    enabled: bool = True
+    root: Path | None = None
+    busy_timeout_ms: int = Field(default=5000, ge=0)
+    lease_seconds: float = Field(default=120, gt=0, allow_inf_nan=False)
+    wait_timeout_seconds: float = Field(default=30, ge=0, allow_inf_nan=False)
+    positive_ttl_seconds: float = Field(default=30 * 86400, gt=0, allow_inf_nan=False)
+    negative_ttl_seconds: float = Field(default=86400, gt=0, allow_inf_nan=False)
+
+
 class PipelineConfig(BaseModel):
     output: OutputConfig = OutputConfig()
+    library: LibraryConfig = LibraryConfig()
     logging: dict = {"level": "INFO"}
     network: NetworkConfig = NetworkConfig()
     gaia: GaiaConfig = GaiaConfig()

@@ -113,6 +113,79 @@ def lookup_paper(query: str) -> dict:
 
 
 @mcp.tool()
+def lookup_library_source(
+    source_id: str,
+    release: str = "dr3",
+    limit: int = 50,
+    offset: int = 0,
+) -> dict:
+    """Look up one release-qualified Gaia source across the global local library.
+
+    Unlike ``lookup_source``, this query is not scoped to the configured legacy
+    corpus. It returns canonical attributes, current published dataset/run
+    associations, current bibliography, cached Gaia XP availability (including
+    staleness), and active SOURCE_ID-linked products. The query is offline and
+    never creates or migrates an absent library.
+    """
+    from astro_pipeline.library import get_library
+    from astro_pipeline.library.query import Library
+
+    try:
+        return _json_safe(
+            Library(get_library(create=False)).lookup_source(
+                source_id, release=release, limit=limit, offset=offset
+            )
+        )
+    except (ValueError, RuntimeError) as exc:
+        return {
+            "error": str(exc),
+            "scope": "global_library",
+            "query": {"release": release, "source_id": source_id},
+        }
+
+
+@mcp.tool()
+def lookup_library_paper(
+    query: str,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict:
+    """Look up a paper and its current source/dataset links globally.
+
+    Resolution checks bibcode, arXiv ID, DOI, and title substring. Source links
+    come only from each source's active bibliography snapshot; historical
+    failure or superseded snapshots are not silently mixed in.
+    """
+    from astro_pipeline.library import get_library
+    from astro_pipeline.library.query import Library
+
+    try:
+        return _json_safe(
+            Library(get_library(create=False)).lookup_paper(
+                query, limit=limit, offset=offset
+            )
+        )
+    except (ValueError, RuntimeError) as exc:
+        return {
+            "error": str(exc),
+            "scope": "global_library",
+            "query": query,
+        }
+
+
+@mcp.tool()
+def library_status() -> dict:
+    """Report global SQLite library coverage without creating the database."""
+    from astro_pipeline.library import get_library
+    from astro_pipeline.library.query import Library
+
+    try:
+        return _json_safe(Library(get_library(create=False)).status())
+    except RuntimeError as exc:
+        return {"error": str(exc), "scope": "global_library", "exists": True}
+
+
+@mcp.tool()
 def resolve_name(name: str) -> dict:
     """Resolve an astronomical source name via SIMBAD to a Gaia DR3 source_id and basic astrometry.
 
@@ -236,6 +309,7 @@ def download_corpus(
     enrich: bool = True,
     xp_sampled: bool = False,
     xp_continuous: bool = False,
+    refresh: bool = False,
 ) -> dict:
     """Download a corpus snapshot and persist to ``data/<label>/`` on disk.
 
@@ -319,6 +393,7 @@ def download_corpus(
             enrich=enrich,
             xp_sampled=xp_sampled,
             xp_continuous=xp_continuous,
+            refresh=refresh,
         )
     except (
         ValueError,
@@ -486,14 +561,18 @@ def download_gaia_product(
     linking_parameter: str = "SOURCE_ID",
     valid_data: bool = False,
     batch_size: int = 5,
+    refresh: bool = False,
 ) -> dict:
     """Download an explicit, bounded list of release-qualified DataLink products.
 
-    Outputs live under ``data/gaia_products/<label>/`` with checkpoint,
-    request contract, artifact provenance, Archive tables, and normalized
-    per-identifier files. At most 5,000 explicit identifiers are accepted;
-    ranges, Archive jobs, and implicit all-source downloads are intentionally
-    excluded. DR4 products work only after the Archive serves them.
+    Outputs under ``data/gaia_products/<label>/`` contain request, checkpoint,
+    and pinned product-reference metadata. With the default shared library,
+    normalized and Archive table bytes live once in its immutable object store;
+    standalone export materializes label-local files. At most 5,000 explicit
+    identifiers are accepted. ``refresh`` requests a new product version without
+    changing previously pinned corpus snapshots. Ranges, Archive jobs, and
+    implicit all-source downloads are intentionally excluded.
+    DR4 products work only after the Archive serves them.
     """
     from astro_pipeline.gaia_products import GaiaProductRequest
     from astro_pipeline.manifest import validate_label
@@ -512,9 +591,45 @@ def download_gaia_product(
             valid_data=valid_data,
             batch_size=batch_size,
         )
-        source = _gaia_source_for_release(request.release)
         output_dir = Path("data") / "gaia_products" / label
-        artifacts = source.download_products(request, output_dir, resume=True)
+        from astro_pipeline.library import get_library
+        library = get_library()
+        run_id = None
+        if library is None:
+            source = _gaia_source_for_release(request.release)
+            artifacts = source.download_products(request, output_dir, resume=True)
+        else:
+            import json
+            from astro_pipeline.library.identity import canonical_json
+            contract_path = output_dir / "product_request.json"
+            if contract_path.exists():
+                prior = json.loads(contract_path.read_text(encoding="utf-8"))
+                if canonical_json(prior.get("contract")) != canonical_json(request.immutable_contract()):
+                    raise ValueError("Product label already has a different request contract")
+            elif output_dir.exists() and any(output_dir.iterdir()):
+                raise ValueError("Legacy product directory has no request contract; import it or choose a new label")
+            with library.hold_lease(
+                "product-call", str(output_dir.resolve()), ttl=library.lease_seconds,
+                wait_timeout=library.wait_timeout_seconds,
+            ):
+                corpus_id = library.register_corpus(output_dir, label, provenance_status="product_request")
+                request_id = library.register_request({
+                    "release": request.release, "input_mode": "gaia_product",
+                    "selector": {**request.immutable_contract(), "identifiers": sorted(request.identifiers)},
+                })
+                run_id = library.start_run(corpus_id, request_id, options={"refresh": refresh, "batch_size": batch_size})
+                try:
+                    source = _gaia_source_for_release(
+                        request.release, library_store=library, library_run_id=run_id, refresh=refresh,
+                    )
+                    artifacts = source.download_products(request, output_dir, resume=True)
+                except Exception as exc:
+                    library.finish_run(run_id, "failed", error=str(exc))
+                    raise
+                library.finish_run(
+                    run_id, "partial" if any(not item.success for item in artifacts) else "completed",
+                    metadata={"kind": "gaia_product", "published": True, "output_dir": str(output_dir.resolve())},
+                )
         return _json_safe(
             {
                 "label": label,
@@ -525,6 +640,9 @@ def download_gaia_product(
                 "n_failed": sum(not item.success for item in artifacts),
                 "artifacts": [item.to_dict() for item in artifacts],
                 "resumable": True,
+                "library_run_id": run_id,
+                "storage_mode": "shared_library" if library is not None else "legacy",
+                "n_ready_identifiers": len({item.identifier for item in artifacts if item.success}),
             }
         )
     except Exception as exc:
@@ -699,6 +817,7 @@ def download_membership_corpus(
     enrich: bool = True,
     xp_sampled: bool = False,
     xp_continuous: bool = False,
+    refresh: bool = False,
 ) -> dict:
     """Build a Gaia DR3 corpus from an explicitly selected member table.
 
@@ -863,10 +982,7 @@ def corpus_status(label: str) -> dict:
 
     out["has_paper_edges"] = has_edges
     out["has_viz"] = (path / "source_paper_viz.html").exists()
-    out["n_xp_sampled_cached"] = len(list((path / "gaia_xp_sampled").glob("*.fits")))
-    out["n_xp_continuous_cached"] = len(
-        list((path / "gaia_xp_continuous").glob("*.fits"))
-    )
+    out.update(_cached_xp_counts(path))
     return out
 
 
@@ -937,16 +1053,51 @@ def list_corpora() -> list[dict]:
             "gaia_release": manifest_data.get("corpus", {}).get(
                 "gaia_release", "dr3"
             ) if manifest_data else None,
-            "n_xp_sampled_cached": len(list((sub / "gaia_xp_sampled").glob("*.fits"))),
-            "n_xp_continuous_cached": len(
-                list((sub / "gaia_xp_continuous").glob("*.fits"))
-            ),
+            **_cached_xp_counts(sub),
         })
     return out
 
 
 # --------------------------------------------------------------------- helpers
-def _gaia_source_for_release(release: str, *, schema: Optional[str] = None):
+def _cached_xp_counts(directory: Path) -> dict:
+    import pandas as pd
+    from astro_pipeline.library.refs import active_corpus_dir, read_reference_documents, resolve_product
+    counts = {"n_xp_sampled_cached": 0, "n_xp_continuous_cached": 0}
+    try:
+        active = active_corpus_dir(directory)
+        ids = set()
+        release = "dr3"
+        if (active / "members.parquet").exists():
+            frame = pd.read_parquet(active / "members.parquet")
+            ids.update(frame["Gaia"].dropna().astype(str))
+            if "gaia_release" in frame and not frame["gaia_release"].dropna().empty:
+                release = str(frame["gaia_release"].dropna().iloc[0])
+            counts["n_unique_sources"] = len(ids)
+        elif (active / "members.csv").exists():
+            frame = pd.read_csv(active / "members.csv", dtype={"Gaia": "string"})
+            ids.update(frame["Gaia"].dropna().astype(str))
+            counts["n_unique_sources"] = len(ids)
+        else:
+            for document in read_reference_documents(active):
+                ids.update(str(item["identifier"]) for item in document["items"])
+            for product in ("sampled", "continuous"):
+                ids.update(path.stem for path in (active / f"gaia_xp_{product}").glob("*.fits"))
+        for product in ("sampled", "continuous"):
+            for identifier in ids:
+                try:
+                    resolve_product(active, identifier, f"XP_{product.upper()}", release=release)
+                except (LookupError, OSError, ValueError, RuntimeError):
+                    continue
+                counts[f"n_xp_{product}_cached"] += 1
+    except (LookupError, OSError, ValueError, KeyError, RuntimeError) as exc:
+        counts["product_cache_error"] = str(exc)
+    return counts
+
+
+def _gaia_source_for_release(
+    release: str, *, schema: Optional[str] = None,
+    library_store=None, library_run_id=None, refresh: bool = False,
+):
     from astro_pipeline.config import PipelineConfig
     from astro_pipeline.gaia_releases import (
         get_gaia_release_profile,
@@ -969,7 +1120,10 @@ def _gaia_source_for_release(release: str, *, schema: Optional[str] = None):
     gaia_config = config.gaia.model_copy(
         update={"release": profile.key, "db_schema": db_schema}
     )
-    return GaiaSource(gaia_config, config.network)
+    return GaiaSource(
+        gaia_config, config.network, library_store=library_store,
+        library_run_id=library_run_id, library_refresh=refresh,
+    )
 
 
 def _cached_corpus_unavailable() -> dict[str, Any]:

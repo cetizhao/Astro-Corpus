@@ -23,10 +23,16 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional
+from typing import Any, Callable, Iterable, Mapping, Optional
 
 import pandas as pd
 
+from astro_pipeline.library.papers import (
+    cached_doi_arxiv,
+    cached_paper_metadata,
+    cached_source_references,
+    normalize_doi,
+)
 from astro_pipeline.models.paper import PaperEdgeTable
 
 logger = logging.getLogger(__name__)
@@ -125,11 +131,9 @@ def arxiv_id_from_doi(
 ) -> Optional[str]:
     """Resolve a DOI to its arXiv id via the arXiv API (no key required).
 
-    Returns None if no matching arXiv preprint exists. Handles the arXiv API's
-    aggressive rate limiting (HTTP 429) with exponential backoff. arXiv asks
-    clients to wait >=3s between requests, so on 429 we back off and retry.
-    Pure network fallback used only for journal bibcodes that don't already
-    encode an arXiv id.
+    Returns None only when the API completed successfully with no matching arXiv
+    preprint. Transport, parsing, and exhausted rate-limit failures raise so the
+    shared cache can keep them retryable instead of storing ``not_found``.
     """
     if not doi:
         return None
@@ -164,20 +168,26 @@ def arxiv_id_from_doi(
             return m.group(1) if m else None
         except Exception as e:
             logger.debug("arXiv DOI lookup failed for %s: %s", doi, e)
-            return None
-    logger.debug("arXiv DOI lookup exhausted retries for %s", doi)
-    return None
+            raise RuntimeError(f"arXiv DOI lookup failed for {doi}") from e
+    raise RuntimeError(f"arXiv DOI lookup exhausted retries for {doi}")
 
 
-def enrich_bibcode(bibcode: str, existing_arxiv: Optional[str] = None, resolve_doi: bool = True) -> PaperRecord:
+def enrich_bibcode(
+    bibcode: str,
+    existing_arxiv: Optional[str] = None,
+    resolve_doi: bool = True,
+    *,
+    strict: bool = False,
+) -> PaperRecord:
     """Fetch title/DOI/year/journal for a bibcode from SIMBAD, and resolve an
     arXiv id when one is not already embedded in the bibcode.
 
     Network: one SIMBAD ``query_bibcode`` call + (only if ``resolve_doi`` and a
     DOI exists, with no embedded arXiv id) one arXiv DOI lookup. The SIMBAD call
     is reliable/unthrottled; the arXiv DOI lookup is rate-limited and optional.
-    On any failure a PaperRecord with just the bibcode is returned so enrichment
-    never breaks the pipeline.
+    On failure the default returns a sparse PaperRecord so legacy enrichment
+    remains best-effort. ``strict=True`` propagates failures so the shared cache
+    can record a retryable attempt instead of a false negative.
     """
     rec = PaperRecord(
         bibcode=bibcode,
@@ -202,11 +212,18 @@ def enrich_bibcode(bibcode: str, existing_arxiv: Optional[str] = None, resolve_d
                 except (TypeError, ValueError):
                     pass
     except Exception as e:
+        if strict:
+            raise
         logger.debug("SIMBAD query_bibcode failed for %s: %s", bibcode, e)
 
     # If still no arXiv id but we have a DOI, ask the arXiv API (optional).
     if resolve_doi and not rec.arxiv_id and rec.doi:
-        rec.arxiv_id = arxiv_id_from_doi(rec.doi)
+        try:
+            rec.arxiv_id = arxiv_id_from_doi(rec.doi)
+        except Exception as exc:
+            if strict:
+                raise
+            logger.debug("arXiv DOI lookup failed for %s: %s", rec.doi, exc)
 
     return rec
 
@@ -280,6 +297,10 @@ def build_paper_edges(
     enrich: bool = True,
     resolve_doi: bool = True,
     progress_callback: Optional[Callable[[dict[str, Any]], None]] = None,
+    library_store: Any = None,
+    gaia_release: str = "dr3",
+    refresh: bool = False,
+    run_id: Optional[str] = None,
 ) -> tuple[PaperEdgeTable, pd.DataFrame]:
     """Build authoritative source↔paper edges for a catalog via SIMBAD.
 
@@ -303,7 +324,29 @@ def build_paper_edges(
     enrich : if False, skip the per-bibcode metadata fetch.
     resolve_doi : if False, skip the (rate-limited) arXiv DOI->id lookup. Set to
         False for a fast first pass; bibcodes/DOIs/titles are still captured.
+    library_store : optional shared :class:`LibraryStore`. When omitted, retain
+        the legacy per-label Parquet/checkpoint behavior exactly.
+    gaia_release : release-qualified source identity used by the shared library.
+    refresh : bypass current shared observations and publish new snapshots only
+        after successful remote requests.
+    run_id : optional library run identifier for attempt provenance.
     """
+    if library_store is not None:
+        return _build_paper_edges_library(
+            catalog_df,
+            id_col=id_col,
+            sleep_seconds=sleep_seconds,
+            progress_every=progress_every,
+            cache_path=cache_path,
+            enrich=enrich,
+            resolve_doi=resolve_doi,
+            progress_callback=progress_callback,
+            library_store=library_store,
+            gaia_release=gaia_release,
+            refresh=refresh,
+            run_id=run_id,
+        )
+
     gaia_ids = list(dict.fromkeys(str(x) for x in catalog_df[id_col].astype(str)))
     target_ids = set(gaia_ids)
 
@@ -494,6 +537,425 @@ def build_paper_edges(
     )
     refs_table.attrs["source_progress"] = source_progress
     return edges, refs_table
+
+
+def _build_paper_edges_library(
+    catalog_df: pd.DataFrame,
+    *,
+    id_col: str,
+    sleep_seconds: float,
+    progress_every: int,
+    cache_path: Optional[Path],
+    enrich: bool,
+    resolve_doi: bool,
+    progress_callback: Optional[Callable[[dict[str, Any]], None]],
+    library_store: Any,
+    gaia_release: str,
+    refresh: bool,
+    run_id: Optional[str],
+) -> tuple[PaperEdgeTable, pd.DataFrame]:
+    """Build one label projection from release-qualified shared snapshots."""
+    gaia_ids = list(dict.fromkeys(str(x) for x in catalog_df[id_col].astype(str)))
+    target_ids = set(gaia_ids)
+    cache_file = Path(cache_path) if cache_path else None
+    checkpoint_file = _simbad_checkpoint_path(cache_file) if cache_file else None
+
+    cache = pd.DataFrame(columns=REF_COLUMNS)
+    if cache_file and cache_file.exists():
+        try:
+            cache = _normalize_refs(pd.read_parquet(cache_file))
+            logger.info("Loaded %d projected SIMBAD refs from %s", len(cache), cache_file)
+        except Exception as exc:
+            logger.warning("Could not read SIMBAD ref cache: %s", exc)
+
+    checkpoint = _load_simbad_checkpoint(checkpoint_file)
+    all_completed = {str(value) for value in checkpoint.get("completed", [])}
+    all_failures = {
+        str(key): str(value)
+        for key, value in checkpoint.get("failed", {}).items()
+    }
+    if not cache.empty:
+        all_completed.update(cache["gaia_id"].dropna().astype(str))
+
+    outside_target = (
+        cache[~cache["gaia_id"].astype(str).isin(target_ids)].copy()
+        if not cache.empty
+        else pd.DataFrame(columns=REF_COLUMNS)
+    )
+    prior_target = {
+        source_id: cache[cache["gaia_id"].astype(str) == source_id].copy()
+        for source_id in gaia_ids
+    }
+    accepted: dict[str, pd.DataFrame] = {}
+    completed: set[str] = set()
+    failures = {
+        key: value for key, value in all_failures.items() if key in target_ids
+    }
+
+    # A label checkpoint is only a projection. Fresh shared snapshots may be
+    # reused, but completed label state never bypasses TTL or explicit refresh.
+    if not refresh:
+        for source_id in gaia_ids:
+            snapshot = library_store.get_source_references(
+                gaia_release, source_id
+            )
+            if snapshot is not None:
+                accepted[source_id] = _snapshot_rows(source_id, snapshot)
+                completed.add(source_id)
+                failures.pop(source_id, None)
+
+    processed_since_flush = 0
+
+    def projection(*, preserve_failed: bool) -> pd.DataFrame:
+        frames: list[pd.DataFrame] = [outside_target]
+        for source_id in gaia_ids:
+            if source_id in completed:
+                frames.append(accepted[source_id])
+            elif preserve_failed:
+                frames.append(prior_target[source_id])
+        return _merge_ref_frames(*frames)
+
+    def preserved_for_enrichment() -> pd.DataFrame:
+        frames: list[pd.DataFrame] = [outside_target]
+        frames.extend(
+            prior_target[source_id]
+            for source_id in gaia_ids
+            if source_id not in completed
+        )
+        return _merge_ref_frames(*frames)
+
+    def flush(*, final: bool = False) -> None:
+        nonlocal processed_since_flush
+        if cache_file is not None:
+            _write_parquet_atomic(projection(preserve_failed=True), cache_file)
+        if checkpoint_file is not None:
+            persisted_completed = (all_completed - target_ids) | completed
+            persisted_failures = {
+                key: value
+                for key, value in all_failures.items()
+                if key not in target_ids
+            }
+            persisted_failures.update(failures)
+            _write_simbad_checkpoint(
+                checkpoint_file,
+                completed=persisted_completed,
+                failures=persisted_failures,
+                total=len(persisted_completed | set(persisted_failures) | target_ids),
+            )
+        if progress_callback:
+            progress_callback(
+                {
+                    "status": (
+                        "partial"
+                        if final and failures
+                        else "completed"
+                        if final
+                        else "running"
+                    ),
+                    "total": len(gaia_ids),
+                    "completed": len(completed),
+                    "failed": len(failures),
+                    "remaining": len(target_ids - completed),
+                }
+            )
+        processed_since_flush = 0
+
+    if progress_callback:
+        progress_callback(
+            {
+                "status": "running",
+                "total": len(gaia_ids),
+                "completed": len(completed),
+                "failed": len(failures),
+                "remaining": len(target_ids - completed),
+            }
+        )
+
+    try:
+        for source_id in gaia_ids:
+            if source_id in completed:
+                continue
+
+            def fetch_source(source_id: str = source_id) -> Mapping[str, Any]:
+                return _source_observation(get_source_bibcodes(source_id))
+
+            try:
+                result = cached_source_references(
+                    library_store,
+                    gaia_release=gaia_release,
+                    source_id=source_id,
+                    fetch=fetch_source,
+                    refresh=refresh,
+                    run_id=run_id,
+                )
+            except Exception as exc:
+                logger.warning("SIMBAD lookup failed for %s: %s", source_id, exc)
+                failures[source_id] = str(exc)
+            else:
+                accepted[source_id] = _snapshot_rows(source_id, result.value)
+                completed.add(source_id)
+                failures.pop(source_id, None)
+                if result.fetched and sleep_seconds:
+                    time.sleep(sleep_seconds)
+
+            processed_since_flush += 1
+            if progress_every and processed_since_flush >= progress_every:
+                flush()
+                logger.info(
+                    "SIMBAD progress: %d/%d sources (%d retryable failures)",
+                    len(completed),
+                    len(gaia_ids),
+                    len(failures),
+                )
+    finally:
+        # Always emit the terminal progress event, including all-library-hit
+        # builds with no label cache path.
+        flush(final=True)
+
+    refs_table = _merge_ref_frames(
+        *(accepted[source_id] for source_id in gaia_ids if source_id in accepted)
+    )
+    source_progress = {
+        "total": len(gaia_ids),
+        "completed": len(completed),
+        "failed": len(failures),
+        "remaining": len(target_ids - completed),
+        "checkpoint_path": str(checkpoint_file.resolve()) if checkpoint_file else "",
+    }
+
+    preserved_refs = preserved_for_enrichment()
+    if enrich and not refs_table.empty:
+        refs_table = _enrich_refs_table_library(
+            refs_table,
+            library_store=library_store,
+            sleep_seconds=sleep_seconds,
+            resolve_doi=resolve_doi,
+            cache_path=cache_file,
+            preserved_refs=preserved_refs,
+            refresh=refresh,
+            run_id=run_id,
+        )
+
+    if cache_file is not None:
+        _write_parquet_atomic(
+            _merge_ref_frames(preserved_refs, refs_table), cache_file
+        )
+        logger.info("Cached %d SIMBAD refs to %s", len(refs_table), cache_file)
+
+    edges = _edge_table_from_refs(refs_table)
+    n_arxiv = (
+        int((edges.df["arxiv_id"].astype(str) != "").sum())
+        if not edges.df.empty
+        else 0
+    )
+    logger.info(
+        "Built %d paper edges across %d sources (%d edges have an arXiv id)",
+        len(edges),
+        refs_table["gaia_id"].nunique() if not refs_table.empty else 0,
+        n_arxiv,
+    )
+    refs_table.attrs["source_progress"] = source_progress
+    return edges, refs_table
+
+
+def _paper_metadata(record: PaperRecord) -> dict[str, Any]:
+    return {
+        "bibcode": record.bibcode,
+        "arxiv_id": record.arxiv_id or "",
+        "title": record.title,
+        "year": record.year,
+        "first_author": record.first_author,
+        "journal": record.journal,
+        "doi": record.doi,
+        "url": record.url,
+    }
+
+
+def _source_observation(sp: SourcePapers) -> dict[str, Any]:
+    if sp.error:
+        raise RuntimeError(sp.error)
+    records = list(sp.papers)
+    if not records and sp.bibcodes:
+        records = [
+            PaperRecord(
+                bibcode=bibcode,
+                arxiv_id=bibcode_to_arxiv(bibcode),
+                year=_bibcode_year(bibcode),
+                journal=_bibcode_journal(bibcode),
+            )
+            for bibcode in sp.bibcodes
+        ]
+    if not sp.resolved:
+        outcome = "unresolved"
+    elif not records:
+        outcome = "empty"
+    else:
+        outcome = "success"
+    return {
+        "main_id": sp.main_id,
+        "papers": [_paper_metadata(record) for record in records],
+        "outcome": outcome,
+    }
+
+
+def _snapshot_rows(source_id: str, snapshot: Mapping[str, Any]) -> pd.DataFrame:
+    rows = []
+    for paper in snapshot.get("papers", ()):
+        bibcode = str(paper.get("bibcode", "")).strip()
+        if not bibcode:
+            continue
+        rows.append(
+            {
+                "gaia_id": str(source_id),
+                "main_id": str(snapshot.get("main_id", "")),
+                "bibcode": bibcode,
+                "arxiv_id": str(paper.get("arxiv_id", "") or ""),
+                "title": str(paper.get("title", "") or ""),
+                "year": paper.get("year"),
+                "journal": str(paper.get("journal", "") or ""),
+                "doi": str(paper.get("doi", "") or ""),
+            }
+        )
+    return _normalize_refs(pd.DataFrame(rows)) if rows else pd.DataFrame(columns=REF_COLUMNS)
+
+
+def _record_from_metadata(bibcode: str, metadata: Mapping[str, Any]) -> PaperRecord:
+    year = metadata.get("year")
+    if year is not None and str(year).strip() != "":
+        try:
+            year = int(float(year))
+        except (TypeError, ValueError):
+            year = None
+    else:
+        year = None
+    return PaperRecord(
+        bibcode=bibcode,
+        arxiv_id=str(metadata.get("arxiv_id", "") or "") or None,
+        title=str(metadata.get("title", "") or ""),
+        year=year,
+        first_author=str(metadata.get("first_author", "") or ""),
+        journal=str(metadata.get("journal", "") or ""),
+        doi=str(metadata.get("doi", "") or ""),
+        url=str(metadata.get("url", "") or ""),
+    )
+
+
+def _edge_table_from_refs(refs_table: pd.DataFrame) -> PaperEdgeTable:
+    edges = PaperEdgeTable()
+    edge_cols = [
+        "source_id",
+        "arxiv_id",
+        "bibcode",
+        "title",
+        "year",
+        "journal",
+        "doi",
+        "main_id",
+    ]
+    if refs_table.empty:
+        edges.df = pd.DataFrame(columns=edge_cols)
+        return edges
+    edge_df = refs_table.rename(columns={"gaia_id": "source_id"}).copy()
+    edge_df["arxiv_id"] = edge_df["arxiv_id"].fillna("").astype(str)
+    edges.df = edge_df[edge_cols].drop_duplicates(
+        subset=["source_id", "bibcode"]
+    ).reset_index(drop=True)
+    return edges
+
+
+def _enrich_refs_table_library(
+    refs_table: pd.DataFrame,
+    *,
+    library_store: Any,
+    sleep_seconds: float,
+    resolve_doi: bool,
+    cache_path: Optional[Path],
+    preserved_refs: Optional[pd.DataFrame],
+    refresh: bool,
+    run_id: Optional[str],
+) -> pd.DataFrame:
+    """Enrich through separate basic-metadata and DOI→arXiv caches."""
+    df = refs_table.copy()
+    bibcodes = df["bibcode"].drop_duplicates().tolist()
+    logger.info(
+        "Enriching metadata for %d unique bibcodes (resolve_doi=%s)...",
+        len(bibcodes),
+        resolve_doi,
+    )
+    doi_results: dict[str, Optional[str]] = {}
+    checkpoint_every = 25
+
+    for index, bibcode in enumerate(bibcodes, start=1):
+        embedded_arxiv = bibcode_to_arxiv(bibcode)
+
+        def fetch_metadata(bibcode: str = bibcode) -> Mapping[str, Any]:
+            record = enrich_bibcode(
+                bibcode,
+                existing_arxiv=embedded_arxiv,
+                resolve_doi=False,
+                strict=True,
+            )
+            return _paper_metadata(record)
+
+        try:
+            metadata_result = cached_paper_metadata(
+                library_store,
+                bibcode=bibcode,
+                fetch=fetch_metadata,
+                refresh=refresh,
+                run_id=run_id,
+            )
+        except Exception as exc:
+            logger.warning("enrich_bibcode failed for %s: %s", bibcode, exc)
+        else:
+            df = _apply_meta(
+                df, {bibcode: _record_from_metadata(bibcode, metadata_result.value)}
+            )
+            if metadata_result.fetched and sleep_seconds:
+                time.sleep(sleep_seconds)
+
+        mask = df["bibcode"] == bibcode
+        doi_values = df.loc[mask, "doi"].dropna()
+        doi = next(
+            (str(value).strip() for value in doi_values if str(value).strip()),
+            "",
+        )
+        if resolve_doi and not embedded_arxiv and doi:
+            doi_key = normalize_doi(doi)
+            if doi_key not in doi_results:
+                try:
+                    doi_result = cached_doi_arxiv(
+                        library_store,
+                        doi=doi,
+                        resolve=lambda doi=doi: arxiv_id_from_doi(doi),
+                        refresh=refresh,
+                        run_id=run_id,
+                    )
+                except Exception as exc:
+                    logger.warning("arXiv DOI lookup failed for %s: %s", doi, exc)
+                else:
+                    doi_results[doi_key] = doi_result.value
+                    if doi_result.fetched and sleep_seconds:
+                        time.sleep(sleep_seconds)
+            if doi_key in doi_results:
+                arxiv_id = doi_results[doi_key]
+                # The DOI cache is authoritative for DOI-derived IDs, including
+                # explicit not-found observations. Embedded bibcode IDs never
+                # take this path.
+                df.loc[mask, "arxiv_id"] = arxiv_id or ""
+                if arxiv_id:
+                    library_store.upsert_paper(
+                        {"bibcode": bibcode, "arxiv_id": arxiv_id}
+                    )
+
+        if index % checkpoint_every == 0:
+            if cache_path is not None:
+                _write_parquet_atomic(
+                    _merge_ref_frames(preserved_refs, df), cache_path
+                )
+            logger.info("Enrich progress: %d/%d bibcodes", index, len(bibcodes))
+
+    return df
 
 
 def _enrich_refs_table(

@@ -4,6 +4,10 @@ output:
   spectra_dir: "./data/spectra"
   checkpoints_dir: "./data/checkpoints"
 
+library:
+  enabled: true
+  root: null
+
 logging:
   level: "DEBUG"
 

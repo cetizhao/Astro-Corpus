@@ -5,8 +5,64 @@ All notable changes to this project are documented here. Versions follow
 
 ## [Unreleased]
 
+### Added
+
+- A default-on, release-qualified local library with a SQLite global index,
+  immutable content-addressed objects, per-build run snapshots, and pinned Gaia
+  product-reference documents.
+- Shared source-reference, paper-metadata, DOI-to-arXiv, exact Gaia-ID, and XP
+  availability caches with configurable positive/negative TTLs and explicit
+  retryable failure history.
+- Global MCP tools `lookup_library_source`, `lookup_library_paper`, and
+  `library_status`; the server now exposes 25 tools.
+- `scripts/library.py` status, dry-run/non-destructive legacy import,
+  verification/reconciliation, reference export, and standalone export
+  workflows.
+- Input-row, match, duplicate-member, original-CSV, run, artifact, and product
+  provenance retained independently from globally deduplicated source/product
+  identities.
+
+### Changed
+
+- High-level corpus and membership builds use the shared library by default,
+  while preserving label-root Parquet/checkpoint/HTML compatibility views and a
+  configurable legacy path through `library.enabled: false`.
+- Corpus readers select immutable published snapshots through `active_run_id`;
+  run-selected exports use `snapshot_run_id`, and version-2 product references
+  pin exact immutable product versions.
+- SIMBAD source-reference snapshots, bibcode metadata, and DOI-to-arXiv results
+  are reused across labels. Successful refreshes replace current state (including
+  removed edges) without deleting history; failures leave the last successful
+  current pointer intact.
+
+### Safety
+
+- Shared work uses bounded per-key leases with fencing tokens and keeps remote
+  work outside SQLite write transactions. Read-only global queries do not create
+  or migrate an absent database.
+- Legacy imports are dry-run by default and explicit apply never modifies the
+  source tree. Verification reports corrupt/orphan/staging state but performs no
+  automatic deletion or garbage collection.
+- Reference exports remain explicitly library-dependent; standalone exports
+  verify and copy pinned bytes. Live SQLite backup uses the SQLite backup API
+  rather than a direct database-file copy.
+
+### Known limitations
+
+- Pending publication recovery is diagnostic-only: verification reports it but
+  does not activate a prepared run. Reconciliation only restores missing views
+  for already-published runs; divergent user files are never overwritten.
+- Legacy records with unknown selection/release or unverifiable product identity
+  remain explicitly unverified or inventory-only. Historical source trees are
+  not automatically migrated or pruned.
+
 ### Fixed
 
+- Failed builds preserve the prior published corpus; immutable run metadata and
+  SQLite preparation finish before activation. Interrupted view/index updates
+  remain explicitly pending and recoverable.
+- Product-view ownership checks and atomic replacements share a fenced
+  transaction, and batch renewal no longer creates one thread per identifier.
 - Gaia small catalogue, source-ID and position-matching queries use bounded
   synchronous TAP instead of waiting in the asynchronous job queue.
 - Gaia TAP now honors environment proxies and enforces both per-request and

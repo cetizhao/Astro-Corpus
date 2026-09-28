@@ -55,11 +55,15 @@ uv run python -m astro_pipeline.mcp_server
 The server starts even when the optional TWA demo files are absent. In that
 case cached `lookup_source`, `lookup_paper`, and `summarize_corpus` are not
 useful yet, but live search and all corpus-building tools remain available.
+Global `lookup_library_source`, `lookup_library_paper`, and `library_status`
+remain read-only; if the shared database is absent they return structured empty
+state and do not create or migrate it.
 
 ## Choose the correct input workflow
 
 | User intent | MCP workflow | Meaning |
 |---|---|---|
+| A source/paper across all local corpora | `library_status` → `lookup_library_source` or `lookup_library_paper` | Offline global index; current published snapshots only |
 | A coordinate/sky patch | `cone_search` or `download_corpus(cone=...)` | Every Gaia field source in a geometric cone |
 | A named sky center | `download_corpus(region=[name, radius])` | SIMBAD resolves the center; still field sources, not members |
 | One named object | `resolve_name` or `download_corpus(name=...)` | One SIMBAD-resolved Gaia DR3 source |
@@ -72,6 +76,8 @@ useful yet, but live search and all corpus-building tools remain available.
 The distinction between a region and membership is scientifically important.
 For example, `region=["Taurus", 2]` returns foreground/background field stars
 as well as Taurus members. It must not be described as a Taurus member list.
+Cached release-qualified sources are not evidence of complete local sky
+coverage: cone, region, and coordinate-match selections still query Gaia.
 
 ## Membership workflow
 
@@ -100,6 +106,27 @@ dropped. The default positional radius is 3 arcsec because older catalogues
 may use an earlier coordinate epoch. Dense fields and high-proper-motion
 sources still require scientific review.
 
+## Corpus scope and global library
+
+High-level corpus and membership builds use the shared library by default.
+`LibraryConfig.enabled` may disable it; `ASTRO_PIPELINE_LIBRARY_DIR` overrides
+`library.root`, which otherwise defaults to `data/_library`.
+
+A build retains original input rows, matches, duplicate same-star occurrences,
+and unmatched rows in its run snapshot while deduplicating reusable source and
+product identities globally. It writes `runs/<run_id>/` plus top-level
+compatibility views. `active_run_id` selects the run published at the label root;
+it does not guarantee a `completed` build, because a later-stage failure after
+member indexing can still leave that run active. Inspect terminal status, stages,
+and errors. A manifest with `snapshot_run_id` is already pinned. Shared product
+references name exact immutable versions rather than "whatever is newest".
+
+The existing `lookup_source`, `lookup_paper`, `summarize_corpus`, and `Corpus`
+API remain scoped to one configured corpus. The three `lookup_library_*`/status
+tools query across current published runs without changing storage. Full cache,
+refresh, CLI, import/export, and backup semantics are documented in
+[library.md](library.md).
+
 ## Corpus products and progress
 
 Both `download_corpus` and `download_membership_corpus` accept:
@@ -114,6 +141,12 @@ XP flags default to `false`, so a normal catalogue request never triggers a
 large FITS download unexpectedly. The pipeline first queries
 `has_xp_sampled/has_xp_continuous`, requests only available products, and saves
 each format in a separate resumable directory.
+
+Fresh exact-ID, XP-availability, product, and literature observations are reused
+across labels. Positive observations default to 30 days and explicit negatives
+to one day; failures stay retryable. A Python build with `refresh=True`
+replaces successful current observations while preserving history. The corpus
+MCP wrappers do not currently expose this refresh switch.
 
 Call `download_plan(...)` for a read-only preflight description. During or
 after a build, call `corpus_status(label)`. New builds expose the atomic
@@ -183,8 +216,13 @@ blocked because its binary image payload needs a blob-preserving transport.
 
 ## Tool reference
 
+The server currently registers 25 tools.
+
 | Tool | Network | Writes data | Purpose |
 |---|---|---|---|
+| `lookup_library_source` | no | no | Global lookup by `(release, source_id)` with datasets, active bibliography, XP availability, and products |
+| `lookup_library_paper` | no | no | Global paper lookup by bibcode/arXiv/DOI/title with active source links |
+| `library_status` | no | no | Read global SQLite coverage and paths without creating it |
 | `lookup_source` | no | no | Query the configured cached corpus by Gaia ID |
 | `lookup_paper` | no | no | Query by arXiv ID, bibcode, or title |
 | `summarize_corpus` | no | no | Summarize the configured cached corpus |
@@ -212,6 +250,16 @@ blocked because its binary image payload needs a blob-preserving transport.
 
 - Gaia, VizieR, SIMBAD, and arXiv are external services; throttling, 503s, and
   queued TAP jobs can occur. Retry/checkpoint support does not make them local.
+- A populated library is not a complete mirror of Gaia and cannot answer a new
+  cone/region selection without a Gaia query.
+- Shared work uses bounded leases and fencing. A busy error means another worker
+  retained the same key beyond the wait budget; retry later rather than bypassing
+  the shared state. Product-view checks and replacements share a short fenced
+  transaction; a stale owner cannot overwrite the next owner's metadata.
+- Managed exports use an immutable selected run, including by default. Use
+  `--run-id` for an exact historical run and `--standalone` for an independent
+  copy of its pinned products. Pending publication needs explicit inspection or
+  rerun; verification does not automatically activate a prepared run.
 - Gaia DataLink login can fail while anonymous TAP queries still work. The
   pipeline deliberately keeps astrometry queries anonymous.
 - XP download failure does not invalidate the members/astrometry table. Report

@@ -71,6 +71,8 @@ def main() -> None:
                     help="Download available Gaia XP_SAMPLED FITS (resumable)")
     ap.add_argument("--xp-continuous", action="store_true",
                     help="Download available Gaia XP_CONTINUOUS FITS (resumable)")
+    ap.add_argument("--refresh", action="store_true",
+                    help="Refresh shared observations/products without replacing older run snapshots")
     args = ap.parse_args()
 
     # Derive a label if not given
@@ -100,6 +102,7 @@ def main() -> None:
         enrich=not args.no_enrich,
         xp_sampled=args.xp_sampled,
         xp_continuous=args.xp_continuous,
+        refresh=args.refresh,
     )
 
     if result.error:

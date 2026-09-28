@@ -1,4 +1,4 @@
-"""Gaia DR3 BP/RP spectrum fetching and plotting.
+"""Resolve, read, and plot release-qualified Gaia BP/RP spectra.
 
 Two retrieval types are supported (preferred order: continuous > sampled):
 
@@ -7,26 +7,27 @@ Two retrieval types are supported (preferred order: continuous > sampled):
   * XP_SAMPLED     -- already-sampled wavelength/flux arrays. Fallback when
     the source has no continuous representation.
 
-Caching layout under ``cache_dir``::
-
-    cache_dir/gaia_xp_continuous/<gaia_id>.fits    # XP_CONTINUOUS source file
-    cache_dir/gaia_xp_sampled/<gaia_id>.fits       # XP_SAMPLED source file
-    cache_dir/gaia_xp_png/<gaia_id>.png            # rendered plot
-
-The fetcher checks for the continuous file first, then sampled; if neither
-exists, it tries to download continuous via astroquery.gaia (which requires
-Gaia archive credentials -- see README §13.2 for bootstrap).
+Version-2 product references pin exact FITS blobs in the shared library and
+are authoritative. Legacy local ``gaia_xp_*`` FITS files remain readable only
+when no applicable v2 reference exists. Optional downloads are delegated to
+the generic Gaia product pipeline, which publishes the resulting references.
+Rendered PNGs live under ``gaia_xp_png`` and carry a sidecar keyed by the
+pinned FITS hash and renderer contract, so product refreshes invalidate them.
 
 The high-level entry point ``get_xp_spectrum_png()`` returns a dict with a
 ``file://`` URL suitable for MCP tool consumption.
 """
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
+
+from astro_pipeline.library.files import BlobIntegrityError, atomic_json
+from astro_pipeline.library.refs import ProductReferenceError, resolve_product
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,15 @@ CONTINUOUS_SUBDIR = "gaia_xp_continuous"
 SAMPLED_SUBDIR = "gaia_xp_sampled"
 PNG_SUBDIR = "gaia_xp_png"
 XP_SAMPLED_WAVELENGTH_NM = np.arange(336.0, 1021.0, 2.0)
+XP_PLOT_RENDERER_VERSION = "2"
+XP_PLOT_OPTIONS = {
+    "figsize": [10, 4],
+    "dpi": 110,
+    "line_color": "#60a5fa",
+    "line_width": 1.0,
+    "error_alpha": 0.2,
+    "xlim": [330, 1100],
+}
 
 
 def _json_float_list(values: Any) -> list[float | None]:
@@ -47,87 +57,106 @@ def fetch_xp_spectrum(
     cache_dir: Path | str,
     *,
     allow_download: bool = False,
+    release: str = "dr3",
 ) -> dict:
-    """Find (or download) the cached XP spectrum for ``gaia_id``.
+    """Find (or download) a verified XP spectrum for ``gaia_id``.
 
-    Returns a dict with ``format`` ("continuous" | "sampled"), ``path`` to
-    the source FITS, and ``source_id``. Raises ``LookupError`` if neither
-    cached format exists (and ``allow_download=False`` or download failed).
+    Explicit v2 product references are authoritative and pin the exact shared
+    blob version.  Legacy local FITS files are used only when the relevant
+    product has no v2 references.  Continuous is preferred over sampled.
     """
     cache = Path(cache_dir)
-    cont_path = cache / CONTINUOUS_SUBDIR / f"{gaia_id}.fits"
-    samp_path = cache / SAMPLED_SUBDIR / f"{gaia_id}.fits"
+    attempts: list[str] = []
+    products = [
+        ("continuous", CONTINUOUS_SUBDIR, "XP_CONTINUOUS"),
+        ("sampled", SAMPLED_SUBDIR, "XP_SAMPLED"),
+    ]
 
-    if cont_path.exists():
-        return {"format": "continuous", "path": cont_path, "source_id": gaia_id}
-    if samp_path.exists():
-        return {"format": "sampled", "path": samp_path, "source_id": gaia_id}
+    for fmt, _subdir, retrieval_type in products:
+        try:
+            resolved = resolve_product(
+                cache,
+                gaia_id,
+                retrieval_type,
+                release=release,
+            )
+        except (BlobIntegrityError, FileNotFoundError, ProductReferenceError, ValueError) as exc:
+            attempts.append(f"{retrieval_type}: {exc}")
+            continue
+        return {
+            "format": fmt,
+            "source_id": str(gaia_id),
+            **resolved,
+        }
 
     if allow_download:
-        # Try continuous first, then sampled. Both require Gaia archive auth.
-        for fmt, subdir, retrieval_type in [
-            ("continuous", CONTINUOUS_SUBDIR, "XP_CONTINUOUS"),
-            ("sampled", SAMPLED_SUBDIR, "XP_SAMPLED"),
-        ]:
+        # The generic GaiaSource downloader owns authentication, product
+        # normalization, shared-library reuse, and reference publication.
+        for fmt, subdir, retrieval_type in products:
             try:
-                _download_via_datalink([gaia_id], cache / subdir, retrieval_type)
-            except Exception as e:
-                logger.debug("download %s failed for %s: %s", fmt, gaia_id, e)
+                _download_via_datalink(
+                    [str(gaia_id)],
+                    cache / subdir,
+                    retrieval_type,
+                    release=release,
+                )
+                resolved = resolve_product(
+                    cache,
+                    gaia_id,
+                    retrieval_type,
+                    release=release,
+                )
+            except Exception as exc:
+                logger.debug("download %s failed for %s: %s", fmt, gaia_id, exc)
+                attempts.append(f"download {retrieval_type}: {exc}")
                 continue
-            path = cache / subdir / f"{gaia_id}.fits"
-            if path.exists():
-                logger.info("downloaded %s spectrum for %s", fmt, gaia_id)
-                return {"format": fmt, "path": path, "source_id": gaia_id}
+            logger.info("downloaded %s spectrum for %s", fmt, gaia_id)
+            return {
+                "format": fmt,
+                "source_id": str(gaia_id),
+                **resolved,
+            }
 
+    details = "; ".join(attempts[-4:])
     raise LookupError(
-        f"No cached XP spectrum for Gaia DR3 {gaia_id} under {cache} "
-        f"(checked {CONTINUOUS_SUBDIR}/ and {SAMPLED_SUBDIR}/). "
-        f"Run examples/twa_sample.py or set Gaia credentials to enable download."
+        f"No verified XP spectrum for Gaia {release.upper()} {gaia_id} under {cache}."
+        + (f" {details}" if details else "")
     )
 
 
 def _download_via_datalink(
-    source_ids: list[str], out_dir: Path, retrieval_type: str
+    source_ids: list[str],
+    out_dir: Path,
+    retrieval_type: str,
+    *,
+    release: str,
 ) -> None:
-    """Download via astroquery.gaia (requires auth for XP_*).
+    """Use the generic release-aware Gaia product downloader."""
+    from astro_pipeline.config import GaiaConfig, PipelineConfig
+    from astro_pipeline.library import get_library
+    from astro_pipeline.sources.gaia import GaiaSource
 
-    Reads credentials from config/local.yaml via PipelineConfig.load().
-    Thin wrapper around astroquery; reused from sources/gaia.py logic but kept
-    standalone so this module has no hard dependency on the project's source
-    abstraction.
-    """
-    from astroquery.gaia import Gaia  # local import: heavy + networked
-
-    from astro_pipeline.config import PipelineConfig
-
-    cfg = PipelineConfig.load()
-    if cfg.gaia.username:
-        Gaia.login(user=cfg.gaia.username, password=cfg.gaia.password)
-        logger.info("Logged in to Gaia archive as %s", cfg.gaia.username)
-
-    out_dir.mkdir(parents=True, exist_ok=True)
-    dl = Gaia.load_data(
-        ids=source_ids,
-        data_release="Gaia DR3",
-        data_structure="RAW",
-        retrieval_type=retrieval_type,
-        format="fits",
+    config = PipelineConfig.load()
+    configured_release = config.gaia.release
+    gaia_values = config.gaia.model_dump()
+    gaia_values["release"] = release
+    if release != configured_release:
+        gaia_values["db_schema"] = None
+    gaia_config = GaiaConfig(**gaia_values)
+    library = get_library(config, create=True)
+    gaia = GaiaSource(
+        gaia_config,
+        config.network,
+        library_store=library,
+        library_run_id=None,
+        library_refresh=False,
     )
-    for _key, tables in (dl or {}).items():
-        for table in tables:
-            from astropy.table import Table
-
-            if not isinstance(table, Table):
-                table = Table(table)
-            names = {name.lower(): name for name in table.colnames}
-            sid_col = names.get("source_id") or names.get("sourceid")
-            if not sid_col:
-                continue
-            for row_index in range(len(table)):
-                sid = str(table[sid_col][row_index])
-                table[row_index : row_index + 1].write(
-                    str(out_dir / f"{sid}.fits"), format="fits", overwrite=True,
-                )
+    gaia.download_spectra(
+        source_ids,
+        out_dir,
+        resume=True,
+        retrieval_type=retrieval_type,
+    )
 
 
 # --------------------------------------------------------------------- read
@@ -268,23 +297,34 @@ def render_xp_plot(spectrum: dict, out_path: Path | str, *, title: Optional[str]
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
 
-    fig, ax = plt.subplots(figsize=(10, 4), dpi=110)
+    fig, ax = plt.subplots(
+        figsize=tuple(XP_PLOT_OPTIONS["figsize"]),
+        dpi=XP_PLOT_OPTIONS["dpi"],
+    )
 
     wavelength = np.asarray(spectrum.get("wavelength", []), dtype=float)
     flux = np.asarray(spectrum.get("flux", []), dtype=float)
     flux_error = np.asarray(spectrum.get("flux_error", []), dtype=float)
 
     if wavelength.size:
-        ax.plot(wavelength, flux, color="#60a5fa", lw=1.0, label="XP sampled")
+        ax.plot(
+            wavelength,
+            flux,
+            color=XP_PLOT_OPTIONS["line_color"],
+            lw=XP_PLOT_OPTIONS["line_width"],
+            label="XP sampled",
+        )
         if flux_error.size == flux.size:
             ax.fill_between(
                 wavelength, flux - flux_error, flux + flux_error,
-                color="#60a5fa", alpha=0.2, linewidth=0,
+                color=XP_PLOT_OPTIONS["line_color"],
+                alpha=XP_PLOT_OPTIONS["error_alpha"],
+                linewidth=0,
             )
 
     ax.set_xlabel("Wavelength [nm]")
     ax.set_ylabel(r"Flux [W m$^{-2}$ nm$^{-1}$]")
-    ax.set_xlim(330, 1100)
+    ax.set_xlim(*XP_PLOT_OPTIONS["xlim"])
     ax.legend(loc="upper right", framealpha=0.9)
     ax.grid(alpha=0.25)
 
@@ -309,38 +349,93 @@ def get_xp_spectrum_png(
     *,
     force_refresh: bool = False,
     allow_download: bool = False,
+    release: str = "dr3",
 ) -> dict:
-    """High-level orchestrator: fetch + read + render, returning a result dict.
+    """Fetch, read, and render an XP spectrum with content-aware PNG caching.
 
-    Returns
-    -------
-    dict with: url (file://), format, cached (PNG), path_png, gaia_id,
-    n_points. On failure: {"error": str}.
-
-    PNG rendering is cached at ``cache_dir/gaia_xp_png/<gaia_id>.png``.
-    Pass ``force_refresh=True`` to overwrite.
+    A cached PNG is reusable only when its sidecar records the same verified
+    FITS SHA-256 plus the current renderer version and visual options.  Product
+    refreshes therefore invalidate plots even when the Gaia identifier and PNG
+    filename are unchanged.
     """
     cache = Path(cache_dir)
     png_path = cache / PNG_SUBDIR / f"{gaia_id}.png"
-
-    if png_path.exists() and not force_refresh:
-        # PNG already rendered; return immediately.
-        return _png_result(gaia_id, png_path, format="cached", cached=True)
+    metadata_path = png_path.with_suffix(png_path.suffix + ".json")
 
     try:
-        spec_meta = fetch_xp_spectrum(gaia_id, cache, allow_download=allow_download)
+        spec_meta = fetch_xp_spectrum(
+            gaia_id,
+            cache,
+            allow_download=allow_download,
+            release=release,
+        )
+    except (BlobIntegrityError, LookupError, ProductReferenceError, ValueError) as exc:
+        return {"error": str(exc), "gaia_id": gaia_id}
+
+    expected_metadata = _png_cache_metadata(spec_meta)
+    if (
+        png_path.is_file()
+        and not force_refresh
+        and _png_cache_matches(metadata_path, expected_metadata)
+    ):
+        cached_metadata = _read_json(metadata_path) or {}
+        return _png_result(
+            gaia_id,
+            png_path,
+            format="cached",
+            cached=True,
+            n_points=int(cached_metadata.get("n_points", 0)),
+        )
+
+    try:
         spectrum = read_xp_spectrum(spec_meta)
-    except (LookupError, ValueError) as e:
-        return {"error": str(e), "gaia_id": gaia_id}
+    except (LookupError, ValueError) as exc:
+        return {"error": str(exc), "gaia_id": gaia_id}
 
     try:
         render_xp_plot(spectrum, png_path)
-    except Exception as e:
-        return {"error": f"plot render failed: {e}", "gaia_id": gaia_id}
+        atomic_json(
+            metadata_path,
+            {
+                **expected_metadata,
+                "n_points": len(spectrum.get("wavelength", [])),
+            },
+        )
+    except Exception as exc:
+        return {"error": f"plot render failed: {exc}", "gaia_id": gaia_id}
 
     return _png_result(
-        gaia_id, png_path, format=spectrum["format"], cached=False,
+        gaia_id,
+        png_path,
+        format=spectrum["format"],
+        cached=False,
         n_points=len(spectrum.get("wavelength", [])),
+    )
+
+
+def _png_cache_metadata(spec_meta: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": "1.0",
+        "source_sha256": str(spec_meta["sha256"]),
+        "source_version_id": spec_meta.get("version_id"),
+        "source_format": str(spec_meta["format"]),
+        "renderer_version": XP_PLOT_RENDERER_VERSION,
+        "renderer_options": XP_PLOT_OPTIONS,
+    }
+
+
+def _read_json(path: Path) -> dict[str, Any] | None:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _png_cache_matches(path: Path, expected: dict[str, Any]) -> bool:
+    actual = _read_json(path)
+    return actual is not None and all(
+        actual.get(key) == value for key, value in expected.items()
     )
 
 

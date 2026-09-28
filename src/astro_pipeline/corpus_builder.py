@@ -33,7 +33,12 @@ from astro_pipeline.gaia_releases import (
     get_gaia_release_profile,
     normalize_gaia_release,
 )
-from astro_pipeline.intake import resolve_members
+from astro_pipeline.intake import (
+    InputResolution, describe_input_contract,
+    resolve_members_with_provenance as resolve_members,
+)
+from astro_pipeline.library import get_library
+from astro_pipeline.library.files import atomic_file
 from astro_pipeline.io.writer import save_catalog_parquet
 from astro_pipeline.manifest import CorpusManifest, validate_label
 from astro_pipeline.sources.simbad_refs import build_paper_edges
@@ -63,6 +68,13 @@ class CorpusBuildResult:
     skipped_simbad: bool = False
     elapsed_seconds: float = 0.0
     error: Optional[str] = None
+    run_id: str = ""
+    library_corpus_id: str = ""
+    library_root: str = ""
+    library_indexed: bool = False
+    n_input_rows: int = 0
+    n_unique_sources: int = 0
+    storage_mode: str = "legacy"
 
 
 def build_corpus_snapshot(
@@ -79,6 +91,7 @@ def build_corpus_snapshot(
     enrich: bool = True,
     xp_sampled: bool = False,
     xp_continuous: bool = False,
+    refresh: bool = False,
 ) -> CorpusBuildResult:
     """Build a corpus snapshot from any input mode and persist to disk.
 
@@ -146,6 +159,16 @@ def build_corpus_snapshot(
 
     logger.info("Building corpus %r: %s", label, input_summary)
 
+    library = get_library()
+    if library is not None:
+        return _build_indexed_snapshot(
+            library=library, label=label, out_dir=out_dir, input_mode=input_mode,
+            input_summary=input_summary, gaia_release=gaia_release,
+            cone=cone, name=name, region=region, catalog=catalog, limit=limit,
+            skip_simbad=skip_simbad, sleep_seconds=sleep_seconds, enrich=enrich,
+            xp_sampled=xp_sampled, xp_continuous=xp_continuous, refresh=refresh,
+        )
+
     manifest = CorpusManifest.open_or_create(
         out_dir / "manifest.json",
         label=label,
@@ -165,6 +188,8 @@ def build_corpus_snapshot(
         members = resolve_members(
             cone=cone, name=name, region=region, catalog=catalog, limit=limit,
         )
+        if isinstance(members, InputResolution):
+            members = members.members
     except Exception as e:
         manifest.update_stage("resolve_members", status="failed", error=str(e))
         manifest.add_error(f"member resolution failed: {e}")
@@ -203,6 +228,60 @@ def build_corpus_snapshot(
     )
 
 
+def _build_indexed_snapshot(
+    *, library, label, out_dir, input_mode, input_summary, gaia_release,
+    cone, name, region, catalog, limit, skip_simbad, sleep_seconds, enrich,
+    xp_sampled, xp_continuous, refresh,
+) -> CorpusBuildResult:
+    from astro_pipeline.library.build import LibraryRun, id_cache_fetcher
+    inputs = dict(cone=cone, name=name, region=region, catalog=catalog, limit=limit)
+    contract = describe_input_contract(**inputs)
+    started = time.time()
+    with LibraryRun(
+        store=library, out_dir=out_dir, label=label, input_mode=input_mode,
+        input_summary=input_summary, contract=contract, release=gaia_release,
+        requested_products=_requested_products(
+            skip_simbad=skip_simbad, xp_sampled=xp_sampled, xp_continuous=xp_continuous,
+        ),
+        options={"refresh": refresh, "enrich": enrich, "skip_simbad": skip_simbad},
+    ) as run:
+        run.capture_input(catalog)
+        run.manifest.update_stage("resolve_members", status="running", completed=0)
+        try:
+            resolution = resolve_members(
+                **inputs, id_fetcher=id_cache_fetcher(library, gaia_release, refresh=refresh),
+            )
+            if isinstance(resolution, pd.DataFrame):
+                resolution = InputResolution(resolution, contract=contract)
+            run.set_resolution(resolution)
+        except Exception as exc:
+            run.manifest.update_stage("resolve_members", status="failed", error=str(exc))
+            run.manifest.add_error(f"member resolution failed: {exc}")
+            run.manifest.finish("failed")
+            return run.finish(CorpusBuildResult(
+                label=label, input_mode=input_mode, input_summary=input_summary,
+                n_members=0, n_paper_edges=0, n_unique_papers=0,
+                out_dir=str(out_dir), gaia_release=gaia_release,
+                skipped_simbad=skip_simbad, elapsed_seconds=time.time() - started,
+                error=str(exc),
+            ))
+        members = resolution.members
+        run.manifest.update_stage(
+            "resolve_members", status="completed", total=len(members), completed=len(members),
+        )
+        if members.empty:
+            run.index_members(members)
+        result = build_corpus_from_members(
+            label=label, out_dir=run.run_dir, members=members, input_mode=input_mode,
+            input_summary=input_summary, skip_simbad=skip_simbad,
+            sleep_seconds=sleep_seconds, enrich=enrich,
+            xp_sampled=xp_sampled, xp_continuous=xp_continuous,
+            started_at=started, manifest=run.manifest, gaia_release=gaia_release,
+            library_run=run, refresh=refresh,
+        )
+        return run.finish(result)
+
+
 def build_corpus_from_members(
     *,
     label: str,
@@ -218,6 +297,8 @@ def build_corpus_from_members(
     started_at: Optional[float] = None,
     manifest: Optional[CorpusManifest] = None,
     gaia_release: str = "dr3",
+    library_run=None,
+    refresh: bool = False,
 ) -> CorpusBuildResult:
     """Persist an already-resolved Gaia member table as a corpus snapshot.
 
@@ -281,14 +362,20 @@ def build_corpus_from_members(
     members_csv = out_dir / "members.csv"
     members_parquet = out_dir / "members.parquet"
     members = members.copy()
+    if "gaia_release" in members:
+        releases = {normalize_gaia_release(value) for value in members["gaia_release"].dropna().astype(str)}
+        if releases - {gaia_release}:
+            raise ValueError("Member rows contain a different Gaia release than the corpus")
     members["gaia_release"] = gaia_release
-    members.to_csv(members_csv, index=False)
+    atomic_file(members_csv, lambda temporary: members.to_csv(temporary, index=False))
     save_catalog_parquet(members, members_parquet)
     manifest.update_stage(
         "save_members", status="completed", total=len(members), completed=len(members)
     )
     manifest.add_artifact("members_csv", members_csv, rows=len(members))
     manifest.add_artifact("members_parquet", members_parquet, rows=len(members))
+    if library_run is not None:
+        library_run.index_members(members)
 
     # Optional Gaia XP products are independent of SIMBAD and therefore also
     # work for quick ``skip_simbad`` corpus builds.
@@ -305,6 +392,9 @@ def build_corpus_from_members(
             sampled=xp_sampled,
             continuous=xp_continuous,
             progress_callback=update_product_stage,
+            library_store=library_run.store if library_run else None,
+            run_id=library_run.run_id if library_run else None,
+            refresh=refresh,
         )
         if xp_products.get("availability_path"):
             manifest.add_artifact(
@@ -324,6 +414,10 @@ def build_corpus_from_members(
     else:
         _set_stage_if_absent(manifest, "gaia_xp_sampled", status="not_requested")
         _set_stage_if_absent(manifest, "gaia_xp_continuous", status="not_requested")
+
+    if library_run is not None:
+        from astro_pipeline.library.refs import collect_corpus_refs
+        collect_corpus_refs(out_dir, run_id=library_run.run_id, release=gaia_release)
 
     if skip_simbad:
         logger.info("--skip-simbad; stopping after members.*")
@@ -380,6 +474,10 @@ def build_corpus_from_members(
             sleep_seconds=sleep_seconds,
             enrich=enrich,
             progress_callback=update_simbad_progress,
+            library_store=library_run.store if library_run else None,
+            gaia_release=gaia_release,
+            run_id=library_run.run_id if library_run else None,
+            refresh=refresh,
         )
     except Exception as exc:
         message = f"SIMBAD paper stage failed: {exc}"

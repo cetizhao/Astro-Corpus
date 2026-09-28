@@ -658,31 +658,19 @@ def build_overview_html(
 
     spectra_by_source: dict[str, dict] = {}
     if spectra_dir:
-        from astro_pipeline.spectra import read_xp_continuous, read_xp_sampled
+        from astro_pipeline.spectra import fetch_xp_spectrum, read_xp_spectrum
 
         spectrum_root = Path(spectra_dir)
         for gaia_id in catalog[GAIA_ID_COL].astype(str):
-            candidates = [
-                (
-                    spectrum_root / "gaia_xp_continuous" / f"{gaia_id}.fits",
-                    read_xp_continuous,
-                ),
-                (
-                    spectrum_root / "gaia_xp_sampled" / f"{gaia_id}.fits",
-                    read_xp_sampled,
-                ),
-                # Backward compatibility: older callers passed the sampled
-                # product directory rather than the corpus root.
-                (spectrum_root / f"{gaia_id}.fits", read_xp_sampled),
-            ]
-            for spectrum_path, reader in candidates:
-                if not spectrum_path.exists():
-                    continue
-                try:
-                    spectra_by_source[gaia_id] = reader(spectrum_path)
-                    break
-                except Exception:
-                    continue
+            try:
+                spectrum_meta = fetch_xp_spectrum(
+                    gaia_id,
+                    spectrum_root,
+                    allow_download=False,
+                )
+                spectra_by_source[gaia_id] = read_xp_spectrum(spectrum_meta)
+            except Exception:
+                continue
 
     payload = compute_overview(
         catalog,

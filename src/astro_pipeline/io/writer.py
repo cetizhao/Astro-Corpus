@@ -7,18 +7,16 @@ from typing import Optional
 import pandas as pd
 from astropy.table import Table
 
+from astro_pipeline.library.files import atomic_file, atomic_json
+
 
 def save_catalog_parquet(df: pd.DataFrame, path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(path, engine="pyarrow", index=False)
-    return path
+    return atomic_file(path, lambda temporary: df.to_parquet(temporary, engine="pyarrow", index=False))
 
 
 def save_catalog_fits(df: pd.DataFrame, path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
     table = Table.from_pandas(df)
-    table.write(str(path), overwrite=True)
-    return path
+    return atomic_file(path, lambda temporary: table.write(str(temporary), format="fits", overwrite=True))
 
 
 class DownloadCheckpoint:
@@ -43,7 +41,7 @@ class DownloadCheckpoint:
             "completed": sorted(self.completed),
             "failed": sorted(self.failed),
         }
-        self.path.write_text(json.dumps(data, indent=2))
+        atomic_json(self.path, data)
 
     def mark_completed(self, identifier: str) -> None:
         self.completed.add(identifier)

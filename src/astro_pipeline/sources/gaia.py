@@ -19,10 +19,19 @@ from astro_pipeline.sources.base import CatalogSource
 
 if TYPE_CHECKING:
     from astro_pipeline.gaia_products import GaiaArtifact, GaiaProductRequest
+    from astro_pipeline.library.store import LibraryStore
 
 
 class GaiaSource(CatalogSource):
-    def __init__(self, config: GaiaConfig, network: NetworkConfig) -> None:
+    def __init__(
+        self,
+        config: GaiaConfig,
+        network: NetworkConfig,
+        *,
+        library_store: LibraryStore | None = None,
+        library_run_id: str | None = None,
+        library_refresh: bool = False,
+    ) -> None:
         super().__init__(config, network)
         self._gaia_config = config
         self._retry = make_retry_decorator(network)
@@ -30,6 +39,9 @@ class GaiaSource(CatalogSource):
         self._logged_in = False
         self._release_profile = get_gaia_release_profile(config.release)
         self._db_schema = config.db_schema or self._release_profile.tap_schema
+        self._library_store = library_store
+        self._library_run_id = library_run_id
+        self._library_refresh = bool(library_refresh)
 
     def _ensure_login(self) -> None:
         if self._logged_in:
@@ -37,7 +49,7 @@ class GaiaSource(CatalogSource):
         if self._gaia_config.username and self._gaia_config.password:
             from astroquery.gaia import Gaia
 
-            self._logger.info("Logging in to Gaia archive as %s", self._gaia_config.username)
+            self._logger.info("Logging in to Gaia archive with configured credentials")
             Gaia.login(
                 user=self._gaia_config.username,
                 password=self._gaia_config.password,
@@ -590,10 +602,11 @@ class GaiaSource(CatalogSource):
                 "returned in astroquery's table dictionary; blob transport is deferred "
                 "until the DR4 service is publicly testable"
             )
-        self._ensure_login()
-
         @self._retry
         def load_data(**kwargs):
+            # A shared-library hit never invokes this callback, so cached product
+            # reads neither import astroquery's DataLink client nor attempt login.
+            self._ensure_login()
             return self._load_data(**kwargs)
 
         return download_gaia_product_request(
@@ -602,4 +615,7 @@ class GaiaSource(CatalogSource):
             resume=resume,
             loader=load_data,
             progress_callback=progress_callback,
+            library=self._library_store,
+            run_id=self._library_run_id,
+            refresh=self._library_refresh,
         )

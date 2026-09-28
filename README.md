@@ -17,6 +17,9 @@
 [工程与 AI 语料学习指南](docs/learning-guide.md) 开始。该文档按概念依赖组织本项目的
 带读、练习、答案和学习进度，不要求先通读本 README。
 
+新建 corpus 默认使用跨 label 共享的本地 SQLite + 内容寻址对象库；其路径、缓存、
+快照、导入/导出和备份语义见 [共享 library 运维说明](docs/library.md)。
+
 ## 1. 项目定位
 
 `astro-pipeline` 的现实目标不是训练基础模型，而是先建立一套可自动运行的天文数据准备管线：
@@ -46,6 +49,7 @@
 | 公开成员星表 | 已实现 | VizieR 搜索→表预览→显式选择；保留原字段并匹配 Gaia DR3 |
 | 用户星表 | 已实现 | CSV 中的 Gaia ID 或 RA/Dec 位置匹配 |
 | corpus manifest / 进度 | 已实现 | `manifest.json` 原子更新，MCP 可读阶段与 XP 进度 |
+| 跨 corpus 共享 library | 已实现 | 默认 `data/_library/index.sqlite3` + 内容寻址对象；保留 run/input provenance 并复用源、论文和 Gaia 产品 |
 | Gaia 主表大规模下载 | 已实现·底座 | 按 `source_id` HEALPix 区间和游标分页保存 Parquet；默认一次一块 |
 | Gaia DR4 接口预适配 | 已实现·安全关闭 | runtime 探测 schema/表/产品；source identity 带 release；未确认分区前拒绝 DR4 bulk |
 | 通用 Gaia DataLink 产品 | 已实现·表格产品 | release/product/format/structure 显式请求，保存 checkpoint、checksum 与 artifact provenance |
@@ -104,6 +108,7 @@ astro-pipeline/
     corpus_products.py      # corpus 级 Gaia XP 可用性与续传下载
     membership.py           # VizieR 成员目录搜索、预览、Gaia DR3 匹配
     manifest.py             # corpus 原子 manifest / 下载计划
+    library/                # 全局 SQLite index、CAS、run 快照、缓存与导入/导出
     bulk_gaia.py            # Gaia gaia_source HEALPix 分块下载底座
     gaia_releases.py        # DR3 稳定 / DR4 provisional release profiles
     gaia_archive.py         # TAP_SCHEMA 与 DataLink live discovery
@@ -136,6 +141,7 @@ astro-pipeline/
     download_twa_xp.py      # 【v0.3.0】下载 TWA XP Sampled FITS
     download_twa_xp_continuous.py # 【v0.3.0】分批下载 TWA XP Continuous FITS
     build_corpus.py         # 通用 name/cone/region/CSV corpus CLI
+    library.py              # 共享 library status/import/verify/export 管理 CLI
     gaia_bulk.py            # Gaia 主表分块 plan/run/status CLI
   examples/
     twa_sample.py           # TWA 端到端 demo（SIMBAD 关联 + 正确标志）
@@ -205,11 +211,12 @@ astro-pipeline/
 
 配置入口在 `config/default.yaml` 与 `config/benchmark.yaml`。
 
-主要配置分为四组：
+主要配置分为六组：
 
 | 配置段 | 作用 |
 |---|---|
 | `output` | 本地数据目录：星表、光谱、checkpoint |
+| `library` | 共享 library 开关、根目录、SQLite busy 时限、lease 与正/负缓存 TTL |
 | `network` | 超时、重试次数、指数退避间隔、下载 chunk size |
 | `gaia` | Gaia TAP 地址、schema、默认字段、账号密码 |
 | `lamost` | LAMOST DR11 地址、光谱下载地址、VizieR 星表编号 |
@@ -225,10 +232,16 @@ Gaia TAP 查询的 `gaia.default_query_timeout` 是包含重试、轮询和结�
 
 ```text
 data/
+  _library/       # 默认共享 SQLite index + immutable content-addressed objects
+  <label>/        # corpus 兼容视图 + runs/<run_id>/ 快照
   catalogs/       # Parquet 星表
   spectra/        # FITS 光谱
   checkpoints/    # 预留目录；实际 checkpoint 当前放在各 spectra 子目录
 ```
+
+可在 gitignored `config/local.yaml` 里设置 `library.enabled` / `library.root`，
+或用 `ASTRO_PIPELINE_LIBRARY_DIR` 临时覆盖根目录。新建高层 corpus 默认启用共享
+library；设 `library.enabled: false` 才走旧的 label-local 路径。
 
 ### 6.2 数据源抽象层
 
@@ -364,10 +377,13 @@ Gaia DR3 source_id
   -> bibcode -> title / DOI / year / journal（SIMBAD query_bibcode）
 ```
 
-这替换了 v0.1 的子串匹配（曾把 94 篇论文匹配到全部 49 个源，是垃圾结果）。论文行缓存
-到 `data/twa/simbad_refs.parquet`；已查询源（包括零论文源）和待重试失败记录在
-`data/twa/simbad_refs.checkpoint.json`。两者都原子更新，可断点续跑、离线复用，且不会用
-空论文占位行污染语料。
+这替换了 v0.1 的子串匹配（曾把 94 篇论文匹配到全部 49 个源，是垃圾结果）。默认
+library 模式把源→参考文献快照、bibcode 元数据和 DOI→arXiv 结果分别共享到全局缓存，
+不同 label 可复用同一观测；`data/<label>/simbad_refs.parquet`、
+`simbad_refs.checkpoint.json` 和 `paper_edges.parquet` 仍作为兼容投影保留。成功的零论文/
+未解析结果是短 TTL 负观测，网络失败可重试且不会替换最后一次成功指针。禁用 library
+时仍保持原 label-local Parquet/checkpoint 行为。详细 TTL、refresh 和并发语义见
+[docs/library.md](docs/library.md)。
 
 ### 命令行使用
 
@@ -402,6 +418,10 @@ res = corpus.lookup_paper("1806.05059")
 # res["paper"]  -> 论文元数据
 # res["sources"] -> [{gaia_id, astrometry, multimodal}, ...]
 ```
+
+`Corpus` 与上述 CLI 始终只看一个 corpus。跨 label 的离线查询使用 MCP
+`lookup_library_source` / `lookup_library_paper` / `library_status`；这些只读工具不会为了
+查询而创建或迁移不存在的数据库。
 
 ### 多模态数据策略
 
@@ -726,6 +746,7 @@ v0.2 已修复其中数项（见下表「状态」列）。剩余项为后续改
 | MCP agent 接口 | `.codex/config.toml` + `.mcp.json` + `mcp_server.py` | Codex/Claude clone 后可搜索、预览、下载和查进度 |
 | 成员目录语料 | `data/<label>/membership_catalog.*` + `members.*` | 原表、Gaia 匹配、未匹配行均可审计 |
 | 下载状态 | `data/<label>/manifest.json` | 阶段、计数、警告、错误和产物原子更新 |
+| 共享 library | `data/_library/` + `data/<label>/runs/` | release-qualified 去重、输入行 provenance、固定 run/product 版本和跨 label 查询 |
 | Gaia 主表分块 | `data/gaia_bulk/<label>/` | HEALPix 区间无重叠、游标分页、可恢复 |
 | Gaia 通用产品 | `data/gaia_products/<label>/` | 请求契约、Archive 表、按 ID 文件、checksum 和 checkpoint |
 | 交互式可视化 | `data/twa/source_paper_viz*.html` | 6 张图 + 搜索/点击 focus + 天测与 XP 光谱面板 |
@@ -751,7 +772,11 @@ git clone <repo>
 cd astro-pipeline
 uv sync                              # 装依赖
 uv run pytest -q                     # 离线测试；network 标记默认排除
+uv run python scripts/library.py status  # 只读；不存在时不会创建 library
 ```
+
+首次高层构建会在默认 `data/_library/` 初始化共享存储；也可先在
+`config/local.yaml` 禁用或改路径。不要把 library、corpus 数据或凭据提交到 Git。
 
 ### 13.2 获取 TWA 输入星表
 
@@ -798,7 +823,13 @@ uv run python scripts/build_corpus.py --name "TW Hya" \
 uv run python scripts/gaia_bulk.py plan gaia_demo \
   --level 12 --pixel-start 157212945 --pixel-stop 157212946
 uv run python scripts/gaia_bulk.py run gaia_demo --max-chunks 1
+
+# 查看全局共享覆盖（只读）
+uv run python scripts/library.py status
 ```
+
+library 的 dry-run import、verify/reconcile、固定 run 导出和 standalone 导出见
+[docs/library.md](docs/library.md)。
 
 公开成员目录目前以 MCP/Python API 为主要入口，完整顺序见 [docs/integration-guide.md](docs/integration-guide.md)。
 
@@ -816,12 +847,13 @@ uv run python scripts/gaia_bulk.py run gaia_demo --max-chunks 1
 
 ## 14. MCP 集成（让 AI agent 调用本 pipeline）
 
-本仓库自带 [MCP server](https://modelcontextprotocol.io/)（`src/astro_pipeline/mcp_server.py`），覆盖 corpus 查询、名称/天区输入、公开成员目录、XP/通用 DataLink 下载、release discovery、进度查询和 Gaia 主表分块。用户可以只描述目标，不必亲自运行命令。
+本仓库自带 [MCP server](https://modelcontextprotocol.io/)（`src/astro_pipeline/mcp_server.py`），当前注册 25 个工具，覆盖单 corpus 与全局 library 查询、名称/天区输入、公开成员目录、XP/通用 DataLink 下载、release discovery、进度查询和 Gaia 主表分块。用户可以只描述目标，不必亲自运行命令。
 
 ### 14.1 三条主要工作流
 
 | 需求 | Agent 调用顺序 |
 |---|---|
+| 跨本机所有已索引 corpus 查源/论文 | `lookup_library_source` / `lookup_library_paper`；先用 `library_status` 看覆盖 |
 | 某个天区的所有 Gaia 场源 | `download_plan` → `download_corpus(cone/region=...)` → `corpus_status` |
 | Taurus/Pleiades 等物理成员 | `search_membership_catalogs` → `preview_membership_catalog` → `download_membership_corpus` |
 | 大规模物化 Gaia 主表 | `create_gaia_bulk_plan` → `run_gaia_bulk_download` → `gaia_bulk_status` |
@@ -830,7 +862,7 @@ uv run python scripts/gaia_bulk.py run gaia_demo --max-chunks 1
 
 `region` 只是以名称为中心的几何锥形搜索，不等于成员。成员工作流保留原 VizieR 表、成员概率/标志、Gaia 匹配角距离和未匹配行，不默认筛选。
 
-`download_corpus` 与 `download_membership_corpus` 可用 `xp_sampled=true` / `xp_continuous=true` 按需下载光谱；默认关闭。每次构建在 `data/<label>/manifest.json` 记录阶段、数量、错误和产物，另一个 agent 可随时调 `corpus_status(label)`。
+`download_corpus` 与 `download_membership_corpus` 可用 `xp_sampled=true` / `xp_continuous=true` 按需下载光谱；默认关闭。新建高层构建默认建立 `runs/<run_id>/` 快照，并用 `active_run_id` 选择 label 顶层兼容视图；共享 Gaia 产品通过固定版本的 `product_refs.json` 引用内容寻址对象。`active_run_id` 只表示该 run 已被选为当前发布视图，不保证所有请求阶段都成功，仍须检查 manifest 的终态、warnings 和 errors。每次构建在 `data/<label>/manifest.json` 记录阶段、数量、错误和产物，另一个 agent 可随时调 `corpus_status(label)`。并发/导出的当前限制见 [docs/library.md](docs/library.md)。
 
 完整工具表、参数与警告见 [docs/integration-guide.md](docs/integration-guide.md)，数据结构见 [docs/architecture.md](docs/architecture.md)。
 
@@ -855,7 +887,7 @@ uv run pytest -q
 | command | `uv` |
 | args | `["run", "python", "-m", "astro_pipeline.mcp_server"]` |
 
-没有 TWA 演示数据时 server 仍可启动，实时搜索与构建工具可用；只有默认缓存的 `lookup_source` / `lookup_paper` / `summarize_corpus` 需要先准备对应数据。
+没有 TWA 演示数据时 server 仍可启动，实时搜索与构建工具可用；只有默认缓存的 `lookup_source` / `lookup_paper` / `summarize_corpus` 需要先准备对应数据。全局 `lookup_library_source` / `lookup_library_paper` / `library_status` 只读现有共享 index，数据库不存在时返回结构化空状态，不会自行创建。
 
 ### 14.3 配置与凭据
 
@@ -864,7 +896,11 @@ uv run pytest -q
 ```bash
 ASTRO_PIPELINE_DATA_DIR=/path/to/data/twa
 ASTRO_PIPELINE_CATALOG=/path/to/TWAxgdr3.csv
+ASTRO_PIPELINE_LIBRARY_DIR=/path/to/shared-library
 ```
+
+`ASTRO_PIPELINE_LIBRARY_DIR` 优先于 `library.root`；若 `library.enabled: false`，则
+环境变量也不会启用它。共享 library 仍是本地生成数据，不应提交到 Git。
 
 个人 Gaia 凭据放在 gitignored `config/local.yaml` 的 `gaia.username` / `gaia.password`；不要提交或输出真实密码。匿名 Gaia TAP 不依赖该账号，XP DataLink 才可能需要。
 
