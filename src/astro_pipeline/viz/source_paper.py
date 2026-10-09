@@ -464,8 +464,19 @@ function renderSpectrum(s) {
   if (spectrumChart) { spectrumChart.dispose(); spectrumChart = null; }
   wrap.style.display = 'block';
   if (!spectrum) {
-    title.textContent = 'Gaia XP spectrum unavailable';
-    chartDom.innerHTML = '<div class="empty">No cached XP Continuous or Sampled data for this source.</div>';
+    const message = document.createElement('div');
+    message.className = 'empty';
+    if (s.spectrum_status === 'cached_not_embedded') {
+      title.textContent = 'Gaia XP 已缓存 · 轻量页面未嵌入';
+      message.textContent = '光谱已入库。请在全库观测台中选择此源，按需读取固定产品。';
+    } else if (s.spectrum_status === 'parse_error') {
+      title.textContent = 'Gaia XP 缓存解析异常';
+      message.textContent = '本地产品存在，但本页无法解析；请查看产品状态，不应将其视为无产品。';
+    } else {
+      title.textContent = 'Gaia XP spectrum unavailable';
+      message.textContent = 'No cached XP Continuous or Sampled data for this source.';
+    }
+    chartDom.replaceChildren(message);
     return;
   }
 
@@ -620,6 +631,8 @@ def build_overview_html(
     echarts_path: Path | str | None = None,
     corpus_name: Optional[str] = None,
     spectra_dir: Path | str | None = None,
+    include_spectra: bool = True,
+    gaia_release: str = "dr3",
 ) -> Path:
     """Top-level entry: read corpus inputs, write the HTML, return its path.
 
@@ -657,20 +670,23 @@ def build_overview_html(
         catalog[NAME_FALLBACK] = catalog[GAIA_ID_COL].astype(str).map(main_map).fillna("")
 
     spectra_by_source: dict[str, dict] = {}
+    spectrum_states: dict[str, dict] = {}
     if spectra_dir:
         from astro_pipeline.spectra import fetch_xp_spectrum, read_xp_spectrum
 
         spectrum_root = Path(spectra_dir)
-        for gaia_id in catalog[GAIA_ID_COL].astype(str):
+        for gaia_id in catalog[GAIA_ID_COL].astype(str).drop_duplicates():
             try:
                 spectrum_meta = fetch_xp_spectrum(
-                    gaia_id,
-                    spectrum_root,
-                    allow_download=False,
+                    gaia_id, spectrum_root, allow_download=False, release=gaia_release,
                 )
-                spectra_by_source[gaia_id] = read_xp_spectrum(spectrum_meta)
-            except Exception:
-                continue
+                spectrum_states[gaia_id] = {"status": "cached_not_embedded", "format": spectrum_meta["format"]}
+                if include_spectra:
+                    spectra_by_source[gaia_id] = read_xp_spectrum(spectrum_meta)
+                    spectrum_states[gaia_id]["status"] = "embedded"
+            except Exception as exc:
+                if gaia_id in spectrum_states:
+                    spectrum_states[gaia_id].update(status="parse_error", error=str(exc))
 
     payload = compute_overview(
         catalog,
@@ -678,6 +694,13 @@ def build_overview_html(
         name_col=name_col,
         spectra_by_source=spectra_by_source,
     )
+    payload["meta"].update(
+        gaia_release=gaia_release, spectra_embedded=include_spectra,
+        n_cached_spectra=len(spectrum_states),
+    )
+    for source in payload["sources"]:
+        source["spectrum_status"] = spectrum_states.get(source["id"], {}).get("status", "unavailable")
+        source["has_xp"] = source["id"] in spectrum_states
     html = render_html(payload, corpus_name=corpus_name)
 
     if inline_echarts:
@@ -694,6 +717,6 @@ def build_overview_html(
             f"<script>{js}</script>",
         )
 
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(html, encoding="utf-8")
+    from astro_pipeline.library.files import atomic_file
+    atomic_file(out, lambda temporary: temporary.write_text(html, encoding="utf-8"))
     return out

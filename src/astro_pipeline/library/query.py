@@ -268,7 +268,15 @@ class Library:
     def _paper_matches(
         rows: Sequence[Mapping[str, Any]], query: str
     ) -> list[dict[str, Any]]:
+        from astro_pipeline.library.papers import normalize_doi
+        from astro_pipeline.sources.paper_fulltext import split_arxiv_id
+
         folded = query.casefold()
+        doi_query = normalize_doi(query)
+        try:
+            arxiv_work, _ = split_arxiv_id(query)
+        except ValueError:
+            arxiv_work = None
         exact: list[dict[str, Any]] = []
         partial: list[dict[str, Any]] = []
         for row in rows:
@@ -276,10 +284,16 @@ class Library:
             metadata.setdefault("bibcode", row["bibcode"])
             identifiers = [
                 str(metadata.get("bibcode", "")),
-                str(metadata.get("arxiv_id", metadata.get("arxiv", ""))),
-                str(metadata.get("doi", "")),
+                str(metadata.get("arxiv_id") or metadata.get("arxiv") or ""),
+                str(metadata.get("doi") or ""),
             ]
-            if any(value and value.casefold() == folded for value in identifiers):
+            try:
+                candidate_work, _ = split_arxiv_id(identifiers[1])
+            except ValueError:
+                candidate_work = None
+            doi_match = bool(identifiers[2].strip()) and normalize_doi(identifiers[2]) == doi_query
+            if (any(value and value.casefold() == folded for value in identifiers)
+                    or doi_match or (arxiv_work is not None and candidate_work == arxiv_work)):
                 exact.append(metadata)
                 continue
             title = str(metadata.get("title", ""))
@@ -361,13 +375,39 @@ class Library:
             "SELECT bibcode, metadata_json, updated_at FROM papers ORDER BY bibcode"
         )
         matches = self._paper_matches(rows, query)
+        from astro_pipeline.library.paper_corpus import lookup_paper_text
+
+        fulltext = lookup_paper_text(self.store, query)
+        from astro_pipeline.sources.paper_fulltext import split_arxiv_id
+
+        try:
+            split_arxiv_id(query)
+            is_arxiv_query = True
+        except ValueError:
+            is_arxiv_query = False
+        if not fulltext["available"] and len(matches) == 1 and not is_arxiv_query:
+            identifier = matches[0].get("arxiv_id") or matches[0].get("arxiv") or matches[0].get("doi")
+            if identifier:
+                fulltext = lookup_paper_text(self.store, str(identifier))
+        if not matches and fulltext["available"]:
+            works = {v["arxiv_id"] for v in fulltext["versions"]}
+            if len(works) == 1:
+                metadata = dict(fulltext["versions"][0]["metadata"])
+                metadata.pop("metadata_blob", None)
+                return {
+                    "exists": True, "scope": _SCOPE, "resolved": True,
+                    "query": query, "paper": metadata, "sources": [],
+                    "fulltext": fulltext, "pagination_target": "sources",
+                    "pagination": _page(limit, offset, 0, 0),
+                }
         if not matches:
             return {
                 "exists": True,
                 "scope": _SCOPE,
                 "resolved": False,
                 "query": query,
-                "reason": "paper_not_found",
+                "reason": "multiple_fulltext_papers" if fulltext["available"] else "paper_not_found",
+                "fulltext": fulltext,
                 "matches": [],
                 "pagination": _page(limit, offset, 0, 0),
             }
@@ -380,6 +420,7 @@ class Library:
                 "ambiguous": True,
                 "query": query,
                 "reason": "multiple_papers",
+                "fulltext": fulltext,
                 "matches": page,
                 "pagination_target": "matches",
                 "pagination": _page(limit, offset, len(matches), len(page)),
@@ -394,6 +435,7 @@ class Library:
             "resolved": True,
             "query": query,
             "paper": paper,
+            "fulltext": fulltext,
             "sources": page,
             "pagination_target": "sources",
             "pagination": _page(limit, offset, len(sources), len(page)),

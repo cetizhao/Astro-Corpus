@@ -1,8 +1,10 @@
 """Runtime capability discovery for Gaia TAP and DataLink services."""
 from __future__ import annotations
 
+import ast
 import io
 import re
+from importlib.metadata import distribution
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 from urllib.parse import parse_qs, urlparse
@@ -118,6 +120,28 @@ def describe_gaia_table(
     }
 
 
+def _installed_datalink_constants() -> dict[str, set[str]]:
+    # Importing astroquery.gaia instantiates its singleton and fetches server
+    # notifications, even when only local capability declarations are needed.
+    names = {"VALID_DATALINK_RETRIEVAL_TYPES", "VALID_LINKING_PARAMETERS"}
+    try:
+        source = distribution("astroquery").locate_file("astroquery/gaia/__init__.py")
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        conf = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Conf")
+        values = {}
+        for node in conf.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id in names:
+                    value = ast.literal_eval(node.value)
+                    if isinstance(value, (list, tuple, set)) and all(isinstance(item, str) for item in value):
+                        values[target.id] = {item.upper() for item in value}
+        return values
+    except (OSError, ValueError, TypeError, SyntaxError, StopIteration, ImportError):
+        return {}
+
+
 def list_gaia_datalink_products(
     release: str,
     *,
@@ -126,12 +150,9 @@ def list_gaia_datalink_products(
     timeout_seconds: float = 30.0,
 ) -> dict[str, Any]:
     """List client-declared products and optionally source-specific live links."""
-    from astroquery.gaia import Gaia
-
     profile = get_gaia_release_profile(release)
-    client_products = {
-        str(value).upper() for value in Gaia.VALID_DATALINK_RETRIEVAL_TYPES
-    }
+    constants = _installed_datalink_constants()
+    client_products = constants.get("VALID_DATALINK_RETRIEVAL_TYPES")
     result: dict[str, Any] = {
         "release": profile.key,
         "archive_tag": profile.archive_tag,
@@ -140,20 +161,27 @@ def list_gaia_datalink_products(
             {
                 "retrieval_type": product,
                 "declared_by_profile": True,
-                "accepted_by_installed_astroquery": product in client_products,
+                "accepted_by_installed_astroquery": (
+                    product in client_products if client_products is not None else None
+                ),
                 "archive_confirmed_for_source": None,
             }
             for product in profile.datalink_products
         ],
         "formats": list(profile.datalink_formats),
         "data_structures": list(profile.datalink_structures),
-        "linking_parameters": sorted(str(value) for value in Gaia.VALID_LINKING_PARAMETERS),
+        "linking_parameters": sorted(constants.get("VALID_LINKING_PARAMETERS", set())),
+        "client_metadata_loaded": client_products is not None,
         "source_id": source_id,
         "live_links": [],
         "warnings": [
             "Client-declared products are compatibility hints, not proof that the Archive currently serves them"
         ],
     }
+    if client_products is None:
+        result["warnings"].append(
+            "Installed astroquery declarations could not be read locally; client acceptance is unknown"
+        )
     if source_id is None:
         return result
     source_id = str(source_id).strip()

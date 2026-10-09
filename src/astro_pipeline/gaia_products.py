@@ -341,9 +341,9 @@ def download_gaia_product_request(
 
 def _default_data_link_loader(**kwargs):
     """Import astroquery only when an actual Archive request is required."""
-    from astroquery.gaia import Gaia
+    from astro_pipeline.gaia_datalink import import_gaia_client
 
-    return Gaia.load_data(**kwargs)
+    return import_gaia_client().Gaia.load_data(**kwargs)
 
 
 def _download_gaia_product_request_shared(

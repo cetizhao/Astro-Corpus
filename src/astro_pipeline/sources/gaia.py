@@ -18,6 +18,7 @@ from astro_pipeline.retry import make_retry_decorator
 from astro_pipeline.sources.base import CatalogSource
 
 if TYPE_CHECKING:
+    from astro_pipeline.gaia_datalink import GaiaDataLinkClient
     from astro_pipeline.gaia_products import GaiaArtifact, GaiaProductRequest
     from astro_pipeline.library.store import LibraryStore
 
@@ -36,6 +37,7 @@ class GaiaSource(CatalogSource):
         self._gaia_config = config
         self._retry = make_retry_decorator(network)
         self._tap = GaiaTapClient(config, network)
+        self._datalink_client: GaiaDataLinkClient | None = None
         self._logged_in = False
         self._release_profile = get_gaia_release_profile(config.release)
         self._db_schema = config.db_schema or self._release_profile.tap_schema
@@ -43,14 +45,21 @@ class GaiaSource(CatalogSource):
         self._library_run_id = library_run_id
         self._library_refresh = bool(library_refresh)
 
+    def _get_datalink_client(self) -> GaiaDataLinkClient:
+        if self._datalink_client is None:
+            from astro_pipeline.gaia_datalink import GaiaDataLinkClient
+
+            self._datalink_client = GaiaDataLinkClient(
+                self._network.request_timeout_seconds
+            )
+        return self._datalink_client
+
     def _ensure_login(self) -> None:
         if self._logged_in:
             return
         if self._gaia_config.username and self._gaia_config.password:
-            from astroquery.gaia import Gaia
-
             self._logger.info("Logging in to Gaia archive with configured credentials")
-            Gaia.login(
+            self._get_datalink_client().login(
                 user=self._gaia_config.username,
                 password=self._gaia_config.password,
             )
@@ -533,7 +542,7 @@ class GaiaSource(CatalogSource):
         if retrieval_type not in {"XP_SAMPLED", "XP_CONTINUOUS"}:
             raise ValueError(f"Unsupported Gaia XP retrieval type: {retrieval_type}")
         if batch_size is None:
-            batch_size = 5 if retrieval_type == "XP_CONTINUOUS" else 5000
+            batch_size = 5 if retrieval_type == "XP_CONTINUOUS" else 50
         if batch_size < 1 or batch_size > 5000:
             raise ValueError("batch_size must be between 1 and Gaia DataLink's 5000-source limit")
 
@@ -576,9 +585,7 @@ class GaiaSource(CatalogSource):
         return results
 
     def _load_data(self, **kwargs):
-        from astroquery.gaia import Gaia
-
-        return Gaia.load_data(**kwargs)
+        return self._get_datalink_client().load_data(**kwargs)
 
     def download_products(
         self,

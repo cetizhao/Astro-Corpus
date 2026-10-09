@@ -20,7 +20,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Optional
+from typing import Any, Mapping, Optional
 from urllib.parse import quote
 
 import pandas as pd
@@ -52,6 +52,7 @@ class MembershipResolution:
     match_radius_arcsec: Optional[float]
     all_rows: Optional[pd.DataFrame] = None
     table_schema: list[dict[str, Any]] = field(default_factory=list)
+    coordinate_descriptor: Optional[dict[str, Any]] = None
 
 
 def search_membership_catalogs(target: str, max_results: int = 10) -> dict[str, Any]:
@@ -67,12 +68,17 @@ def search_membership_catalogs(target: str, max_results: int = 10) -> dict[str, 
     if max_results < 1 or max_results > 50:
         raise ValueError("max_results must be between 1 and 50")
 
-    queries = [
-        f"{target} membership",
-        f"{target} members",
-        f"{target} census",
-        f"{target} candidate members",
-    ]
+    queries = list(
+        dict.fromkeys(
+            [
+                f"{target} membership",
+                f"{target} members",
+                f"{target} census",
+                f"{target} candidate members",
+                target,
+            ]
+        )
+    )
     merged: dict[str, dict[str, Any]] = {}
     scan_limit = min(100, max(20, max_results * 4))
 
@@ -82,8 +88,27 @@ def search_membership_catalogs(target: str, max_results: int = 10) -> dict[str, 
         except Exception as exc:
             logger.warning("VizieR catalogue search failed for %r: %s", query, exc)
             continue
-        for rank, (catalog_id, resource) in enumerate(found.items()):
-            title = str(getattr(resource, "description", "") or catalog_id).strip()
+        if not isinstance(found, Mapping):
+            logger.warning(
+                "VizieR catalogue search returned an unsupported result for %r",
+                query,
+            )
+            continue
+        for rank, (raw_catalog_id, resource) in enumerate(found.items()):
+            catalog_id = _catalog_id_from_search_resource(raw_catalog_id, resource)
+            if catalog_id is None:
+                logger.warning(
+                    "Skipping VizieR search resource with no valid catalogue ID "
+                    "for query %r",
+                    query,
+                )
+                continue
+            description = getattr(resource, "description", "")
+            title = (
+                description.strip()
+                if isinstance(description, str) and description.strip()
+                else catalog_id
+            )
             score, signals = _membership_score(
                 target=target,
                 catalog_id=catalog_id,
@@ -228,6 +253,7 @@ def resolve_membership_catalog(
 
     detection = _detect_columns(table)
     gaia_dr3_columns = detection["gaia_dr3_id_columns"]
+    coordinate_descriptor = detection["coordinate_descriptor"]
     coordinate_pair = detection["coordinate_columns"]
     config = PipelineConfig.load()
     # Published Gaia-ID columns detected by this workflow are explicitly DR3.
@@ -244,6 +270,7 @@ def resolve_membership_catalog(
             gaia=gaia,
             source_col=source_col,
             coordinate_pair=coordinate_pair,
+            coordinate_descriptor=coordinate_descriptor,
             id_fetcher=id_fetcher,
         )
         match_method = f"gaia_dr3_source_id:{source_col}"
@@ -254,6 +281,8 @@ def resolve_membership_catalog(
             gaia=gaia,
             ra_col=coordinate_pair[0],
             dec_col=coordinate_pair[1],
+            ra_unit=coordinate_descriptor["ra_unit"],
+            dec_unit=coordinate_descriptor["dec_unit"],
             radius_arcsec=match_radius_arcsec,
             batch_size=match_batch_size,
         )
@@ -273,6 +302,41 @@ def resolve_membership_catalog(
         "membership_catalog_title": str(metadata.get("title", "")),
         "membership_match_method": match_method,
         "membership_match_radius_arcsec": radius,
+        "membership_match_ra_column": (
+            coordinate_descriptor.get("ra_column")
+            if coordinate_descriptor is not None
+            else None
+        ),
+        "membership_match_dec_column": (
+            coordinate_descriptor.get("dec_column")
+            if coordinate_descriptor is not None
+            else None
+        ),
+        "membership_match_ra_unit": (
+            coordinate_descriptor.get("ra_unit")
+            if coordinate_descriptor is not None
+            else None
+        ),
+        "membership_match_dec_unit": (
+            coordinate_descriptor.get("dec_unit")
+            if coordinate_descriptor is not None
+            else None
+        ),
+        "membership_coordinate_frame": (
+            coordinate_descriptor.get("frame")
+            if coordinate_descriptor is not None
+            else None
+        ),
+        "membership_coordinate_epoch": (
+            coordinate_descriptor.get("reference_epoch")
+            if coordinate_descriptor is not None
+            else None
+        ),
+        "membership_coordinate_epoch_source": (
+            coordinate_descriptor.get("epoch_source")
+            if coordinate_descriptor is not None
+            else None
+        ),
     }
     for key, value in provenance.items():
         members[key] = value
@@ -290,6 +354,7 @@ def resolve_membership_catalog(
         match_radius_arcsec=radius,
         all_rows=all_rows,
         table_schema=_column_metadata(table),
+        coordinate_descriptor=coordinate_descriptor,
     )
 
 
@@ -308,9 +373,14 @@ def build_membership_corpus(
     xp_sampled: bool = False,
     xp_continuous: bool = False,
     refresh: bool = False,
+    static_viz_mode: str = "embedded",
+    resume_selection_run_id: Optional[str] = None,
 ) -> dict[str, Any]:
-    """Resolve a selected member table, save provenance, and build a corpus."""
+    """Build a corpus; opt in to a validated, published frozen selection by run ID."""
+    if resume_selection_run_id is not None and refresh:
+        raise ValueError("refresh and resume_selection_run_id cannot be combined")
     label = validate_label(label)
+    static_viz_mode = _validate_static_viz_mode(static_viz_mode)
     out_dir = Path(out_dir)
     from astro_pipeline.library import get_library
     library = get_library()
@@ -321,7 +391,11 @@ def build_membership_corpus(
             match_batch_size=match_batch_size, skip_simbad=skip_simbad,
             sleep_seconds=sleep_seconds, enrich=enrich, xp_sampled=xp_sampled,
             xp_continuous=xp_continuous, refresh=refresh,
+            static_viz_mode=static_viz_mode,
+            resume_selection_run_id=resume_selection_run_id,
         )
+    if resume_selection_run_id is not None:
+        raise ValueError("resume_selection_run_id requires the shared library")
     out_dir.mkdir(parents=True, exist_ok=True)
     limit_text = "all" if limit is None else str(limit)
     input_summary = (
@@ -337,7 +411,7 @@ def build_membership_corpus(
             "members": True,
             "membership_catalog": True,
             "simbad_papers": not skip_simbad,
-            "visualization": not skip_simbad,
+            "visualization": not skip_simbad and static_viz_mode != "off",
             "gaia_xp_sampled": xp_sampled,
             "gaia_xp_continuous": xp_continuous,
         },
@@ -399,6 +473,7 @@ def build_membership_corpus(
         xp_continuous=xp_continuous,
         manifest=manifest,
         gaia_release="dr3",
+        static_viz_mode=static_viz_mode,
     )
     output = result_to_dict(result)
     output.update(
@@ -409,6 +484,8 @@ def build_membership_corpus(
             "membership_catalog_title": resolution.catalog_title,
             "membership_match_method": resolution.match_method,
             "membership_match_radius_arcsec": resolution.match_radius_arcsec,
+            "membership_coordinate_descriptor": resolution.coordinate_descriptor,
+            "static_viz_mode": static_viz_mode,
             "n_catalog_rows": len(resolution.original),
             "n_gaia_matched": len(resolution.members),
             "n_unmatched": len(resolution.unmatched),
@@ -424,14 +501,15 @@ def build_membership_corpus(
 def _build_indexed_membership(
     *, library, label, out_dir, catalog_id, table_id, limit, match_radius_arcsec,
     match_batch_size, skip_simbad, sleep_seconds, enrich, xp_sampled, xp_continuous,
-    refresh,
+    refresh, static_viz_mode, resume_selection_run_id,
 ):
     from astro_pipeline.corpus_builder import build_corpus_from_members, result_to_dict
     from astro_pipeline.intake import InputResolution
     from astro_pipeline.library.build import LibraryRun, id_cache_fetcher
-    from astro_pipeline.library.files import atomic_file
+    from astro_pipeline.library.files import atomic_copy, atomic_file, sha256_file
     from astro_pipeline.library.identity import canonical_json, identity_hash, json_value
     from astro_pipeline.manifest import read_manifest
+    from astro_pipeline.membership_resume import load_published_membership_selection
 
     catalog_id = _validate_vizier_id(catalog_id, "catalog_id")
     if table_id is not None:
@@ -445,6 +523,14 @@ def _build_indexed_membership(
         effective_table = f"{catalog_id}/{effective_table}"
     if effective_table is None and previous_selector.get("catalog_id") == catalog_id:
         effective_table = previous_selector.get("table_id")
+    frozen = None
+    if resume_selection_run_id is not None:
+        frozen = load_published_membership_selection(
+            library, out_dir=out_dir, label=label, run_id=resume_selection_run_id,
+            catalog_id=catalog_id, table_id=table_id, limit=limit,
+            match_radius_arcsec=match_radius_arcsec,
+        )
+        effective_table = frozen.resolution.table_id
     selector = {
         "catalog_id": catalog_id, "table_id": effective_table,
         "match_radius_arcsec": float(match_radius_arcsec),
@@ -454,54 +540,77 @@ def _build_indexed_membership(
     summary = f"VizieR catalog={catalog_id}, table={table_id or 'auto'}, limit={limit_text}, match_radius={match_radius_arcsec}arcsec"
     products = {
         "members": True, "membership_catalog": True, "simbad_papers": not skip_simbad,
-        "visualization": not skip_simbad, "gaia_xp_sampled": xp_sampled,
+        "visualization": not skip_simbad and static_viz_mode != "off",
+        "gaia_xp_sampled": xp_sampled,
         "gaia_xp_continuous": xp_continuous,
     }
     with LibraryRun(
         store=library, out_dir=out_dir, label=label, input_mode="membership_catalog",
         input_summary=summary, contract=contract, release="dr3", requested_products=products,
-        options={"refresh": refresh, "requested_table_id": table_id, "skip_simbad": skip_simbad},
+        options={
+            "refresh": refresh,
+            "requested_table_id": table_id,
+            "skip_simbad": skip_simbad,
+            "static_viz_mode": static_viz_mode,
+            "resume_selection_run_id": resume_selection_run_id,
+        },
     ) as run:
         run.manifest.update_stage("resolve_members", status="running", completed=0)
-        resolution = resolve_membership_catalog(
-            catalog_id, table_id=effective_table, limit=limit,
-            match_radius_arcsec=match_radius_arcsec, match_batch_size=match_batch_size,
-            id_fetcher=id_cache_fetcher(library, "dr3", refresh=refresh),
-        )
+        if frozen is None:
+            resolution = resolve_membership_catalog(
+                catalog_id, table_id=effective_table, limit=limit,
+                match_radius_arcsec=match_radius_arcsec, match_batch_size=match_batch_size,
+                id_fetcher=id_cache_fetcher(library, "dr3", refresh=refresh),
+            )
+        else:
+            resolution = frozen.resolution
         if effective_table is not None and resolution.table_id != effective_table:
             raise ValueError("Resolved membership table changed; choose a new label")
         contract = {**contract, "selector": {**selector, "table_id": resolution.table_id}}
         all_rows = resolution.all_rows if resolution.all_rows is not None else resolution.original
-        metadata = resolution_metadata(resolution)
-        metadata["table_content_hash"] = identity_hash(
-            {"rows": _json_records(all_rows), "schema": resolution.table_schema},
-            namespace="vizier-table",
-        )
+        metadata = frozen.resolved_metadata.copy() if frozen is not None else resolution_metadata(resolution)
+        if frozen is None:
+            metadata["table_content_hash"] = identity_hash(
+                {"rows": _json_records(all_rows), "schema": resolution.table_schema},
+                namespace="vizier-table",
+            )
         run.set_resolved_contract(contract, metadata)
-        selected = set(resolution.original["membership_catalog_row"].astype(int))
-        matched = {int(row["membership_catalog_row"]): row for row in _json_records(resolution.members)}
-        input_rows = []
-        matches = []
-        for ordinal, row in enumerate(_json_records(all_rows)):
-            row_id = int(row["membership_catalog_row"])
-            member = matched.get(row_id)
-            status = "not_selected_by_limit" if row_id not in selected else "matched" if member else "unmatched"
-            if status == "unmatched" and resolution.match_method.startswith("gaia_dr3_source_id:"):
-                id_column = resolution.match_method.split(":", 1)[1]
-                status = "id_not_found" if _normalise_gaia_id(row.get(id_column)) else "invalid"
-            input_rows.append({"input_row_id": row_id, "ordinal": ordinal, "status": status, "raw_json": canonical_json(row)})
-            matches.append({
-                "input_row_id": row_id, "source_id": member.get("Gaia") if member else None,
-                "status": status, "match_method": resolution.match_method,
-                "match_sep_arcsec": member.get("membership_match_sep_arcsec") if member else None,
-                "match_candidate_count": member.get("membership_match_candidate_count", 1) if member else 0,
-            })
+        if frozen is not None:
+            input_rows, matches = frozen.input_rows, frozen.matches
+        else:
+            selected = set(resolution.original["membership_catalog_row"].astype(int))
+            matched = {int(row["membership_catalog_row"]): row for row in _json_records(resolution.members)}
+            unmatched_rows = {
+                int(row["membership_catalog_row"]): row
+                for row in _json_records(resolution.unmatched)
+            }
+            input_rows = []
+            matches = []
+            for ordinal, row in enumerate(_json_records(all_rows)):
+                row_id = int(row["membership_catalog_row"])
+                member = matched.get(row_id)
+                unmatched_row = unmatched_rows.get(row_id, {})
+                status = "not_selected_by_limit" if row_id not in selected else "matched" if member else "unmatched"
+                if status == "unmatched" and unmatched_row.get("membership_match_status") == "invalid_coordinates":
+                    status = "invalid"
+                if status == "unmatched" and resolution.match_method.startswith("gaia_dr3_source_id:"):
+                    id_column = resolution.match_method.split(":", 1)[1]
+                    status = "id_not_found" if _normalise_gaia_id(row.get(id_column)) else "invalid"
+                input_rows.append({"input_row_id": row_id, "ordinal": ordinal, "status": status, "raw_json": canonical_json(row)})
+                matches.append({
+                    "input_row_id": row_id, "source_id": member.get("Gaia") if member else None,
+                    "status": status, "match_method": resolution.match_method,
+                    "match_sep_arcsec": member.get("membership_match_sep_arcsec") if member else None,
+                    "match_candidate_count": member.get("membership_match_candidate_count", 1) if member else 0,
+                })
+            input_rows = pd.DataFrame(input_rows)
+            matches = pd.DataFrame(json_value(matches))
         members = resolution.members.copy()
         if "membership_catalog_row" in members:
             members["input_row_id"] = members["membership_catalog_row"]
         rich = InputResolution(
-            members=members, input_rows=pd.DataFrame(input_rows),
-            matches=pd.DataFrame(json_value(matches)), contract=contract,
+            members=members, input_rows=input_rows,
+            matches=matches, contract=contract,
             resolved_input=metadata,
         )
         run.set_resolution(rich)
@@ -510,6 +619,7 @@ def _build_indexed_membership(
             completed=len(members), unmatched=len(resolution.unmatched),
             catalog_id=resolution.catalog_id, table_id=resolution.table_id,
             match_method=resolution.match_method,
+            **({"resume_selection_run_id": frozen.source_run_id} if frozen is not None else {}),
         )
         frames = {
             "membership_catalog.csv": resolution.original,
@@ -519,7 +629,11 @@ def _build_indexed_membership(
         }
         for name, frame in frames.items():
             path = run.run_dir / name
-            if path.suffix == ".csv":
+            if frozen is not None and not (name == "unmatched_members.csv" and frozen.coordinate_corrected):
+                atomic_copy(frozen.source_files[name], path)
+                if sha256_file(path) != frozen.source_hashes[name]:
+                    raise ValueError(f"Frozen selection artifact changed while copying: {name}")
+            elif path.suffix == ".csv":
                 atomic_file(path, lambda temporary, frame=frame: frame.to_csv(temporary, index=False))
             else:
                 atomic_file(path, lambda temporary, frame=frame: frame.to_parquet(temporary, index=False))
@@ -531,6 +645,7 @@ def _build_indexed_membership(
             input_summary=summary, skip_simbad=skip_simbad, sleep_seconds=sleep_seconds,
             enrich=enrich, xp_sampled=xp_sampled, xp_continuous=xp_continuous,
             manifest=run.manifest, gaia_release="dr3", library_run=run, refresh=refresh,
+            static_viz_mode=static_viz_mode,
         )
         output = result_to_dict(run.finish(result))
         visible = run.out_dir if run.published else run.run_dir
@@ -540,6 +655,8 @@ def _build_indexed_membership(
             "membership_catalog_title": resolution.catalog_title,
             "membership_match_method": resolution.match_method,
             "membership_match_radius_arcsec": resolution.match_radius_arcsec,
+            "membership_coordinate_descriptor": resolution.coordinate_descriptor,
+            "static_viz_mode": static_viz_mode,
             "n_catalog_rows": len(resolution.original), "n_catalog_total_rows": len(all_rows),
             "n_gaia_matched": len(members), "n_unmatched": len(resolution.unmatched),
             "membership_catalog_csv": str(visible / "membership_catalog.csv"),
@@ -556,6 +673,7 @@ def _match_by_gaia_id(
     gaia: GaiaSource,
     source_col: str,
     coordinate_pair: Optional[list[str]],
+    coordinate_descriptor: Optional[dict[str, Any]] = None,
     id_fetcher=None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     work = original.copy()
@@ -596,22 +714,34 @@ def _match_by_gaia_id(
     matched = _clean_internal(matched)
     matched["membership_match_candidate_count"] = 1
 
-    if coordinate_pair and not matched.empty:
+    matched["membership_match_sep_arcsec"] = pd.NA
+    if coordinate_pair and coordinate_descriptor and not matched.empty:
         from astropy import units as u
         from astropy.coordinates import SkyCoord
 
         ra_col, dec_col = coordinate_pair
-        cat_coord = SkyCoord(
-            pd.to_numeric(matched[f"member_{ra_col}"], errors="coerce").to_numpy() * u.deg,
-            pd.to_numeric(matched[f"member_{dec_col}"], errors="coerce").to_numpy() * u.deg,
+        catalog_ra = _series_to_degrees(
+            matched[f"member_{ra_col}"], coordinate_descriptor["ra_unit"]
         )
-        gaia_coord = SkyCoord(
-            pd.to_numeric(matched["RAICRS"], errors="coerce").to_numpy() * u.deg,
-            pd.to_numeric(matched["DEICRS"], errors="coerce").to_numpy() * u.deg,
+        catalog_dec = _series_to_degrees(
+            matched[f"member_{dec_col}"], coordinate_descriptor["dec_unit"]
         )
-        matched["membership_match_sep_arcsec"] = cat_coord.separation(gaia_coord).arcsec
-    else:
-        matched["membership_match_sep_arcsec"] = pd.NA
+        gaia_ra = pd.to_numeric(matched["RAICRS"], errors="coerce")
+        gaia_dec = pd.to_numeric(matched["DEICRS"], errors="coerce")
+        valid = _valid_coordinate_mask(catalog_ra, catalog_dec)
+        valid &= _valid_coordinate_mask(gaia_ra, gaia_dec)
+        if valid.any():
+            cat_coord = SkyCoord(
+                catalog_ra.loc[valid].to_numpy() * u.deg,
+                catalog_dec.loc[valid].to_numpy() * u.deg,
+            )
+            gaia_coord = SkyCoord(
+                gaia_ra.loc[valid].to_numpy() * u.deg,
+                gaia_dec.loc[valid].to_numpy() * u.deg,
+            )
+            matched.loc[valid, "membership_match_sep_arcsec"] = (
+                cat_coord.separation(gaia_coord).arcsec
+            )
     return matched, _clean_internal(unmatched)
 
 
@@ -621,18 +751,34 @@ def _match_by_position(
     gaia: GaiaSource,
     ra_col: str,
     dec_col: str,
+    ra_unit: str = "deg",
+    dec_unit: str = "deg",
     radius_arcsec: float,
     batch_size: int,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    native = gaia.crossmatch_positions(
-        original,
-        ra_col=ra_col,
-        dec_col=dec_col,
-        row_id_col="membership_catalog_row",
-        radius_arcsec=radius_arcsec,
-        batch_size=batch_size,
-        extra_columns=QC_EXTRA_COLUMNS + ["has_xp_sampled", "has_xp_continuous"],
-    )
+    match_input = original.copy()
+    match_ra = _series_to_degrees(match_input[ra_col], ra_unit)
+    match_dec = _series_to_degrees(match_input[dec_col], dec_unit)
+    valid_coordinates = _valid_coordinate_mask(match_ra, match_dec)
+    invalid_rows = original.loc[~valid_coordinates].copy()
+    if not invalid_rows.empty:
+        invalid_rows["membership_match_status"] = "invalid_coordinates"
+
+    match_input = match_input.loc[valid_coordinates].copy()
+    match_input[ra_col] = match_ra.loc[valid_coordinates]
+    match_input[dec_col] = match_dec.loc[valid_coordinates]
+    if match_input.empty:
+        native = pd.DataFrame(columns=["membership_catalog_row"])
+    else:
+        native = gaia.crossmatch_positions(
+            match_input,
+            ra_col=ra_col,
+            dec_col=dec_col,
+            row_id_col="membership_catalog_row",
+            radius_arcsec=radius_arcsec,
+            batch_size=batch_size,
+            extra_columns=QC_EXTRA_COLUMNS + ["has_xp_sampled", "has_xp_continuous"],
+        )
     canonical = _canonicalize(native)
     member = _prefix_member_columns(original)
     matched = canonical.merge(
@@ -650,10 +796,14 @@ def _match_by_position(
         }
     )
     matched_rows = set(matched["membership_catalog_row"].tolist())
-    unmatched = original.loc[
-        ~original["membership_catalog_row"].isin(matched_rows)
+    unmatched_valid = original.loc[
+        valid_coordinates
+        & ~original["membership_catalog_row"].isin(matched_rows)
     ].copy()
-    return matched, unmatched
+    if not unmatched_valid.empty:
+        unmatched_valid["membership_match_status"] = "no_gaia_match"
+    unmatched = pd.concat([unmatched_valid, invalid_rows]).sort_index()
+    return matched, unmatched.reset_index(drop=True)
 
 
 def _prefix_member_columns(frame: pd.DataFrame) -> pd.DataFrame:
@@ -707,9 +857,32 @@ def _catalog_metadata(vizier: Vizier, catalog_id: str) -> dict[str, Any]:
 
 def _iter_tables(tables: Any) -> list[tuple[str, Any]]:
     keys = list(tables.keys())
-    if isinstance(tables, Mapping):
-        return [(str(key), tables[key]) for key in keys]
-    return [(str(key), table) for key, table in zip(keys, tables)]
+    raw_items = (
+        [(key, tables[key]) for key in keys]
+        if isinstance(tables, Mapping)
+        else list(zip(keys, tables))
+    )
+    items: list[tuple[str, Any]] = []
+    for raw_key, table in raw_items:
+        candidates = (
+            raw_key,
+            getattr(table, "meta", {}).get("table_id")
+            if isinstance(getattr(table, "meta", None), Mapping)
+            else None,
+        )
+        table_key = next(
+            (
+                candidate.strip()
+                for candidate in candidates
+                if isinstance(candidate, str) and candidate.strip()
+            ),
+            None,
+        )
+        if table_key is None:
+            logger.warning("Skipping VizieR table with no string table ID")
+            continue
+        items.append((table_key, table))
+    return items
 
 
 def _select_tables(
@@ -766,15 +939,18 @@ def _detect_columns(table: Any) -> dict[str, Any]:
     }
     dr3: list[str] = []
     older_gaia: list[str] = []
+    older_gaia_evidence: list[dict[str, str]] = []
     membership: list[str] = []
     for name in columns:
         normalized = _normalise_name(name)
-        text = f"{name} {descriptions[name]}".casefold()
-        is_id_like = "id" in normalized or "source" in normalized or "gaia" in normalized
-        if is_id_like and ("gaia dr3" in text or "gaiadr3" in normalized):
+        description = descriptions[name]
+        text = f"{name} {description}".casefold()
+        release = _gaia_identifier_release(name, description)
+        if release == "dr3":
             dr3.append(name)
-        elif "gaia dr2" in text or "gaiadr2" in normalized or "edr3" in text:
+        elif release in {"edr3", "dr2"}:
             older_gaia.append(name)
+            older_gaia_evidence.append({"column": name, "release": release})
         if any(
             token in text
             for token in (
@@ -788,11 +964,26 @@ def _detect_columns(table: Any) -> dict[str, Any]:
         ) or normalized in {"pmember", "membership", "member", "pop", "class"}:
             membership.append(name)
 
-    coordinates = _find_coordinate_pair(columns)
+    coordinate_descriptor = _find_coordinate_descriptor(table)
+    coordinates = (
+        [
+            coordinate_descriptor["ra_column"],
+            coordinate_descriptor["dec_column"],
+        ]
+        if coordinate_descriptor is not None
+        else None
+    )
     return {
         "gaia_dr3_id_columns": dr3,
         "older_gaia_id_columns": older_gaia,
-        "coordinate_columns": list(coordinates) if coordinates else None,
+        "older_gaia_id_evidence": older_gaia_evidence,
+        "coordinate_columns": coordinates,
+        "coordinate_descriptor": coordinate_descriptor,
+        "coordinate_status": (
+            "ready_numeric_angular"
+            if coordinate_descriptor is not None
+            else "unsupported_or_missing_numeric_angular_pair"
+        ),
         "membership_columns": membership,
         "gaia_match_ready": bool(dr3 or coordinates),
         "match_strategy": (
@@ -805,18 +996,184 @@ def _detect_columns(table: Any) -> dict[str, Any]:
     }
 
 
-def _find_coordinate_pair(columns: Iterable[str]) -> Optional[tuple[str, str]]:
-    by_normalized = {_normalise_name(column): column for column in columns}
-    pairs = (
-        ("raj2000", "dej2000"),
-        ("raicrs", "deicrs"),
-        ("raj", "dej"),
-        ("ra", "dec"),
+def _gaia_identifier_release(name: str, description: str) -> Optional[str]:
+    """Return release evidence only for a semantic Gaia source-ID column."""
+    normalized = _normalise_name(name)
+    text = f"{name} {description}".casefold()
+    non_identifier_terms = (
+        "proper motion",
+        "parallax",
+        "magnitude",
+        "photometry",
+        "flux",
+        "error",
+        "uncertainty",
+        "ruwe",
+        "radial velocity",
     )
-    for ra_name, dec_name in pairs:
-        if ra_name in by_normalized and dec_name in by_normalized:
-            return by_normalized[ra_name], by_normalized[dec_name]
+    normalized_non_identifier_terms = (
+        "pmra",
+        "pmdec",
+        "plx",
+        "parallax",
+        "mag",
+        "flux",
+        "ruwe",
+        "radialvelocity",
+    )
+    if any(term in text for term in non_identifier_terms) or any(
+        term in normalized for term in normalized_non_identifier_terms
+    ):
+        return None
+
+    explicit_name = normalized in {
+        "gaiadr3",
+        "dr3sourceid",
+        "gaiadr3sourceid",
+        "gaiaedr3",
+        "edr3sourceid",
+        "gaiaedr3sourceid",
+        "gaiadr2",
+        "dr2sourceid",
+        "gaiadr2sourceid",
+    }
+    semantic_description = bool(
+        re.search(r"\bsource[ _-]*(?:id|identifier)\b", text)
+        or re.search(
+            r"\bgaia\s*(?:e?dr[23]\s*)?(?:id|identifier)\b",
+            text,
+        )
+    )
+    semantic_name = "sourceid" in normalized and "gaia" in normalized
+    if not (explicit_name or semantic_description or semantic_name):
+        return None
+
+    if "gaiaedr3" in normalized or re.search(r"\bgaia\s+edr3\b", text):
+        return "edr3"
+    if "gaiadr2" in normalized or re.search(r"\bgaia\s+dr2\b", text):
+        return "dr2"
+    if "gaiadr3" in normalized or re.search(r"\bgaia\s+dr3\b", text):
+        return "dr3"
     return None
+
+
+def _find_coordinate_descriptor(table: Any) -> Optional[dict[str, Any]]:
+    """Select one numeric angular coordinate pair without name collisions."""
+    columns = list(table.colnames)
+    by_normalized: dict[str, list[str]] = {}
+    for name in columns:
+        by_normalized.setdefault(_normalise_name(name), []).append(name)
+
+    pair_families = (
+        ("raicrs", "deicrs", "ICRS"),
+        ("raj2000", "dej2000", "equatorial"),
+        ("raj", "dej", "equatorial"),
+        ("ra", "dec", "equatorial"),
+    )
+    ranked: list[tuple[tuple[int, int, int, int], dict[str, Any]]] = []
+    for family_rank, (ra_name, dec_name, frame) in enumerate(pair_families):
+        for ra_column in by_normalized.get(ra_name, []):
+            ra_metadata = _numeric_angular_column(table[ra_column])
+            if ra_metadata is None:
+                continue
+            for dec_column in by_normalized.get(dec_name, []):
+                dec_metadata = _numeric_angular_column(table[dec_column])
+                if dec_metadata is None:
+                    continue
+                reference_epoch, epoch_source = _coordinate_epoch(
+                    table,
+                    ra_column=ra_column,
+                    dec_column=dec_column,
+                    family=ra_name,
+                )
+                descriptor = {
+                    "ra_column": ra_column,
+                    "dec_column": dec_column,
+                    "ra_unit": ra_metadata["unit"],
+                    "dec_unit": dec_metadata["unit"],
+                    "ra_dtype": ra_metadata["dtype"],
+                    "dec_dtype": dec_metadata["dtype"],
+                    "match_unit": "deg",
+                    "frame": frame,
+                    "reference_epoch": reference_epoch,
+                    "epoch_source": epoch_source,
+                    "selection_reason": "numeric columns with explicit angular units",
+                }
+                exact_rank = _coordinate_exact_name_rank(
+                    ra_column, dec_column, family=ra_name
+                )
+                ranked.append(
+                    (
+                        (
+                            family_rank,
+                            exact_rank,
+                            columns.index(ra_column),
+                            columns.index(dec_column),
+                        ),
+                        descriptor,
+                    )
+                )
+    if not ranked:
+        return None
+    ranked.sort(key=lambda item: item[0])
+    return ranked[0][1]
+
+
+def _numeric_angular_column(column: Any) -> Optional[dict[str, str]]:
+    dtype = getattr(column, "dtype", None)
+    kind = getattr(dtype, "kind", "")
+    if kind not in {"i", "u", "f"}:
+        return None
+    unit = getattr(column, "unit", None)
+    if unit is None:
+        return None
+    try:
+        from astropy import units as u
+
+        parsed_unit = u.Unit(unit)
+    except (TypeError, ValueError):
+        return None
+    if not parsed_unit.is_equivalent(u.deg):
+        return None
+    return {"dtype": str(dtype), "unit": str(parsed_unit)}
+
+
+def _coordinate_exact_name_rank(
+    ra_column: str, dec_column: str, *, family: str
+) -> int:
+    pair = (ra_column.casefold(), dec_column.casefold())
+    preferred = {
+        "raicrs": (("ra_icrs", "de_icrs"), ("raicrs", "deicrs")),
+        "raj2000": (("raj2000", "dej2000"),),
+        "raj": (("raj", "dej"),),
+        "ra": (("ra", "dec"),),
+    }
+    try:
+        return preferred.get(family, ()).index(pair)
+    except ValueError:
+        return len(preferred.get(family, ())) + 1
+
+
+def _coordinate_epoch(
+    table: Any,
+    *,
+    ra_column: str,
+    dec_column: str,
+    family: str,
+) -> tuple[Optional[str], str]:
+    descriptions = " ".join(
+        str(getattr(table[name], "description", "") or "")
+        for name in (ra_column, dec_column)
+    )
+    # J2000 column names describe the coordinate equinox, not an observation epoch.
+    match = re.search(
+        r"\b(?:reference\s+)?epoch\s*[=:]?\s*([JB]?\d{4}(?:\.\d+)?)\b",
+        descriptions,
+        re.IGNORECASE,
+    )
+    if match:
+        return match.group(1), "column_descriptions"
+    return None, "not_declared"
 
 
 def _column_metadata(table: Any) -> list[dict[str, Any]]:
@@ -846,6 +1203,59 @@ def _table_to_dataframe(table: Any) -> pd.DataFrame:
     return frame
 
 
+def _series_to_degrees(values: pd.Series, unit: str) -> pd.Series:
+    from astropy import units as u
+
+    numeric = pd.to_numeric(values, errors="coerce")
+    array = numeric.to_numpy(dtype=float, na_value=float("nan"))
+    converted = (array * u.Unit(unit)).to_value(u.deg)
+    return pd.Series(converted, index=values.index, dtype=float)
+
+
+def _valid_coordinate_mask(ra: pd.Series, dec: pd.Series) -> pd.Series:
+    import numpy as np
+
+    return pd.Series(
+        np.isfinite(ra.to_numpy(dtype=float, na_value=float("nan")))
+        & np.isfinite(dec.to_numpy(dtype=float, na_value=float("nan")))
+        & (ra.to_numpy(dtype=float, na_value=float("nan")) >= 0.0)
+        & (ra.to_numpy(dtype=float, na_value=float("nan")) < 360.0)
+        & (dec.to_numpy(dtype=float, na_value=float("nan")) >= -90.0)
+        & (dec.to_numpy(dtype=float, na_value=float("nan")) <= 90.0),
+        index=ra.index,
+    )
+
+
+def _catalog_id_from_search_resource(
+    raw_catalog_id: Any, resource: Any
+) -> Optional[str]:
+    """Recover only explicitly named and syntactically valid VizieR IDs."""
+    candidates = (
+        raw_catalog_id,
+        getattr(resource, "name", None),
+        getattr(resource, "ID", None),
+    )
+    for candidate in candidates:
+        if not isinstance(candidate, str):
+            continue
+        try:
+            validated = _validate_vizier_id(candidate, "catalog_id")
+        except ValueError:
+            continue
+        if "/" in validated:
+            return validated
+    return None
+
+
+def _validate_static_viz_mode(value: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError("static_viz_mode must be embedded, status_only, or off")
+    value = value.strip().lower()
+    if value not in {"embedded", "status_only", "off"}:
+        raise ValueError("static_viz_mode must be embedded, status_only, or off")
+    return value
+
+
 def _normalise_gaia_id(value: Any) -> Optional[str]:
     if value is None or pd.isna(value):
         return None
@@ -864,7 +1274,9 @@ def _normalise_name(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", value.casefold())
 
 
-def _validate_vizier_id(value: str, name: str) -> str:
+def _validate_vizier_id(value: Any, name: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"Invalid VizieR {name}: expected a string")
     value = value.strip()
     if not value or not re.fullmatch(r"[A-Za-z0-9+_.-]+(?:/[A-Za-z0-9+_.-]+)*", value):
         raise ValueError(f"Invalid VizieR {name}: {value!r}")
@@ -907,5 +1319,6 @@ def resolution_metadata(resolution: MembershipResolution) -> dict[str, Any]:
         for name in (
             "catalog_id", "table_id", "table_description", "catalog_title",
             "match_method", "match_radius_arcsec", "table_schema",
+            "coordinate_descriptor",
         )
     }

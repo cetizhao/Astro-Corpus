@@ -49,7 +49,7 @@ def test_download_gaia_xp_only_requests_available_ids(monkeypatch, tmp_path):
         def download_spectra(
             self, ids, output_dir, *, retrieval_type, progress_callback, **kwargs
         ):
-            calls.append((retrieval_type, list(ids)))
+            calls.append((retrieval_type, list(ids), kwargs["batch_size"]))
             output_dir.mkdir(parents=True, exist_ok=True)
             results = []
             for source_id in ids:
@@ -76,7 +76,7 @@ def test_download_gaia_xp_only_requests_available_ids(monkeypatch, tmp_path):
         progress_callback=lambda stage, data: stages.append((stage, data)),
     )
 
-    assert calls == [("XP_SAMPLED", ["100"]), ("XP_CONTINUOUS", ["200"])]
+    assert calls == [("XP_SAMPLED", ["100"], 50), ("XP_CONTINUOUS", ["200"], 5)]
     assert result["sampled"]["cached"] == 1
     assert result["continuous"]["cached"] == 1
     assert result["sampled"]["status"] == "completed"

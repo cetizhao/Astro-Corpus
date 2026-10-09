@@ -54,10 +54,10 @@ files and is not a second authoritative store.
 
 ## Identity, provenance, and deduplication
 
-A Gaia source is identified by `(gaia_release, source_id)`, never by the numeric
-ID alone. A reusable Gaia product is identified by its complete release-aware
-request contract plus identifier; object bytes are independently deduplicated by
-SHA-256.
+A Gaia source is identified by `(release, source_id)`, with `release` stored in
+the `gaia_release` field; the numeric ID alone is never an identity. A reusable
+Gaia product is identified by its complete release-aware request contract plus
+identifier; object bytes are independently deduplicated by SHA-256.
 
 Deduplication does not collapse scientific sample provenance:
 
@@ -166,13 +166,23 @@ A cache hit for known IDs is not a local sky index. Cone, named-region, and
 coordinate-match selections still query Gaia because the library cannot prove
 complete sky coverage from previously cached sources.
 
+For downstream-only recovery, membership builds may explicitly supply
+`resume_selection_run_id` for a published run of the same corpus. This is frozen
+selection reuse, not a new spatial query: preflight verifies the contract,
+publication record, file checksums, table schema/hash, and row-level match
+provenance before creating a new run. The new run retains the frozen astrometry,
+unmatched rows, and duplicate sample occurrences; it never rewrites the original
+snapshot. It requires shared-library mode and cannot be combined with refresh.
+The fixed region runner exposes this as `--resume-selection-run-id`; see the
+[operator runbook](operator-runbook.md#fixed-cra-and-upper-sco-acquisition).
+
 ## Local query interfaces
 
 The existing `Corpus`, `lookup_source`, `lookup_paper`, and `summarize_corpus`
 interfaces remain scoped to one configured corpus. Use the global library tools
 when the question spans labels.
 
-The MCP server exposes 25 tools in total, including these three offline global
+The MCP server exposes 27 tools in total, including these three offline global
 queries:
 
 - `lookup_library_source(source_id, release="dr3", limit=50, offset=0)`
@@ -190,10 +200,77 @@ Pagination limits must be between 1 and 500. These queries call
 An absent or disabled library produces a structured `exists=false` result
 instead of a new `data/_library` directory.
 
+## Paper full-text collections
+
+Full text is an explicit, arXiv-only workflow, not a side effect of bibliography
+lookups. `scripts/library.py paper-build` and MCP `download_paper_corpus` accept
+bounded selections; `paper-status` / `paper_corpus_status` inspect progress.
+`lookup_library_paper` separately reports cached text versions, quality and local
+artifact paths without returning document blocks.
+
+Schema v2 adds paper-specific downloads, text versions, artifact references and
+input checkpoints, sharing the existing blob store, leases, attempts and runs.
+An explicit write migrates a v1 library additively; read-only operations still
+read v1 without migrating it. Take a SQLite backup before upgrading a live
+library and restart old server processes after the upgrade. Index backup does
+not include blob bytes.
+
+Paper selection/run views live under `data/paper_corpora/<label>/runs/<run_id>/`.
+Original arXiv versions and parser/dependency versions are pinned independently.
+Input occurrences and aliases are retained while downloaded content is deduplicated.
+Failed refreshes leave successful global text pointers intact. The existing Gaia
+corpus exporter refuses these license-unreviewed paper collections rather than
+silently exporting incomplete references or redistributing full text.
+
+See [paper corpus guide](paper-corpus.md) for resume, format limitations, rights,
+CLI exit codes, and the representative pilot.
+
+## Read-only full-library viewer
+
+Launch the local viewer against the configured library root:
+
+```bash
+uv run python scripts/library.py serve
+uv run python scripts/library.py serve --port 8765 --poll-seconds 5
+uv run python scripts/library.py --library-root /path/to/library serve \
+  --port 8765 --poll-seconds 5
+```
+
+Open `http://127.0.0.1:8765/`. The bind address is intentionally restricted to
+`127.0.0.1`; this is a local inspection tool, not a network service. It accepts
+only `GET` and `HEAD` on fixed viewer/API routes, validates the request host and
+origin, and exposes no arbitrary paths, SQL, credentials, downloads, or write
+operations. Like the offline query tools, it opens the library with
+`get_library(create=False)`: serving an absent library shows an empty state and
+does not create or migrate SQLite.
+
+The source table and Hammer--Aitoff sky view enumerate the global index by Gaia
+identity `(release, source_id)` (the index column is `gaia_release`). Search,
+release, corpus, current-dataset, and spectrum-state filters use revision-pinned
+keyset pagination rather than repeated point lookups. The browser checks for a
+new revision about every five seconds. If SQLite or a corpus manifest's published
+run selection changes during traversal, it restarts instead of combining pages
+from two snapshots. Current-dataset views honor `active_run_id`/`snapshot_run_id`,
+not whichever run has the newest timestamp; an invalid shared-library pin never
+silently selects another run.
+Missing or invalid coordinates remain in counts and the source table but are not
+plotted at `(0, 0)`.
+
+Spectrum arrays are not embedded in the viewer home page. Selecting a source
+verifies and parses one local product on demand; browser actions never start a
+Gaia or SIMBAD request. The default `global` scope selects the library's active
+product version. A corpus scope selects the exact version pinned by that
+corpus/run's version-2 `product_refs.json`; a missing or corrupt pin does not
+fall back to the global product. Verified DR3 XP Continuous is preferred over XP
+Sampled unless a product type is chosen explicitly. Current executable parsers
+are registered only for the exact DR3 product contracts; similarly named DR4
+products remain `unsupported` until validated against live Archive products.
+
 ## Administration CLI
 
 The global `--library-root` option, when used, must appear before the subcommand.
-All commands emit JSON.
+Status, import, verification, and export commands emit JSON. `serve` instead
+prints the local URL and runs until interrupted.
 
 ### Status
 

@@ -60,6 +60,7 @@ source = { editable = "." }
 dependencies = [
     { name = "astropy" },
     { name = "astroquery" },
+    { name = "beautifulsoup4" },
     { name = "gaiaxpy" },
     { name = "httpx", extra = ["socks"] },
     { name = "matplotlib" },
@@ -67,6 +68,8 @@ dependencies = [
     { name = "pandas" },
     { name = "pyarrow" },
     { name = "pydantic" },
+    { name = "pylatexenc" },
+    { name = "pypdf" },
     { name = "pyyaml" },
     { name = "requests" },
     { name = "rich" },
@@ -83,6 +86,7 @@ dev = [
 requires-dist = [
     { name = "astropy", specifier = ">=7.2.0" },
     { name = "astroquery", specifier = ">=0.4.11" },
+    { name = "beautifulsoup4", specifier = ">=4.12.0" },
     { name = "gaiaxpy", specifier = ">=2.1.4" },
     { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
     { name = "matplotlib", specifier = ">=3.11.0" },
@@ -90,6 +94,8 @@ requires-dist = [
     { name = "pandas", specifier = ">=3.0.2" },
     { name = "pyarrow", specifier = ">=24.0.0" },
     { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "pylatexenc", specifier = ">=2.10,<3" },
+    { name = "pypdf", specifier = ">=5.0.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "requests", specifier = ">=2.32.0" },
     { name = "rich", specifier = ">=15.0.0" },
@@ -1544,12 +1550,30 @@ crypto = [
 ]
 
 [[package]]
+name = "pylatexenc"
+version = "2.11"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/52/45/ddb0fb04acf95fe9cf9c369814dbdd08651bd2c9ee455f142651e06f4488/pylatexenc-2.11.tar.gz", hash = "sha256:305a072a99ce736246049c9da05841b9d718c0f7ea8888f5f596cf15cb621053", size = 165743, upload-time = "2026-07-25T17:26:31.534Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/06/3d67bd912ef337aa4856b466121d03f304aa1bb4d804f9298b6227cd227e/pylatexenc-2.11-py2.py3-none-any.whl", hash = "sha256:e78e7391d6c104f1ed150e21cfaa58016cdb50aa54406a2eecb793649ffdfdd0", size = 137533, upload-time = "2026-07-25T17:26:30.141Z" },
+]
+
+[[package]]
 name = "pyparsing"
 version = "3.3.2"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f3/91/9c6ee907786a473bf81c5f53cf703ba0957b23ab84c264080fb5a450416f/pyparsing-3.3.2.tar.gz", hash = "sha256:c777f4d763f140633dcb6d8a3eda953bf7a214dc4eff598413c070bcdc117cbc", size = 6851574, upload-time = "2026-01-21T03:57:59.36Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/10/bd/c038d7cc38edc1aa5bf91ab8068b63d4308c66c4c8bb3cbba7dfbc049f9c/pyparsing-3.3.2-py3-none-any.whl", hash = "sha256:850ba148bd908d7e2411587e247a1e4f0327839c40e2e5e6d05a007ecc69911d", size = 122781, upload-time = "2026-01-21T03:57:55.912Z" },
+]
+
+[[package]]
+name = "pypdf"
+version = "6.19.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1f/ac/63d71aaedb59acbcdef491e6ca6469165e3771c9c74358204818fd9bc5a6/pypdf-6.19.0.tar.gz", hash = "sha256:bbc43aca292369ccc6cbc8a921991ecf2538a3587ab5a116eff06c321d647155", size = 7033266, upload-time = "2026-09-16T09:32:05.946Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3c/2c/c43c03eaf630435f023f1dc61ec4a4a78951ad5530a62c71cc89bde307b7/pypdf-6.19.0-py3-none-any.whl", hash = "sha256:7e5d6e730e7dae87d560a2cee218b852f6498c8be61966f3cd02ead971e48d14", size = 395480, upload-time = "2026-09-16T09:32:04.087Z" },
 ]
 
 [[package]]

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Astro-Corpus · 全库观测台</title>
+  <link rel="stylesheet" href="/assets/library.css">
+  <script defer src="/assets/echarts.min.js"></script>
+  <script defer src="/assets/library.js"></script>
+</head>
+<body>
+  <main class="app">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">ASTRO-CORPUS / LOCAL LIBRARY</p>
+        <h1>全库观测台</h1>
+        <p class="subtitle">同一颗源，一份身份；每次观测与样本来源，分别保留。</p>
+      </div>
+      <div class="header-actions">
+        <span id="connection" class="status" role="status" aria-live="polite">○ 正在连接</span>
+        <button id="refresh" type="button">立即同步</button>
+        <button id="theme" type="button" aria-label="切换明暗主题">深色模式</button>
+      </div>
+    </header>
+
+    <form id="filters" class="filters" aria-label="筛选全库源">
+      <label class="search-label">搜索<input id="search" type="search" placeholder="Gaia ID 或源名称" autocomplete="off"></label>
+      <label>数据版本<select id="release"><option value="">全部版本</option></select></label>
+      <label>来源样本<select id="dataset"><option value="">全部样本</option></select></label>
+      <label>样本范围<select id="scope"><option value="all_indexed">全部已登记源</option><option value="current_datasets">当前已发布样本</option></select></label>
+      <label>光谱状态<select id="spectrum-filter"><option value="">全部状态</option><option value="ready">已登记缓存</option><option value="not_downloaded">尚未下载</option><option value="unavailable">档案库无产品</option><option value="pending">获取中</option><option value="failed">获取失败</option><option value="unsupported">待适配</option><option value="unknown">未知</option></select></label>
+    </form>
+
+    <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+    <section class="metrics" aria-label="当前筛选统计">
+      <article><span>筛选中的独立源</span><strong id="count-sources">—</strong><small>按 release + source_id 去重</small></article>
+      <article><span>可绘制天球位置</span><strong id="count-positions">—</strong><small>只绘制有限且有效的坐标</small></article>
+      <article><span>坐标未知</span><strong id="count-missing">—</strong><small>仍保留在表格中，不画到原点</small></article>
+      <article><span>已登记 ready 光谱源</span><strong id="count-spectra">—</strong><small>点开前校验文件；不等于 availability</small></article>
+    </section>
+
+    <section class="workspace">
+      <div class="overview-column">
+        <article class="card sky-card">
+          <div class="card-heading"><div><p class="eyebrow">SKY POSITION</p><h2>全天位置</h2></div><button id="fit-sky" type="button" class="quiet">重置视图</button></div>
+          <p class="caption">Hammer–Aitoff 等面积投影 · ICRS · 赤经向左增加。参考历元按源记录显示，未知值不作推断。</p>
+          <div id="sky-chart" class="chart sky-chart" role="img" aria-label="天球位置图；同样的数据可通过下方源表访问"></div>
+          <div class="chart-foot"><span id="sky-progress">等待载入位置</span><span><i class="key-dot"></i>已登记源 <i class="key-dot selected"></i>选中源</span></div>
+        </article>
+
+        <article class="card table-card">
+          <div class="card-heading"><div><p class="eyebrow">SOURCE INDEX</p><h2>源目录</h2></div><span id="table-total" class="caption">—</span></div>
+          <div class="table-wrap">
+            <table id="source-table">
+              <thead><tr><th scope="col">源 / 标识</th><th scope="col">RA / Dec (deg)</th><th scope="col">G (mag)</th><th scope="col">光谱</th><th scope="col">来源</th></tr></thead>
+              <tbody id="source-rows"><tr><td colspan="5" class="empty">正在读取共享库…</td></tr></tbody>
+            </table>
+          </div>
+          <nav class="pagination" aria-label="源目录分页"><button id="previous" type="button" disabled>上一页</button><span id="page-label">第 1 页</span><button id="next" type="button" disabled>下一页</button><label>每页<select id="page-size"><option>25</option><option selected>50</option><option>100</option><option>250</option><option>500</option></select></label></nav>
+        </article>
+      </div>
+
+      <aside class="detail-column" aria-label="选中源详情">
+        <article class="card source-card">
+          <div class="card-heading"><div><p class="eyebrow">SOURCE DETAIL</p><h2 id="source-title">选择一颗源</h2></div></div>
+          <p id="source-identity" class="source-identity">点击天球上的点，或从目录中选择。</p>
+          <div id="source-badges" class="badges"></div>
+          <dl id="source-properties" class="properties"></dl>
+          <details id="provenance-section" hidden><summary>样本与字段来源</summary><div id="source-provenance" class="provenance"></div></details>
+          <details id="paper-section" hidden><summary id="paper-heading">文献关联</summary><div id="source-papers" class="paper-list"></div></details>
+        </article>
+
+        <article class="card spectrum-card">
+          <div class="card-heading"><div><p class="eyebrow">GAIA SPECTRUM</p><h2>光谱</h2></div><select id="spectrum-product" aria-label="选择光谱产品"><option value="">自动选择可用 XP</option><option value="XP_CONTINUOUS">XP Continuous</option><option value="XP_SAMPLED">XP Sampled</option></select></div>
+          <div class="spectrum-controls"><label>数据范围<select id="spectrum-scope"><option value="global">全库当前缓存</option></select></label><span id="spectrum-scope-note" class="caption">样本快照固定到当时的产品版本。</span></div>
+          <p id="spectrum-note" class="caption">仅显示已经入库的产品，页面操作不会触发远程下载。</p>
+          <div id="spectrum-empty" class="empty spectrum-empty">选择源后按需读取光谱。</div>
+          <div id="spectrum-chart" class="chart spectrum-chart" role="img" aria-label="选中源的 Gaia 光谱" hidden></div>
+          <div id="spectrum-provenance" class="spectrum-provenance"></div>
+          <details id="spectrum-table-section" hidden><summary>查看光谱数值表</summary><div class="table-wrap spectrum-table-wrap"><table><thead id="spectrum-table-head"></thead><tbody id="spectrum-table-body"></tbody></table></div></details>
+        </article>
+      </aside>
+    </section>
+
+    <section class="card activity-card">
+      <div class="card-heading"><div><p class="eyebrow">ACQUISITION & PROVENANCE</p><h2>采集与样本状态</h2></div><span id="library-summary" class="caption">只读 SQLite 视图</span></div>
+      <p class="caption">当前发布、进行中和历史记录分别标注；已入库不等于所有阶段完成。Legacy 数据不被自动认证为成员表。</p>
+      <div id="runs" class="runs"><p class="empty">等待状态信息。</p></div>
+    </section>
+
+    <footer><span id="last-sync">尚未同步</span><span>Gaia DR4：接口预适配；未确认产品不回退为 DR3 数据。</span><span>本地只读 · 不暴露文件目录或凭据</span></footer>
+  </main>
+</body>
+</html>

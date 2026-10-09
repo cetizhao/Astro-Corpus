@@ -21,7 +21,7 @@ def download_gaia_xp_products(
     *,
     sampled: bool = False,
     continuous: bool = False,
-    sampled_batch_size: int = 500,
+    sampled_batch_size: int = 50,
     continuous_batch_size: int = 5,
     progress_callback: Optional[ProgressCallback] = None,
     library_store=None,

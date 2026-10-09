@@ -15,6 +15,7 @@ import astro_pipeline.gaia_products as gaia_products
 import astro_pipeline.library.products as library_products
 from astro_pipeline.config import GaiaConfig, NetworkConfig
 from astro_pipeline.gaia_products import GaiaProductRequest, download_gaia_product_request
+from astro_pipeline.library.build import LibraryRun
 from astro_pipeline.library.leases import LeaseBatch
 from astro_pipeline.library.store import LeaseLostError, LibraryStore
 from astro_pipeline.sources.gaia import GaiaSource
@@ -152,6 +153,95 @@ def test_concurrent_cross_label_request_has_one_loader_owner(tmp_path):
     assert len(calls) == 1
     assert len(results) == 2
     assert len({batch[0].version_id for batch in results}) == 1
+
+
+def test_shared_product_long_io_keeps_corpus_view_and_item_leases_alive(tmp_path):
+    store = LibraryStore(tmp_path / "library")
+    store.lease_seconds = 1.0
+
+    def slow_loader(**kwargs):
+        before = store.read("SELECT * FROM leases")
+        assert {row["namespace"] for row in before} == {"corpus", "product-view", "product"}
+        # A socket wait releases the GIL, as this wait does. All three renewal
+        # workers must remain active while the loader exceeds the original TTL.
+        threading.Event().wait(2 * store.lease_seconds)
+        after = {
+            (row["namespace"], row["key"]): row
+            for row in store.read("SELECT * FROM leases")
+        }
+        for original in before:
+            current = after[original["namespace"], original["key"]]
+            assert current["token"] == original["token"]
+            assert current["owner"] == original["owner"]
+            assert current["expires_at"] > original["expires_at"]
+            assert store.acquire_lease(
+                original["namespace"], original["key"], owner="competitor"
+            ) is None
+        return _loader([])(**kwargs)
+
+    with LibraryRun(
+        store=store, out_dir=tmp_path / "corpus", label="corpus",
+        input_mode="name", input_summary="offline lease test",
+        contract={"release": "dr3", "input_mode": "name", "selector": {"name": "test"}},
+        release="dr3", requested_products={"gaia_xp_sampled": True},
+    ) as run:
+        artifacts = download_gaia_product_request(
+            _request(["100", "200"]), run.run_dir / "gaia_xp_sampled",
+            library=store, run_id=run.run_id, loader=slow_loader,
+        )
+        assert len(artifacts) == 2 and all(item.success for item in artifacts)
+        # Exercise the actual fenced corpus manifest write after the long I/O.
+        run.manifest.update_stage("gaia_xp_sampled", status="completed")
+
+
+@pytest.mark.parametrize("takeover", [False, True])
+def test_suspended_shared_product_owner_cannot_renew_or_publish(tmp_path, takeover):
+    now = [100.0]
+    store = LibraryStore(tmp_path / "library", clock=lambda: now[0])
+    successors = []
+    manifest_before = None
+
+    def suspended_loader(**kwargs):
+        nonlocal manifest_before
+        before = store.read("SELECT * FROM leases")
+        # Simulate OS suspension: wall time advances past expiry without giving
+        # heartbeat workers CPU time. Expired owners cannot revive themselves,
+        # even if no replacement worker has claimed the key yet.
+        now[0] += store.lease_seconds + 1
+        with pytest.raises(LeaseLostError):
+            store.renew_lease(run.lease, ttl=store.lease_seconds)
+        if takeover:
+            for original in before:
+                successor = store.acquire_lease(
+                    original["namespace"], original["key"], owner="successor"
+                )
+                assert successor is not None
+                assert successor.token == original["token"] + 1
+            successors.extend(store.read("SELECT * FROM leases ORDER BY namespace, key"))
+        manifest_before = run.manifest.path.read_bytes()
+        with pytest.raises(LeaseLostError):
+            run.manifest.update_stage("gaia_xp_sampled", status="completed")
+        return _loader([])(**kwargs)
+
+    with pytest.raises(LeaseLostError, match="lost fencing token for 2 product"):
+        with LibraryRun(
+            store=store, out_dir=tmp_path / "corpus", label="corpus",
+            input_mode="name", input_summary="offline lease test",
+            contract={"release": "dr3", "input_mode": "name", "selector": {"name": "test"}},
+            release="dr3", requested_products={"gaia_xp_sampled": True},
+        ) as run:
+            product_dir = run.run_dir / "gaia_xp_sampled"
+            download_gaia_product_request(
+                _request(["100", "200"]), product_dir,
+                library=store, run_id=run.run_id, loader=suspended_loader,
+            )
+
+    assert run.manifest.path.read_bytes() == manifest_before
+    assert not (product_dir / "product_refs.json").exists()
+    assert store.status()["n_ready_products"] == 0
+    if takeover:
+        # Stale context cleanup must neither renew nor release successor leases.
+        assert store.read("SELECT * FROM leases ORDER BY namespace, key") == successors
 
 
 def test_large_claim_set_uses_one_batch_renewal_thread(tmp_path, monkeypatch):

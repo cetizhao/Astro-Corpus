@@ -1,7 +1,7 @@
 """SQLite-backed global index and shared-product registry.
 
 The store deliberately owns no network clients.  Read-only methods never create
-or migrate the database; write methods initialize schema version 1 on demand.
+or migrate the database; write methods initialize the current schema on demand.
 """
 from __future__ import annotations
 
@@ -27,7 +27,9 @@ from astro_pipeline.library.identity import (
     product_item_key,
     source_identity,
 )
-from astro_pipeline.library.schema import APPLICATION_ID, SCHEMA_STATEMENTS, SCHEMA_VERSION
+from astro_pipeline.library.schema import (
+    APPLICATION_ID, PAPER_SCHEMA_STATEMENTS, SCHEMA_STATEMENTS, SCHEMA_VERSION,
+)
 
 
 class LibraryBusyError(RuntimeError):
@@ -159,7 +161,7 @@ class LibraryStore:
         raise RuntimeError("Refusing a database that is not an initialized Astro-Corpus library")
 
     def initialize(self) -> None:
-        """Create schema v1 or finish the only supported migration (0 -> 1)."""
+        """Create the current schema or apply additive, transactional migrations."""
         self.root.mkdir(parents=True, exist_ok=True)
         connection = self._connect(readonly=False)
         try:
@@ -186,6 +188,11 @@ class LibraryStore:
                     for statement in SCHEMA_STATEMENTS:
                         connection.execute(statement)
                     connection.execute(f"PRAGMA application_id = {APPLICATION_ID}")
+                    connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+                elif version == 1:
+                    self._validate_owner(connection)
+                    for statement in PAPER_SCHEMA_STATEMENTS:
+                        connection.execute(statement)
                     connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
                 elif version != SCHEMA_VERSION:
                     raise RuntimeError(
@@ -258,7 +265,7 @@ class LibraryStore:
                 return result
             version = self._schema_version(connection)
             result["schema"] = version
-            if version != SCHEMA_VERSION:
+            if version not in (1, SCHEMA_VERSION):
                 return result
             counts = {
                 "n_sources": "SELECT COUNT(*) FROM sources",
@@ -271,6 +278,9 @@ class LibraryStore:
                 ),
                 "n_blobs": "SELECT COUNT(*) FROM blobs",
             }
+            if version >= 2:
+                counts["n_paper_text_versions"] = "SELECT COUNT(*) FROM paper_text_versions"
+                counts["n_fulltext_papers"] = "SELECT COUNT(DISTINCT work_id) FROM paper_text_versions"
             for name, sql in counts.items():
                 result[name] = int(connection.execute(sql).fetchone()[0])
             return result

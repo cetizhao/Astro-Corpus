@@ -26,7 +26,9 @@ from typing import Any, Optional
 
 import numpy as np
 
+from astro_pipeline.gaia_releases import get_gaia_release_profile, normalize_gaia_release
 from astro_pipeline.library.files import BlobIntegrityError, atomic_json
+from astro_pipeline.library.identity import normalize_identifier
 from astro_pipeline.library.refs import ProductReferenceError, resolve_product
 
 logger = logging.getLogger(__name__)
@@ -35,7 +37,7 @@ CONTINUOUS_SUBDIR = "gaia_xp_continuous"
 SAMPLED_SUBDIR = "gaia_xp_sampled"
 PNG_SUBDIR = "gaia_xp_png"
 XP_SAMPLED_WAVELENGTH_NM = np.arange(336.0, 1021.0, 2.0)
-XP_PLOT_RENDERER_VERSION = "2"
+XP_PLOT_RENDERER_VERSION = "3"
 XP_PLOT_OPTIONS = {
     "figsize": [10, 4],
     "dpi": 110,
@@ -66,6 +68,12 @@ def fetch_xp_spectrum(
     product has no v2 references.  Continuous is preferred over sampled.
     """
     cache = Path(cache_dir)
+    release = normalize_gaia_release(release)
+    gaia_id = normalize_identifier(gaia_id)
+    if release != "dr3":
+        raise LookupError(
+            f"No verified spectrum parser is registered for Gaia {release.upper()}."
+        )
     attempts: list[str] = []
     products = [
         ("continuous", CONTINUOUS_SUBDIR, "XP_CONTINUOUS"),
@@ -85,6 +93,7 @@ def fetch_xp_spectrum(
             continue
         return {
             "format": fmt,
+            "release": release,
             "source_id": str(gaia_id),
             **resolved,
         }
@@ -113,6 +122,7 @@ def fetch_xp_spectrum(
             logger.info("downloaded %s spectrum for %s", fmt, gaia_id)
             return {
                 "format": fmt,
+                "release": release,
                 "source_id": str(gaia_id),
                 **resolved,
             }
@@ -174,12 +184,19 @@ def read_xp_continuous(fits_path: Path | str) -> dict:
         raise ValueError(f"gaiaxpy returned no spectra for {fits_path}")
 
     row = sampled.iloc[0]
+    wavelength = _json_float_list(sampling)
+    flux = _json_float_list(row["flux"])
+    flux_error = _json_float_list(row["flux_error"])
+    if not wavelength or len(wavelength) != len(flux):
+        raise ValueError("gaiaxpy returned mismatched wavelength/flux arrays")
+    if len(flux_error) != len(flux):
+        raise ValueError("gaiaxpy returned mismatched flux/flux_error arrays")
     return {
         "format": "continuous",
         "source_id": str(row.get("source_id", "")),
-        "wavelength": _json_float_list(sampling),
-        "flux": _json_float_list(row["flux"]),
-        "flux_error": _json_float_list(row["flux_error"]),
+        "wavelength": wavelength,
+        "flux": flux,
+        "flux_error": flux_error,
     }
 
 
@@ -265,7 +282,14 @@ def read_xp_sampled(fits_path: Path | str) -> dict:
     elif len(flux) == len(XP_SAMPLED_WAVELENGTH_NM):
         wavelength = XP_SAMPLED_WAVELENGTH_NM
     else:
-        wavelength = np.linspace(336.0, 1020.0, len(flux))
+        raise ValueError(
+            "XP_SAMPLED has no wavelength array and does not use the documented grid"
+        )
+
+    if len(wavelength) != len(flux):
+        raise ValueError("XP_SAMPLED wavelength and flux arrays have different lengths")
+    if len(flux_error) != len(flux):
+        raise ValueError("XP_SAMPLED flux and flux_error arrays have different lengths")
 
     sid_col = names.get("source_id") or names.get("sourceid")
     return {
@@ -278,13 +302,21 @@ def read_xp_sampled(fits_path: Path | str) -> dict:
 
 
 def read_xp_spectrum(spec_meta: dict) -> dict:
-    """Dispatch to the right reader based on the format from fetch_xp_spectrum."""
+    """Dispatch to the exact release-qualified reader from fetch_xp_spectrum."""
+    release = normalize_gaia_release(spec_meta.get("release", "dr3"))
+    if release != "dr3":
+        raise ValueError(
+            f"no XP spectrum reader is registered for Gaia {release.upper()}"
+        )
     fmt = spec_meta["format"]
     if fmt == "continuous":
-        return read_xp_continuous(spec_meta["path"])
-    if fmt == "sampled":
-        return read_xp_sampled(spec_meta["path"])
-    raise ValueError(f"unknown XP spectrum format: {fmt!r}")
+        spectrum = read_xp_continuous(spec_meta["path"])
+    elif fmt == "sampled":
+        spectrum = read_xp_sampled(spec_meta["path"])
+    else:
+        raise ValueError(f"unknown XP spectrum format: {fmt!r}")
+    spectrum["release"] = release
+    return spectrum
 
 
 # --------------------------------------------------------------------- plot
@@ -331,8 +363,10 @@ def render_xp_plot(spectrum: dict, out_path: Path | str, *, title: Optional[str]
     if title:
         ax.set_title(title, fontsize=10)
     elif spectrum.get("source_id"):
+        release = normalize_gaia_release(spectrum.get("release", "dr3"))
+        display_name = get_gaia_release_profile(release).display_name
         ax.set_title(
-            f"Gaia DR3 {spectrum['source_id']}  ({spectrum.get('format', '?')} XP)",
+            f"{display_name} {spectrum['source_id']}  ({spectrum.get('format', '?')} XP)",
             fontsize=10,
         )
 
@@ -359,7 +393,12 @@ def get_xp_spectrum_png(
     filename are unchanged.
     """
     cache = Path(cache_dir)
-    png_path = cache / PNG_SUBDIR / f"{gaia_id}.png"
+    try:
+        release = normalize_gaia_release(release)
+        gaia_id = normalize_identifier(gaia_id)
+    except ValueError as exc:
+        return {"error": str(exc), "gaia_id": str(gaia_id), "release": str(release)}
+    png_path = cache / PNG_SUBDIR / release / f"{gaia_id}.png"
     metadata_path = png_path.with_suffix(png_path.suffix + ".json")
 
     try:
@@ -370,7 +409,7 @@ def get_xp_spectrum_png(
             release=release,
         )
     except (BlobIntegrityError, LookupError, ProductReferenceError, ValueError) as exc:
-        return {"error": str(exc), "gaia_id": gaia_id}
+        return {"error": str(exc), "gaia_id": gaia_id, "release": release}
 
     expected_metadata = _png_cache_metadata(spec_meta)
     if (
@@ -382,6 +421,7 @@ def get_xp_spectrum_png(
         return _png_result(
             gaia_id,
             png_path,
+            release=release,
             format="cached",
             cached=True,
             n_points=int(cached_metadata.get("n_points", 0)),
@@ -390,7 +430,7 @@ def get_xp_spectrum_png(
     try:
         spectrum = read_xp_spectrum(spec_meta)
     except (LookupError, ValueError) as exc:
-        return {"error": str(exc), "gaia_id": gaia_id}
+        return {"error": str(exc), "gaia_id": gaia_id, "release": release}
 
     try:
         render_xp_plot(spectrum, png_path)
@@ -402,11 +442,16 @@ def get_xp_spectrum_png(
             },
         )
     except Exception as exc:
-        return {"error": f"plot render failed: {exc}", "gaia_id": gaia_id}
+        return {
+            "error": f"plot render failed: {exc}",
+            "gaia_id": gaia_id,
+            "release": release,
+        }
 
     return _png_result(
         gaia_id,
         png_path,
+        release=release,
         format=spectrum["format"],
         cached=False,
         n_points=len(spectrum.get("wavelength", [])),
@@ -416,6 +461,7 @@ def get_xp_spectrum_png(
 def _png_cache_metadata(spec_meta: dict[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": "1.0",
+        "source_release": str(spec_meta.get("release", "dr3")),
         "source_sha256": str(spec_meta["sha256"]),
         "source_version_id": spec_meta.get("version_id"),
         "source_format": str(spec_meta["format"]),
@@ -440,11 +486,17 @@ def _png_cache_matches(path: Path, expected: dict[str, Any]) -> bool:
 
 
 def _png_result(
-    gaia_id: str, png_path: Path, *, format: str, cached: bool,
+    gaia_id: str,
+    png_path: Path,
+    *,
+    release: str,
+    format: str,
+    cached: bool,
     n_points: int = 0,
 ) -> dict:
     return {
         "gaia_id": gaia_id,
+        "release": release,
         "url": f"file://{png_path.resolve()}",
         "format": format,
         "cached": cached,

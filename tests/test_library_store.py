@@ -10,6 +10,7 @@ import pytest
 
 from astro_pipeline.library.files import BlobIntegrityError
 from astro_pipeline.library.identity import product_item_key
+from astro_pipeline.library.schema import SCHEMA_VERSION
 from astro_pipeline.library.store import (
     LeaseLostError,
     LibraryBusyError,
@@ -58,7 +59,7 @@ def test_initialize_wal_backup_and_integrity(tmp_path):
     store.initialize()
 
     assert store.exists
-    assert store.read("PRAGMA user_version") == [{"user_version": 1}]
+    assert store.read("PRAGMA user_version") == [{"user_version": SCHEMA_VERSION}]
     assert store.read("PRAGMA journal_mode")[0]["journal_mode"].lower() == "wal"
     assert store.read("PRAGMA integrity_check") == [{"integrity_check": "ok"}]
     assert store.read("PRAGMA foreign_key_check") == []

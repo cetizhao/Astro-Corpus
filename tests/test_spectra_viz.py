@@ -201,8 +201,9 @@ def test_png_cache_invalidates_when_pinned_fits_hash_changes(
 
     assert refreshed["cached"] is False
     assert len(renders) == 2
-    metadata_path = corpus_dir / "gaia_xp_png" / f"{gaia_id}.png.json"
+    metadata_path = corpus_dir / "gaia_xp_png" / "dr3" / f"{gaia_id}.png.json"
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert metadata["source_release"] == "dr3"
     assert metadata["source_sha256"] == second_blob["sha256"]
     assert metadata["source_version_id"] == "version-2"
     assert refs_path.is_file()

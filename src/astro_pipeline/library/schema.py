@@ -1,10 +1,10 @@
 """Versioned SQLite schema for the shared local library."""
 from __future__ import annotations
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 APPLICATION_ID = 0x41535452
 
-SCHEMA_STATEMENTS = (
+SCHEMA_V1_STATEMENTS = (
     """
     CREATE TABLE IF NOT EXISTS corpora (
         corpus_id TEXT PRIMARY KEY,
@@ -241,3 +241,72 @@ SCHEMA_STATEMENTS = (
     )
     """,
 )
+
+PAPER_SCHEMA_STATEMENTS = (
+    """
+    CREATE TABLE IF NOT EXISTS paper_downloads (
+        download_id TEXT PRIMARY KEY,
+        work_id TEXT NOT NULL,
+        arxiv_version INTEGER NOT NULL CHECK (arxiv_version > 0),
+        kind TEXT NOT NULL,
+        blob_sha256 TEXT NOT NULL REFERENCES blobs(sha256),
+        metadata_json TEXT NOT NULL,
+        created_at REAL NOT NULL
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_paper_downloads_key ON paper_downloads(work_id, arxiv_version, kind, created_at)",
+    """
+    CREATE TABLE IF NOT EXISTS paper_text_versions (
+        version_id TEXT PRIMARY KEY,
+        work_id TEXT NOT NULL,
+        arxiv_version INTEGER NOT NULL CHECK (arxiv_version > 0),
+        parser_version TEXT NOT NULL,
+        include_pdf INTEGER NOT NULL CHECK (include_pdf IN (0, 1)),
+        metadata_json TEXT NOT NULL,
+        quality_json TEXT NOT NULL,
+        created_at REAL NOT NULL,
+        UNIQUE(work_id, arxiv_version, parser_version, include_pdf, version_id)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_paper_text_work ON paper_text_versions(work_id, arxiv_version)",
+    """
+    CREATE TABLE IF NOT EXISTS paper_text_artifacts (
+        version_id TEXT NOT NULL REFERENCES paper_text_versions(version_id),
+        kind TEXT NOT NULL,
+        blob_sha256 TEXT NOT NULL REFERENCES blobs(sha256),
+        metadata_json TEXT NOT NULL,
+        PRIMARY KEY(version_id, kind)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_paper_text_blobs ON paper_text_artifacts(blob_sha256)",
+    """
+    CREATE TABLE IF NOT EXISTS paper_text_current (
+        work_id TEXT NOT NULL,
+        arxiv_version INTEGER NOT NULL,
+        parser_version TEXT NOT NULL,
+        include_pdf INTEGER NOT NULL,
+        version_id TEXT NOT NULL,
+        PRIMARY KEY(work_id, arxiv_version, parser_version, include_pdf),
+        FOREIGN KEY(work_id, arxiv_version, parser_version, include_pdf, version_id)
+            REFERENCES paper_text_versions(work_id, arxiv_version, parser_version, include_pdf, version_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS paper_inputs (
+        run_id TEXT NOT NULL REFERENCES runs(run_id),
+        ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
+        input_json TEXT NOT NULL,
+        work_id TEXT NOT NULL,
+        requested_id TEXT NOT NULL,
+        pinned_version INTEGER,
+        metadata_json TEXT NOT NULL,
+        status TEXT NOT NULL,
+        version_id TEXT REFERENCES paper_text_versions(version_id),
+        result_json TEXT NOT NULL,
+        PRIMARY KEY(run_id, ordinal)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_paper_inputs_work ON paper_inputs(work_id, run_id)",
+)
+
+SCHEMA_STATEMENTS = SCHEMA_V1_STATEMENTS + PAPER_SCHEMA_STATEMENTS

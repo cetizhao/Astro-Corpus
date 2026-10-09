@@ -13,12 +13,21 @@
 - **开发者**：知道代码在哪里、每一步做什么、怎么扩展。
 - **下游使用者**：理解这个 pipeline 能把公开天文数据库转成统一、可复用、可被 AI 调用的数据接口。
 
-非计算机专业的天体物理学习者可从
-[工程与 AI 语料学习指南](docs/learning-guide.md) 开始。该文档按概念依赖组织本项目的
+想先理解当前系统，可从 [技术栈、系统架构与 MCP 使用边界](docs/technical-overview.md)
+开始：它串起一次采集的数据流，解释 SQLite、文件对象、运行快照、缓存和网页，并区分
+MCP 项目级/用户级配置、GitHub 代码分发与远程共享服务。
+安装、本人跨项目使用及协作者接入见 [MCP integration guide](docs/integration-guide.md)。
+
+需要补 Python 工程基础的天体物理学习者可读
+[工程与 AI 语料学习指南](docs/learning-guide.md)。该文档按概念依赖组织本项目的
 带读、练习、答案和学习进度，不要求先通读本 README。
 
 新建 corpus 默认使用跨 label 共享的本地 SQLite + 内容寻址对象库；其路径、缓存、
-快照、导入/导出和备份语义见 [共享 library 运维说明](docs/library.md)。
+快照、导入/导出和备份语义见 [共享 library 运维说明](docs/library.md)。该 library 还可通过
+`scripts/library.py serve` 启动仅监听本机的只读全库查看器，光谱在选择源后按需读取。
+固定的 CrA / Upper Sco 发表成员表采集命令见
+[operator runbook](docs/operator-runbook.md#fixed-cra-and-upper-sco-acquisition)；两套 full 快照已于
+2026-09-29 完成采集和本地完整性验收，覆盖范围与数量见 §13.5。
 
 ## 1. 项目定位
 
@@ -63,8 +72,10 @@
 | 下载断点续传 | 已实现 | `DownloadCheckpoint` 记录 completed/failed |
 | 网络重试 | 已实现 | `tenacity` 指数退避重试 |
 | 双向「源↔论文」语料库 API | 已实现 | `astro_pipeline.corpus`：源→论文 + 论文→源，SIMBAD 权威书目 |
-| arxiv_id 反向解析 | 已实现 | DOI→arXiv 批量 API，76% 覆盖（v0.2.1 修复） |
-| corpus 可视化 | 已实现 | `astro_pipeline.viz`：6 张概览图 + 搜索/点击 focus + XP 光谱面板 |
+| arxiv_id 反向解析 | 已实现 | 严格 DOI→arXiv 批量查询；验证响应完整性，歧义仅按精确规范化标题消解，否则保留待重试状态 |
+| per-corpus 可视化 | 已实现 | `embedded` / `status_only` / `off`；轻量模式保留缓存状态但不嵌入光谱数组 |
+| 全库只读查看器 | 已实现 | loopback HTTP；全库分页/天空图/来源状态，选择源后按需校验并解析本地光谱 |
+| CrA / Upper Sco 固定采集任务 | 已实现·全表采集验收完成 | 2026-09-29：393 / 1,761 行完整保留；可用 XP 与文献阶段完成，详见 §13.5 |
 | cross-match 引擎 | 部分实现 | 成员/用户星表→Gaia DR3 已有批量位置匹配；跨巡天统一匹配仍待扩展 |
 | 质量控制模块 | 未实现 | 质量过滤目前散落在查询条件或文档建议中 |
 | 光谱分析模块 | 未实现 | 尚未提取等值宽度、S/N、恒星参数等统一特征 |
@@ -103,6 +114,7 @@ astro-pipeline/
     config.py               # Pydantic 配置模型
     retry.py                # 网络重试策略
     spectra.py              # Gaia XP Sampled/Continuous 解析与 PNG 渲染
+    spectral_adapters.py    # release/product 精确匹配的只读光谱适配器
     corpus.py               # 【v0.2】双向「源↔论文」查询 API + CLI
     corpus_builder.py       # 通用 corpus 编排：保存、论文、XP、HTML
     corpus_products.py      # corpus 级 Gaia XP 可用性与续传下载
@@ -130,9 +142,10 @@ astro-pipeline/
       external.py           # 外部星表（如 TWAxgdr3.csv）加载
       simbad_refs.py        # 【v0.2】SIMBAD 权威书目 -> 论文边
       arxiv_search.py       # arXiv 关键词检索（仅用于发现，不作归属）
-    viz/                    # 交互式 corpus 可视化
-      source_paper.py       #   源↔论文概览（6 张图 + focus + XP 光谱）
-      vendor/echarts.min.js #   Apache ECharts 5.5.0，构建时内嵌
+    viz/                    # per-corpus 静态页 + 全库本地只读查看器
+      source_paper.py       #   源↔论文概览与可选 XP 嵌入
+      library_viewer.py     #   loopback HTTP/API，全库分页与按需光谱
+      vendor/echarts.min.js #   Apache ECharts 5.5.0，本地提供/构建时内嵌
   scripts/
     build_twa_paper_edges.py # 【v0.2】重建 TWA 论文边表（两阶段、可续跑）
     resolve_arxiv_ids.py    # 【v0.2.1】批量 arXiv DOI -> arxiv_id 反查（~11 min/3k 篇）
@@ -141,7 +154,8 @@ astro-pipeline/
     download_twa_xp.py      # 【v0.3.0】下载 TWA XP Sampled FITS
     download_twa_xp_continuous.py # 【v0.3.0】分批下载 TWA XP Continuous FITS
     build_corpus.py         # 通用 name/cone/region/CSV corpus CLI
-    library.py              # 共享 library status/import/verify/export 管理 CLI
+    collect_regions.py      # 固定 CrA/Upper Sco 成员表的有界可续跑采集入口
+    library.py              # 共享 library serve/status/import/verify/export CLI
     gaia_bulk.py            # Gaia 主表分块 plan/run/status CLI
   examples/
     twa_sample.py           # TWA 端到端 demo（SIMBAD 关联 + 正确标志）
@@ -447,38 +461,47 @@ python scripts/resolve_arxiv_ids.py
 # 走单 DOI 串行查询 + SIMBAD 重查，~2.6 h/3k 篇，已被 resolve_arxiv_ids.py 取代
 ```
 
-## 7.6 corpus 可视化（v0.3.0）
+## 7.6 corpus 静态页与全库查看器
 
-`astro_pipeline.viz.build_overview_html` 把 corpus 数据渲染成一个独立的 HTML
-页面（默认 `data/twa/source_paper_viz.html`），完全离线、可邮件附件分发。
+`astro_pipeline.viz.build_overview_html` 生成单个 corpus 的交互式静态页面（默认
+`data/twa/source_paper_viz.html`）。它保留 6 张概览图、搜索和点击 focus：天空分布、
+Top 源/论文、arXiv 覆盖率、年份分布和源-论文网络。
 
-**包含 6 张概览图**：天空分布散点（颜色 = log 论文数）、Top 15 源 × 论文数、
-Top 15 论文 × 覆盖源数、arXiv 覆盖率环形、论文年份分布、源-论文二分网络子图。
+高层 corpus builder 的 `static_viz_mode` 明确区分三种输出：
 
-**两种 focus 方式**：
+- `embedded`：生成静态页并解析、嵌入已缓存光谱数组；这是兼容性默认值。
+- `status_only`：仍生成概览，但只标记“产品已缓存”，不解析或嵌入数组；固定
+  CrA / Upper Sco runner 默认使用此模式。
+- `off`：不生成新的静态概览页。
 
-- 搜索框：输入 Gaia `source_id`（支持 `Gaia DR3 X` 前缀）→ 该源的论文列表；或
-  输入 `arxiv_id` / `bibcode` / 唯一 title 子串 → 该论文的源列表。
-- 点击交互：在天空图、横条图、二分图上点击任意节点 → focus 面板同步刷新。
+DR3 光谱优先 XP Continuous，缺失时回退 XP Sampled。当前 parser 输出一条校准后的
+`XP combined` 序列（波长 nm，通量 `W m-2 nm-1`），不会按波长人为拆成两条 BP/RP
+观测。`embedded` 页面没有产品时会明确显示状态；`status_only` 会引导用户到全库查看器
+按需打开。ECharts 位于 `src/astro_pipeline/viz/vendor/echarts.min.js`，可内嵌到静态页。
 
-源 focus 面板会优先读取当前 corpus 下的
-`gaia_xp_continuous/<source_id>.fits`，没有时回退到
-`gaia_xp_sampled/<source_id>.fits`，展示 BP/RP 波长-流量曲线和 flux
-uncertainty 阴影。没有本地缓存时，页面明确显示 XP 不可用，不影响其他 corpus
-图表和查询。
-
-**重新生成**：
+重新生成 TWA 静态页：
 
 ```bash
 python scripts/build_viz.py
 ```
 
-默认读取 TWA 的 `paper_edges.parquet` + `TWAxgdr3.csv`，写出 HTML（一次性备份
-旧版到 `.bak`）。ECharts 随 Python 包保存在
-`src/astro_pipeline/viz/vendor/echarts.min.js`；生成的 HTML 会把图表库和 corpus
-数据全部内嵌，因此可作为单个文件离线打开。
+全库查看器读取共享 index，而不是把所有源和浮点光谱数组塞进一个 HTML。启动方式：
 
+```bash
+uv run python scripts/library.py serve
+uv run python scripts/library.py --library-root /path/to/library serve \
+  --port 8765 --poll-seconds 5
+```
 
+打开 `http://127.0.0.1:8765/`。服务只监听 `127.0.0.1`、只读现有 SQLite，并按
+`(gaia_release, source_id)` 分页显示全库源、天空位置、样本/运行、文献和产品状态；无效/
+缺失坐标保留在表格中但不画到原点。页面约每 5 秒检查 revision，库在翻页期间变化时会
+从新快照重取，不混合两个版本。
+
+选择源后才会校验并解析本地光谱，页面操作不会触发 Gaia/SIMBAD 下载。默认 global scope
+使用当前 active product；选择 corpus/run scope 时严格使用该快照的 version-2 pin，两个
+scope 不互相回退。当前仅 DR3 `XP_CONTINUOUS` / `XP_SAMPLED` 有可运行 parser；DR4 预期
+产品在真实 schema、source-specific links 和样例确认前返回 `unsupported`。
 
 TWA 67 个成员中，部分源本身在 LAMOST/SDSS 没有光谱覆盖（演示如实反映）；少数源在
 SIMBAD 没有条目或没有论文引用（结果如实返回空列表），不会伪造关联。
@@ -833,11 +856,74 @@ library 的 dry-run import、verify/reconcile、固定 run 导出和 standalone 
 
 公开成员目录目前以 MCP/Python API 为主要入口，完整顺序见 [docs/integration-guide.md](docs/integration-guide.md)。
 
-### 13.5 日常使用（不需要重建数据时）
+### 13.5 固定 CrA / Upper Sco 发表成员表
+
+固定 runner 选择的是发表成员表，不是两个区域内的全部 Gaia 场源：CrA 使用
+`J/AJ/163/64/table1`（393 行；EDR3 ID 仅作证据，以数值型 `RA_ICRS/DE_ICRS`
+坐标匹配 DR3），Upper Sco 使用 `J/AJ/160/44/table5`（1,761 行；DR2 ID 仅作证据，
+以数值型 `RAJ2000/DEJ2000` 坐标匹配 DR3）。原表和未匹配行全部保留，不自动增加
+membership、RUWE 或其他质量过滤。
+
+```bash
+# 默认各取 10 行，只做成员获取与 DR3 匹配。
+uv run python scripts/collect_regions.py --target all --stage members
+
+# 同一 smoke label 测试 XP、论文和 enrichment。
+uv run python scripts/collect_regions.py \
+  --target all --stage all --static-viz-mode status_only
+
+# Full table；建议分目标顺序运行，并为每次子进程尝试设置 3,600 秒硬期限。
+uv run python scripts/collect_regions.py \
+  --target cra --full --stage all \
+  --retry-passes 1 --attempt-timeout-seconds 3600 \
+  --static-viz-mode status_only
+uv run python scripts/collect_regions.py \
+  --target uppersco --full --stage all \
+  --retry-passes 1 --attempt-timeout-seconds 3600 \
+  --static-viz-mode status_only
+```
+
+中断或部分失败后重跑同一条命令；runner 固定 `refresh=False`，复用 source/product/
+SIMBAD checkpoint，并以有限 retry pass 结束。每次尝试在独立子进程中运行，
+`--attempt-timeout-seconds` 默认 3,600 秒；超时会终止本次尝试但保留已有 checkpoint
+和共享产品。若被终止的 worker 仍持有 lease，应等待 lease 到期后再重跑，而不是绕过
+library。
+
+2026-09-29 的最终本地验收中，两套 full 快照均已发布且 `completed`：
+
+| 验收项 | CrA | Upper Sco |
+|---|---:|---:|
+| 原成员表行数 | 393 | 1,761 |
+| 匹配行 / 独立 Gaia DR3 源 | 380 / 380 | 1,698 / 1,696 |
+| 未匹配行（原样保留） | 13 | 63 |
+| XP Sampled 已验证 / 可用 | 114 / 114 | 590 / 590 |
+| XP Continuous 已验证 / 可用 | 234 / 234 | 1,098 / 1,098 |
+| SIMBAD 源查询完成 | 380 / 380 | 1,696 / 1,696 |
+| 文献标题与年份完整 | 1,122 / 1,122 | 4,500 / 4,500 |
+| 有 DOI / 关联到 arXiv 的文献 | 893 / 472 | 3,541 / 1,723 |
+
+全部有 DOI 的条目均完成查询，无失败、延后或限流待办；API 成功返回未找到关联不等于
+证明该论文没有预印本。“完成”限于选定成员表及可获得的元数据/XP，不包含论文全文，
+也不表示每个成员都有 Gaia 或 XP。Upper Sco 的两个重复同星样本行完整保留。
+3 arcsec 最近位置匹配没有自行历元传播；CrA / Upper Sco 分别有 105 / 226 个
+多候选匹配行，Upper Sco 有 8 行匹配距离超过 1 arcsec，仍需科学核查，未静默剔除。
+
+全库查看器验收覆盖 2,343 个去重源与天球位置，其中 1,332 个源有登记 ready 的 XP；
+旧 TWA/Orion 已非破坏性纳入，但保持 `legacy_unverified`，Orion 不改称物理成员。
+本地审计记录为 `data/collection_validation/report.json`，数据和截图均不随 Git 分发。
+固定 run ID、验收细节与重试规则见
+[operator runbook](docs/operator-runbook.md#fixed-cra-and-upper-sco-acquisition)。
+
+后续运行仍只在行数对账、请求阶段、所有 availability-positive XP 固定产品、SIMBAD
+查询和文献标题均满足，且 run 对应的 `simbad_refs.enrichment.json` 确认 DOI 查询无失败、
+延后或限流时才标 `completed`。基础标题/DOI 元数据先保存；持续 HTTP 429 会使
+arXiv 查询暂缓并标 `partial`，不会记为“没有预印本”。
+
+### 13.6 日常使用（不需要重建数据时）
 
 参见 §7.5 / §7.6 的 CLI 命令清单。`--offline` 用本地缓存，不联网。
 
-### 13.6 常见坑
+### 13.7 常见坑
 
 - **`FileNotFoundError: TWAxgdr3.csv`** → §13.2 没做
 - **`corpus paper <arxiv_id>` 返回 "No paper matched"** → §13.3 第 2 步没跑（arxiv_id 列为空）
@@ -845,11 +931,29 @@ library 的 dry-run import、verify/reconcile、固定 run 导出和 standalone 
 - **指定 Taurus/Orion 后得到的不是成员** → `region`/`cone` 是场源；用成员目录三步工作流
 - **XP 下载失败但 members 已生成** → DataLink 是可选阶段；看 `manifest.json` 后用同一 label 重跑
 
+### 13.8 论文全文语料（显式下载）
+
+现有星表/成员构建仍只收集论文元数据。全文需要单独请求：将 1–50 个 arXiv ID 或含
+`arxiv_id` 的记录放入 JSON 列表后运行：
+
+```bash
+uv run python scripts/library.py paper-build paper_demo --selection papers.json
+uv run python scripts/library.py paper-status paper_demo
+```
+
+管线固定具体 arXiv 版本，优先 HTML，再尝试 LaTeX 源文件和低保真 PDF 文本回退；原文件、
+结构化 JSON 与 Markdown 分别保存到共享对象库。默认还获取同版本 PDF 供核查。
+同一请求重跑会复用固定检查点；`--refresh` 才创建新 run。`partial` 表示存在明确的解析
+限制，不等于没有全文；不要把解析出的数值直接当成已核验科学测量。
+
+论文 license 与出处一并记录，未知权限不默认允许训练/再分发。全文不自动上传或进入 Git，
+也不会自动生成问答。CLI、MCP、结构与代表性测试见 [论文语料说明](docs/paper-corpus.md)。
+
 ## 14. MCP 集成（让 AI agent 调用本 pipeline）
 
-本仓库自带 [MCP server](https://modelcontextprotocol.io/)（`src/astro_pipeline/mcp_server.py`），当前注册 25 个工具，覆盖单 corpus 与全局 library 查询、名称/天区输入、公开成员目录、XP/通用 DataLink 下载、release discovery、进度查询和 Gaia 主表分块。用户可以只描述目标，不必亲自运行命令。
+本仓库自带 [MCP server](https://modelcontextprotocol.io/)（`src/astro_pipeline/mcp_server.py`），当前注册 27 个工具，覆盖单 corpus 与全局 library 查询、名称/天区输入、公开成员目录、XP/通用 DataLink 下载、论文全文语料、release discovery、进度查询和 Gaia 主表分块。用户可以只描述目标，不必亲自运行命令。
 
-### 14.1 三条主要工作流
+### 14.1 主要工作流
 
 | 需求 | Agent 调用顺序 |
 |---|---|
@@ -859,6 +963,7 @@ library 的 dry-run import、verify/reconcile、固定 run 导出和 standalone 
 | 大规模物化 Gaia 主表 | `create_gaia_bulk_plan` → `run_gaia_bulk_download` → `gaia_bulk_status` |
 | 检查 Gaia DR4 是否上线 | `probe_gaia_archive` → `describe_gaia_table` → `list_gaia_products` |
 | 下载显式 Gaia 产品 | `plan_gaia_product_download` → `download_gaia_product` → `gaia_product_status` |
+| 构建论文全文语料 | `download_paper_corpus` → `paper_corpus_status`；`lookup_library_paper` 查看已缓存版本 |
 
 `region` 只是以名称为中心的几何锥形搜索，不等于成员。成员工作流保留原 VizieR 表、成员概率/标志、Gaia 匹配角距离和未匹配行，不默认筛选。
 

@@ -55,7 +55,8 @@ RAG，而是“对象与调用 → 模块 → 契约 → 测试 → schema/prove
 | 文档 | 作用 | 何时阅读 |
 |---|---|---|
 | [README](../README.md) | 项目总览、能力清单、演示与路线图 | 需要全局定位时查阅 |
-| [integration guide](integration-guide.md) | MCP 工具和用户工作流 | 学请求如何进入系统时 |
+| [技术栈与架构讲解](technical-overview.md) | 分层架构、数据流、存储原理、MCP 作用域和分发边界 | 先理解整个系统，再进入单项练习 |
+| [integration guide](integration-guide.md) | MCP 安装、本人/协作者接入和工具工作流 | 配置客户端或学习请求如何进入系统时 |
 | [architecture](architecture.md) | 系统边界、数据契约、目录结构 | 学架构和 schema 时 |
 | [operator runbook](operator-runbook.md) | 运行、恢复与故障排查 | 学可靠性和运维时 |
 | [CHANGELOG](../CHANGELOG.md) | 版本演进与真实 bug | 学工程权衡和回归测试时 |

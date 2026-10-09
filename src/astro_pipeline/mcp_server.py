@@ -154,7 +154,9 @@ def lookup_library_paper(
 
     Resolution checks bibcode, arXiv ID, DOI, and title substring. Source links
     come only from each source's active bibliography snapshot; historical
-    failure or superseded snapshots are not silently mixed in.
+    failure or superseded snapshots are not silently mixed in. ``fulltext``
+    separately lists locally cached paper versions, quality flags and artifact
+    paths, never the full text itself or inferred paragraph-level evidence.
     """
     from astro_pipeline.library import get_library
     from astro_pipeline.library.query import Library
@@ -171,6 +173,59 @@ def lookup_library_paper(
             "scope": "global_library",
             "query": query,
         }
+
+
+def _paper_result_summary(result: dict) -> dict:
+    summary = {key: value for key, value in result.items() if key != "contract"}
+    if "papers" in summary:
+        summary["papers"] = [{key: value for key, value in paper.items() if key != "input"}
+                             for paper in summary["papers"]]
+    return _json_safe(summary)
+
+
+@mcp.tool()
+def download_paper_corpus(
+    label: str,
+    papers: Optional[list[str | dict[str, Any]]] = None,
+    include_pdf: bool = True,
+    refresh: bool = False,
+    resume_run_id: Optional[str] = None,
+) -> dict:
+    """Explicitly acquire 1–50 arXiv papers as a local, version-pinned text corpus.
+
+    ``papers`` contains arXiv IDs or records with ``arxiv_id`` and optional
+    bibcode/DOI/input provenance. Repeating the same label/selection resumes
+    its pinned run; omit papers to resume an existing label. ``refresh`` makes
+    a new run and cannot be combined with ``resume_run_id``. HTML is preferred,
+    then safe LaTeX source, then lower-fidelity PDF text. Raw files, structured
+    JSON and Markdown are local immutable artifacts, with licenses and quality
+    warnings. Availability is not permission to redistribute or train. Source
+    bibliography links are not paragraph-level scientific evidence.
+    """
+    from astro_pipeline.library.paper_corpus import build_paper_corpus
+
+    try:
+        return _paper_result_summary(build_paper_corpus(
+            label, papers, include_pdf=include_pdf, refresh=refresh,
+            resume_run_id=resume_run_id,
+        ))
+    except (ValueError, RuntimeError, OSError) as exc:
+        return {"error": str(exc), "label": label}
+
+
+@mcp.tool()
+def paper_corpus_status(label: str, run_id: Optional[str] = None) -> dict:
+    """Read local paper collection progress and pinned artifact paths; no downloads.
+
+    Fetch success, parsing quality and requested PDF completeness are separate.
+    ``run_id`` selects a historical snapshot without changing the active run.
+    """
+    from astro_pipeline.library.paper_corpus import paper_corpus_status as _status
+
+    try:
+        return _paper_result_summary(_status(label, run_id=run_id))
+    except (ValueError, RuntimeError, OSError) as exc:
+        return {"error": str(exc), "label": label}
 
 
 @mcp.tool()
@@ -254,20 +309,26 @@ def summarize_corpus() -> dict:
 
 
 @mcp.tool()
-def gaia_xp_spectrum(gaia_id: str, label: Optional[str] = None) -> dict:
-    """Render the Gaia DR3 BP/RP spectrum for a source and return a file URL.
+def gaia_xp_spectrum(
+    gaia_id: str,
+    label: Optional[str] = None,
+    release: str = "dr3",
+) -> dict:
+    """Render a Gaia XP spectrum for a source and return a file URL.
 
     The agent or user opens the returned URL (file:// path) to view the plot.
     Spectrum is fetched from cache (data_dir/gaia_xp_continuous/ or
     data_dir/gaia_xp_sampled/) -- XP_CONTINUOUS is preferred; falls back to
-    XP_SAMPLED if only that is available. The rendered PNG is cached at
-    data_dir/gaia_xp_png/<gaia_id>.png so repeated calls are free.
+    XP_SAMPLED if only that is available. The rendered PNG is cached under
+    data_dir/gaia_xp_png/<release>/<gaia_id>.png so repeated calls are free.
 
     Parameters
     ----------
-    gaia_id : Gaia DR3 source_id (19-digit string).
+    gaia_id : Gaia source_id (19-digit string).
     label : optional corpus directory under data/ (e.g. "taurus_members").
         Omit to use the server's configured default corpus (TWA by default).
+    release : Gaia release associated with the source ID. Defaults to ``dr3``
+        for backward compatibility.
 
     Returns
     -------
@@ -291,7 +352,12 @@ def gaia_xp_spectrum(gaia_id: str, label: Optional[str] = None) -> dict:
             return {"error": str(exc), "gaia_id": gaia_id, "label": label}
         corpora_root = DATA_DIR.parent if DATA_DIR.name == "twa" else Path("data")
         cache_dir = corpora_root / label
-    result = get_xp_spectrum_png(gaia_id, cache_dir, allow_download=False)
+    result = get_xp_spectrum_png(
+        gaia_id,
+        cache_dir,
+        allow_download=False,
+        release=release,
+    )
     result["corpus_label"] = label or DATA_DIR.name
     return _json_safe(result)
 
@@ -310,6 +376,7 @@ def download_corpus(
     xp_sampled: bool = False,
     xp_continuous: bool = False,
     refresh: bool = False,
+    static_viz_mode: str = "embedded",
 ) -> dict:
     """Download a corpus snapshot and persist to ``data/<label>/`` on disk.
 
@@ -340,7 +407,8 @@ def download_corpus(
         membership-catalogue tools for physical members.
     catalog_path : path to a CSV with Gaia ids OR RA/Dec columns.
     limit : cap on members (default 200; raise for bigger builds, but
-        SIMBAD phase scales as ~0.3 s/source).
+        SIMBAD phase scales as ~0.3 s/source). ``0`` means all members;
+        negative values are invalid.
     skip_simbad : if True, stop after members are resolved (no paper edges,
         no viz). Useful for a quick "what's in this region" check.
     sleep_seconds : pause between SIMBAD requests (default 0.3, polite).
@@ -355,6 +423,8 @@ def download_corpus(
         surprise. Requires Gaia DataLink access; checkpointed and resumable.
     xp_continuous : if True, also download XP_CONTINUOUS coefficient FITS in
         small batches. Default False; usually slower than Sampled.
+    static_viz_mode : static visualization mode forwarded to the corpus builder.
+        Defaults to ``"embedded"``.
 
     Returns
     -------
@@ -380,6 +450,8 @@ def download_corpus(
     out_dir = corpora_root / label
 
     try:
+        if limit < 0:
+            raise ValueError("limit must be zero or a positive integer")
         result = build_corpus_snapshot(
             label=label,
             out_dir=out_dir,
@@ -387,13 +459,14 @@ def download_corpus(
             name=name,
             region=(region[0], float(region[1])) if region else None,
             catalog=catalog_path,
-            limit=limit if limit and limit > 0 else None,
+            limit=limit if limit > 0 else None,
             skip_simbad=skip_simbad,
             sleep_seconds=sleep_seconds,
             enrich=enrich,
             xp_sampled=xp_sampled,
             xp_continuous=xp_continuous,
             refresh=refresh,
+            static_viz_mode=static_viz_mode,
         )
     except (
         ValueError,
@@ -818,6 +891,8 @@ def download_membership_corpus(
     xp_sampled: bool = False,
     xp_continuous: bool = False,
     refresh: bool = False,
+    static_viz_mode: str = "embedded",
+    resume_selection_run_id: Optional[str] = None,
 ) -> dict:
     """Build a Gaia DR3 corpus from an explicitly selected member table.
 
@@ -835,10 +910,14 @@ def download_membership_corpus(
     members.csv/parquet, unmatched_members.csv and, unless skip_simbad=True,
     paper edges plus the self-contained HTML visualization.
 
-    ``limit=0`` means all selected table rows; use a small positive value for
-    a test. ``match_radius_arcsec`` defaults to 3 arcsec because older member
-    lists can use pre-Gaia-DR3 epochs; inspect match separations and unmatched
-    rows, especially in dense fields or for high-proper-motion sources.
+    ``limit=0`` means all selected table rows; negative limits are invalid. Use
+    a small positive value for a test. ``match_radius_arcsec`` defaults to 3
+    arcsec because older member lists can use pre-Gaia-DR3 epochs; inspect match
+    separations and unmatched rows, especially in dense fields or for
+    high-proper-motion sources. ``static_viz_mode`` is forwarded to the corpus
+    builder and defaults to ``"embedded"``. ``resume_selection_run_id`` explicitly
+    reuses a verified, published selection from this same corpus without new
+    VizieR/Gaia matching; it cannot be combined with ``refresh=True``.
     """
     from astro_pipeline.membership import build_membership_corpus
 
@@ -846,6 +925,8 @@ def download_membership_corpus(
 
     try:
         label = validate_label(label)
+        if limit < 0:
+            raise ValueError("limit must be zero or a positive integer")
         corpora_root = DATA_DIR.parent if DATA_DIR.name == "twa" else Path("data")
         return _json_safe(
             build_membership_corpus(
@@ -860,6 +941,9 @@ def download_membership_corpus(
                 enrich=enrich,
                 xp_sampled=xp_sampled,
                 xp_continuous=xp_continuous,
+                refresh=refresh,
+                static_viz_mode=static_viz_mode,
+                resume_selection_run_id=resume_selection_run_id,
             )
         )
     except Exception as exc:

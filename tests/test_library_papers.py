@@ -4,7 +4,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import httpx
 import pandas as pd
+import pytest
 
 from astro_pipeline.library.papers import (
     DOI_ARXIV_NAMESPACE,
@@ -287,10 +289,11 @@ def test_metadata_and_no_arxiv_negative_are_shared(monkeypatch, tmp_path):
         assert kwargs["resolve_doi"] is False
         return PaperRecord(bibcode=bibcode_arg, title="A paper", doi=doi, year=2024)
 
-    def no_arxiv(doi_arg: str) -> None:
+    def no_arxiv(doi_arg: str, **kwargs) -> None:
         nonlocal doi_calls
         doi_calls += 1
         assert doi_arg == doi
+        assert kwargs["expected_titles"] == ["A paper"]
         return None
 
     monkeypatch.setattr(simbad_refs, "get_source_bibcodes", fetch_source)
@@ -329,9 +332,10 @@ def test_resolve_doi_false_does_not_write_not_found(monkeypatch, tmp_path):
         ),
     )
 
-    def resolve(doi_arg: str) -> str:
+    def resolve(doi_arg: str, **kwargs) -> str:
         nonlocal doi_calls
         doi_calls += 1
+        assert kwargs["expected_titles"] == ["A paper"]
         return "2401.01234"
 
     monkeypatch.setattr(simbad_refs, "arxiv_id_from_doi", resolve)
@@ -369,9 +373,10 @@ def test_doi_failure_remains_retryable(monkeypatch, tmp_path):
         ),
     )
 
-    def flaky(doi_arg: str) -> str:
+    def flaky(doi_arg: str, **kwargs) -> str:
         nonlocal attempts
         attempts += 1
+        assert kwargs["expected_titles"] == ["A paper"]
         if attempts == 1:
             raise OSError("temporary failure")
         return "2401.01234"
@@ -390,3 +395,253 @@ def test_doi_failure_remains_retryable(monkeypatch, tmp_path):
         (DOI_ARXIV_NAMESPACE,),
     )
     assert [row["outcome"] for row in observations] == ["error", "found"]
+
+
+@pytest.fixture
+def arxiv_clock(monkeypatch):
+    clock = MutableClock()
+    monkeypatch.setattr(simbad_refs, "_arxiv_last_request_started", None)
+    monkeypatch.setattr(simbad_refs.time, "monotonic", clock)
+    monkeypatch.setattr(simbad_refs.time, "time", clock)
+    monkeypatch.setattr(simbad_refs.time, "sleep", clock.advance)
+    return clock
+
+
+_EMPTY_ARXIV_FEED = (
+    '<feed xmlns="http://www.w3.org/2005/Atom" '
+    'xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">'
+    '<opensearch:totalResults>0</opensearch:totalResults>'
+    '<opensearch:startIndex>0</opensearch:startIndex>'
+    '</feed>'
+)
+
+
+def test_arxiv_request_starts_are_spaced_across_dois(monkeypatch, arxiv_clock):
+    starts = []
+
+    def get(url, **kwargs):
+        starts.append(arxiv_clock())
+        arxiv_clock.advance(1)  # Request duration counts towards spacing.
+        return httpx.Response(200, text=_EMPTY_ARXIV_FEED, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(httpx, "get", get)
+    for suffix in ("a", "b", "c"):
+        assert simbad_refs.arxiv_id_from_doi(f"10.1234/{suffix}") is None
+    assert starts == [1000.0, 1003.0, 1006.0]
+
+
+@pytest.mark.parametrize(
+    ("retry_after", "expected_starts"),
+    [
+        (None, [1000.0, 1005.0]),
+        ("12", [1000.0, 1012.0]),
+        ("Thu, 01 Jan 1970 00:16:52 GMT", [1000.0, 1012.0]),
+        ("0", [1000.0, 1003.0]),
+        ("invalid", [1000.0, 1005.0]),
+        ("inf", [1000.0, 1005.0]),
+        ("3600", [1000.0]),
+    ],
+)
+def test_arxiv_429_has_bounded_retries_and_retry_after(
+    monkeypatch, arxiv_clock, retry_after, expected_starts
+):
+    starts = []
+
+    def get(url, **kwargs):
+        starts.append(arxiv_clock())
+        headers = {} if retry_after is None else {"Retry-After": retry_after}
+        return httpx.Response(429, headers=headers, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(httpx, "get", get)
+    with pytest.raises(simbad_refs.ArxivRateLimitError, match="HTTP 429"):
+        simbad_refs.arxiv_id_from_doi("10.1234/blocked")
+    assert starts == expected_starts
+    # No pointless sleep after the terminal 429, nor an unbounded Retry-After.
+    assert arxiv_clock() == expected_starts[-1]
+
+
+def test_arxiv_throttle_finishes_titles_defers_uncached_and_resumes(
+    monkeypatch, tmp_path, arxiv_clock, caplog
+):
+    store = make_store(tmp_path)
+    corpus_id = store.register_corpus(tmp_path / "throttle", "throttle")
+    run_id = store.start_run(corpus_id)
+    papers = {
+        "2024TEST....1A": "10.1234/blocked",
+        "2024TEST....2B": "https://doi.org/10.1234/BLOCKED",
+        "2024TEST....3C": "10.1234/deferred",
+        "2024TEST....4D": "10.1234/cached",
+        "2024TEST....5E": "10.1234/no-preprint",
+        "2024arXiv240101234F": "10.1234/embedded",
+    }
+    metadata_calls = []
+    starts = []
+    cache_path = tmp_path / "throttle" / "simbad_refs.parquet"
+    sidecar = cache_path.with_name("simbad_refs.enrichment.json")
+    for doi, aid in (("10.1234/cached", "2401.05678"), ("10.1234/no-preprint", None)):
+        store.put_cache(
+            DOI_ARXIV_NAMESPACE, doi, {"doi": doi, "arxiv_id": aid},
+            outcome="found" if aid else "not_found",
+        )
+    monkeypatch.setattr(
+        simbad_refs, "get_source_bibcodes",
+        lambda source_id: source_with_papers(source_id, *papers),
+    )
+
+    def enrich(bibcode, **kwargs):
+        assert kwargs["resolve_doi"] is False
+        metadata_calls.append(bibcode)
+        return PaperRecord(bibcode=bibcode, title=f"Title {bibcode}", doi=papers[bibcode])
+
+    def get(url, **kwargs):
+        starts.append(arxiv_clock())
+        # All basic metadata is useful and durable before any optional request.
+        assert metadata_calls == list(papers)
+        assert pd.read_parquet(cache_path)["title"].str.startswith("Title").all()
+        assert json.loads(sidecar.read_text())["metadata"]["status"] == "completed"
+        for bibcode in papers:
+            assert store.get_cache(PAPER_METADATA_NAMESPACE, bibcode)["outcome"] == "success"
+        return httpx.Response(429, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(simbad_refs, "enrich_bibcode", enrich)
+    monkeypatch.setattr(httpx, "get", get)
+    _, refs = build(tmp_path, "throttle", ["111"], store, run_id=run_id)
+    assert starts == [1000.0, 1005.0]
+    status = json.loads(sidecar.read_text())
+    assert status["run_id"] == run_id
+    assert refs.attrs["enrichment_status"] == status
+    assert status["status"] == "partial"
+    assert status["metadata"] == {
+        "status": "completed", "total": 6, "completed": 6, "failed": {},
+    }
+    doi_status = status["doi"]
+    assert doi_status["status"] == "rate_limited"
+    assert doi_status["rate_limited"] is True
+    assert doi_status["total"] == 4
+    assert doi_status["completed"] == 2
+    assert doi_status["found"] == doi_status["not_found"] == 1
+    assert list(doi_status["failed"]) == ["10.1234/blocked"]
+    assert doi_status["deferred"] == ["10.1234/deferred"]
+    assert "1 deferred DOI(s)" in caplog.text
+    assert store.get_cache(DOI_ARXIV_NAMESPACE, "10.1234/blocked", include_stale=True) is None
+    assert store.get_cache(DOI_ARXIV_NAMESPACE, "10.1234/deferred", include_stale=True) is None
+    assert [row["outcome"] for row in store.read(
+        "SELECT outcome FROM cache_observations WHERE namespace = ? ORDER BY rowid",
+        (DOI_ARXIV_NAMESPACE,),
+    )] == ["found", "not_found", "error"]
+    by_bibcode = refs.set_index("bibcode")
+    assert by_bibcode.loc["2024TEST....4D", "arxiv_id"] == "2401.05678"
+    assert by_bibcode.loc["2024arXiv240101234F", "arxiv_id"] == "2401.01234"
+
+    # Deferral is per invocation, never a persistent global kill switch or a
+    # negative cache entry. A healthy rerun needs no repeated metadata fetches.
+    resumed_requests = []
+
+    def healthy(url, **kwargs):
+        resumed_requests.append(url)
+        return httpx.Response(200, text=_EMPTY_ARXIV_FEED, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(httpx, "get", healthy)
+    resumed_run_id = store.start_run(corpus_id)
+    _, resumed = build(tmp_path, "throttle", ["111"], store, run_id=resumed_run_id)
+    assert len(resumed_requests) == 2
+    assert metadata_calls == list(papers)
+    status = resumed.attrs["enrichment_status"]
+    assert json.loads(sidecar.read_text())["run_id"] == resumed_run_id != run_id
+    assert status["status"] == "completed"
+    assert status["doi"]["completed"] == 4
+    assert status["doi"]["found"] == 1
+    assert status["doi"]["not_found"] == 3
+    assert status["doi"]["failed"] == {}
+    assert status["doi"]["deferred"] == []
+    assert status["doi"]["rate_limited"] is False
+
+
+@pytest.mark.parametrize("refresh", [True, False])
+def test_arxiv_failed_refresh_retains_old_ids_and_cache_pointers(
+    monkeypatch, tmp_path, arxiv_clock, refresh
+):
+    store = make_store(tmp_path)
+    papers = {"2024TEST....1A": "10.1234/first", "2024TEST....2B": "10.1234/second"}
+    monkeypatch.setattr(
+        simbad_refs, "get_source_bibcodes",
+        lambda source_id: source_with_papers(source_id, *papers),
+    )
+    monkeypatch.setattr(
+        simbad_refs, "enrich_bibcode",
+        lambda bibcode, **kwargs: PaperRecord(bibcode=bibcode, title="Title", doi=papers[bibcode]),
+    )
+    old_ids = {}
+    for index, (bibcode, doi) in enumerate(papers.items(), start=1):
+        aid = f"2401.0000{index}"
+        old_ids[doi] = store.put_cache(
+            DOI_ARXIV_NAMESPACE, doi, {"doi": doi, "arxiv_id": aid}, outcome="found",
+            ttl_seconds=store.positive_ttl_seconds,
+        )
+        store.upsert_paper({"bibcode": bibcode, "arxiv_id": aid})
+    if not refresh:
+        store.clock.advance(store.positive_ttl_seconds + 1)
+    monkeypatch.setattr(
+        httpx, "get", lambda url, **kwargs: httpx.Response(429, request=httpx.Request("GET", url)),
+    )
+    _, refs = build(tmp_path, "refresh-throttle", ["111"], store, refresh=refresh)
+    assert refs["arxiv_id"].tolist() == ["2401.00001", "2401.00002"]
+    assert refs.attrs["enrichment_status"]["doi"]["completed"] == 0
+    for doi, previous_id in old_ids.items():
+        assert store.get_cache(DOI_ARXIV_NAMESPACE, doi, include_stale=True)["id"] == previous_id
+    assert [row["outcome"] for row in store.read(
+        "SELECT outcome FROM cache_observations WHERE namespace = ? ORDER BY rowid",
+        (DOI_ARXIV_NAMESPACE,),
+    )] == ["found", "found", "error"]
+
+
+def test_arxiv_interruption_keeps_all_titles_and_nonterminal_status(monkeypatch, tmp_path):
+    store = make_store(tmp_path)
+    papers = ["2024TEST....1A", "2024TEST....2B"]
+    monkeypatch.setattr(
+        simbad_refs, "get_source_bibcodes",
+        lambda source_id: source_with_papers(source_id, *papers),
+    )
+    monkeypatch.setattr(
+        simbad_refs, "enrich_bibcode",
+        lambda bibcode, **kwargs: PaperRecord(bibcode=bibcode, title="Title", doi=f"10.1234/{bibcode}"),
+    )
+
+    def interrupted(doi, **kwargs):
+        raise KeyboardInterrupt("stop optional stage")
+
+    monkeypatch.setattr(simbad_refs, "arxiv_id_from_doi", interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        build(tmp_path, "interrupted", ["111"], store)
+    saved = pd.read_parquet(tmp_path / "interrupted" / "simbad_refs.parquet")
+    status = json.loads((tmp_path / "interrupted" / "simbad_refs.enrichment.json").read_text())
+    assert saved["title"].tolist() == ["Title", "Title"]
+    assert status["metadata"]["status"] == "completed"
+    assert status["status"] == status["doi"]["status"] == "running"
+    assert status["doi"]["completed"] == 0
+
+
+def test_metadata_failures_are_separate_from_not_requested_dois(monkeypatch, tmp_path):
+    store = make_store(tmp_path)
+    papers = ["2024TEST....1A", "2024TEST....2B"]
+    monkeypatch.setattr(
+        simbad_refs, "get_source_bibcodes",
+        lambda source_id: source_with_papers(source_id, *papers),
+    )
+
+    def enrich(bibcode, **kwargs):
+        if bibcode == papers[0]:
+            raise OSError("SIMBAD unavailable")
+        return PaperRecord(bibcode=bibcode, title="Title", doi="10.1234/example")
+
+    monkeypatch.setattr(simbad_refs, "enrich_bibcode", enrich)
+    _, refs = build(tmp_path, "metadata-failed", ["111"], store, resolve_doi=False)
+    status = refs.attrs["enrichment_status"]
+    assert status["status"] == "partial"
+    assert status["metadata"]["status"] == "partial"
+    assert status["metadata"]["completed"] == 1
+    assert status["metadata"]["failed"] == {papers[0]: "SIMBAD unavailable"}
+    assert status["doi"]["status"] == "not_requested"
+    assert status["doi"]["total"] == status["doi"]["completed"] == 0
+    assert store.get_cache(PAPER_METADATA_NAMESPACE, papers[0], include_stale=True) is None
+    assert store.read("SELECT * FROM cache_observations WHERE namespace = ?", (DOI_ARXIV_NAMESPACE,)) == []

@@ -92,6 +92,7 @@ def build_corpus_snapshot(
     xp_sampled: bool = False,
     xp_continuous: bool = False,
     refresh: bool = False,
+    static_viz_mode: str = "embedded",
 ) -> CorpusBuildResult:
     """Build a corpus snapshot from any input mode and persist to disk.
 
@@ -129,6 +130,7 @@ def build_corpus_snapshot(
         titles. ~5-10x faster for dense fields. Use when you only need the
         source<->paper linkage, not human-readable paper metadata.
     """
+    _validate_static_viz_mode(static_viz_mode)
     inputs = {"cone": cone, "name": name, "region": region, "catalog": catalog}
     provided = [k for k, v in inputs.items() if v is not None]
     if len(provided) != 1:
@@ -167,6 +169,7 @@ def build_corpus_snapshot(
             cone=cone, name=name, region=region, catalog=catalog, limit=limit,
             skip_simbad=skip_simbad, sleep_seconds=sleep_seconds, enrich=enrich,
             xp_sampled=xp_sampled, xp_continuous=xp_continuous, refresh=refresh,
+            static_viz_mode=static_viz_mode,
         )
 
     manifest = CorpusManifest.open_or_create(
@@ -178,6 +181,7 @@ def build_corpus_snapshot(
             skip_simbad=skip_simbad,
             xp_sampled=xp_sampled,
             xp_continuous=xp_continuous,
+            static_viz_mode=static_viz_mode,
         ),
         gaia_release=gaia_release,
     )
@@ -222,6 +226,7 @@ def build_corpus_snapshot(
         enrich=enrich,
         xp_sampled=xp_sampled,
         xp_continuous=xp_continuous,
+        static_viz_mode=static_viz_mode,
         started_at=t0,
         manifest=manifest,
         gaia_release=gaia_release,
@@ -231,7 +236,7 @@ def build_corpus_snapshot(
 def _build_indexed_snapshot(
     *, library, label, out_dir, input_mode, input_summary, gaia_release,
     cone, name, region, catalog, limit, skip_simbad, sleep_seconds, enrich,
-    xp_sampled, xp_continuous, refresh,
+    xp_sampled, xp_continuous, refresh, static_viz_mode,
 ) -> CorpusBuildResult:
     from astro_pipeline.library.build import LibraryRun, id_cache_fetcher
     inputs = dict(cone=cone, name=name, region=region, catalog=catalog, limit=limit)
@@ -242,8 +247,9 @@ def _build_indexed_snapshot(
         input_summary=input_summary, contract=contract, release=gaia_release,
         requested_products=_requested_products(
             skip_simbad=skip_simbad, xp_sampled=xp_sampled, xp_continuous=xp_continuous,
+            static_viz_mode=static_viz_mode,
         ),
-        options={"refresh": refresh, "enrich": enrich, "skip_simbad": skip_simbad},
+        options={"refresh": refresh, "enrich": enrich, "skip_simbad": skip_simbad, "static_viz_mode": static_viz_mode},
     ) as run:
         run.capture_input(catalog)
         run.manifest.update_stage("resolve_members", status="running", completed=0)
@@ -277,7 +283,7 @@ def _build_indexed_snapshot(
             sleep_seconds=sleep_seconds, enrich=enrich,
             xp_sampled=xp_sampled, xp_continuous=xp_continuous,
             started_at=started, manifest=run.manifest, gaia_release=gaia_release,
-            library_run=run, refresh=refresh,
+            library_run=run, refresh=refresh, static_viz_mode=static_viz_mode,
         )
         return run.finish(result)
 
@@ -299,12 +305,14 @@ def build_corpus_from_members(
     gaia_release: str = "dr3",
     library_run=None,
     refresh: bool = False,
+    static_viz_mode: str = "embedded",
 ) -> CorpusBuildResult:
     """Persist an already-resolved Gaia member table as a corpus snapshot.
 
     This shared second half keeps user-uploaded catalogues and literature
     membership catalogues on the same output contract as cone/name builds.
     """
+    _validate_static_viz_mode(static_viz_mode)
     label = validate_label(label)
     gaia_release = normalize_gaia_release(gaia_release)
     t0 = started_at if started_at is not None else time.time()
@@ -320,6 +328,7 @@ def build_corpus_from_members(
                 skip_simbad=skip_simbad,
                 xp_sampled=xp_sampled,
                 xp_continuous=xp_continuous,
+                static_viz_mode=static_viz_mode,
             ),
             gaia_release=gaia_release,
         )
@@ -521,11 +530,50 @@ def build_corpus_from_members(
             f"SIMBAD bibliography lookup failed for {simbad_failed} source(s); "
             "rerun the same label to retry them from the source checkpoint"
         )
+    enrichment_status = refs.attrs.get("enrichment_status") if enrich else None
+    enrichment_incomplete = bool(
+        isinstance(enrichment_status, dict)
+        and enrichment_status.get("status") != "completed"
+    )
+    if isinstance(enrichment_status, dict):
+        manifest.update_stage(
+            "paper_enrichment", status="partial" if enrichment_incomplete else "completed",
+            metadata=enrichment_status.get("metadata", {}),
+            doi=enrichment_status.get("doi", {}),
+        )
+        enrichment_path = out_dir / "simbad_refs.enrichment.json"
+        if enrichment_path.exists():
+            manifest.add_artifact("paper_enrichment_status", enrichment_path)
+        if enrichment_incomplete:
+            manifest.add_warning(
+                "Paper enrichment has failed or deferred queries; inspect "
+                "simbad_refs.enrichment.json. Unresolved DOI queries remain retryable."
+            )
+    elif not enrich:
+        manifest.update_stage("paper_enrichment", status="not_requested")
     manifest.add_artifact("paper_edges_parquet", edges_path, rows=len(edges))
     manifest.add_artifact("simbad_refs_parquet", out_dir / "simbad_refs.parquet")
     checkpoint_path = out_dir / "simbad_refs.checkpoint.json"
     if checkpoint_path.exists():
         manifest.add_artifact("simbad_refs_checkpoint", checkpoint_path)
+
+    if static_viz_mode == "off":
+        manifest.update_stage("visualization", status="not_requested", mode="off", spectra_embedded=False)
+        manifest.finish(
+            "partial" if xp_products.get("errors") or simbad_failed or enrichment_incomplete
+            else "completed"
+        )
+        return CorpusBuildResult(
+            label=label, input_mode=input_mode, input_summary=input_summary,
+            n_members=len(members), n_paper_edges=len(edges),
+            n_unique_papers=int(refs["bibcode"].nunique()) if not refs.empty else 0,
+            out_dir=str(out_dir.resolve()), members_csv=str(members_csv.resolve()),
+            members_parquet=str(members_parquet.resolve()),
+            paper_edges_parquet=str(edges_path.resolve()),
+            simbad_refs_parquet=str((out_dir / "simbad_refs.parquet").resolve()),
+            manifest_json=manifest_path, xp_products=xp_products,
+            elapsed_seconds=time.time() - t0, gaia_release=gaia_release,
+        )
 
     # --- Viz HTML ---
     # inline_echarts=True so the HTML is self-contained (no sibling file dep).
@@ -543,7 +591,10 @@ def build_corpus_from_members(
             "vendored echarts.min.js was not found; HTML was generated with "
             "a sibling script reference and is not fully self-contained"
         )
-    manifest.update_stage("visualization", status="running", total=1, completed=0)
+    manifest.update_stage(
+        "visualization", status="running", total=1, completed=0,
+        mode=static_viz_mode, spectra_embedded=static_viz_mode == "embedded",
+    )
     try:
         build_overview_html(
             output_path=viz_path,
@@ -553,6 +604,8 @@ def build_corpus_from_members(
             inline_echarts=inline_echarts,
             echarts_path=echarts_src if inline_echarts else None,
             spectra_dir=out_dir,
+            include_spectra=static_viz_mode == "embedded",
+            gaia_release=gaia_release,
         )
     except Exception as exc:
         message = f"visualization stage failed: {exc}"
@@ -592,6 +645,7 @@ def build_corpus_from_members(
         if (
             xp_products.get("errors")
             or simbad_failed
+            or enrichment_incomplete
             or _has_incomplete_requested_stage(manifest)
         )
         else "completed"
@@ -624,13 +678,19 @@ def result_to_dict(result: CorpusBuildResult) -> dict[str, Any]:
     return _json_safe(asdict(result))
 
 
+def _validate_static_viz_mode(value: str) -> None:
+    if value not in {"embedded", "status_only", "off"}:
+        raise ValueError("static_viz_mode must be embedded, status_only, or off")
+
+
 def _requested_products(
-    *, skip_simbad: bool, xp_sampled: bool, xp_continuous: bool
+    *, skip_simbad: bool, xp_sampled: bool, xp_continuous: bool,
+    static_viz_mode: str = "embedded",
 ) -> dict[str, bool]:
     return {
         "members": True,
         "simbad_papers": not skip_simbad,
-        "visualization": not skip_simbad,
+        "visualization": not skip_simbad and static_viz_mode != "off",
         "gaia_xp_sampled": xp_sampled,
         "gaia_xp_continuous": xp_continuous,
     }

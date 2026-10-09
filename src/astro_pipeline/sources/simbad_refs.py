@@ -18,16 +18,20 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Optional
 
 import pandas as pd
 
 from astro_pipeline.library.papers import (
+    DOI_ARXIV_NAMESPACE,
     cached_doi_arxiv,
     cached_paper_metadata,
     cached_source_references,
@@ -42,6 +46,47 @@ logger = logging.getLogger(__name__)
 _ARXIV_BIB_RE = re.compile(r"^\d{4}arXiv(\d{4})\.?(\d{3,5})", re.IGNORECASE)
 # Fall back: an explicit dot form that occasionally appears.
 _ARXIV_PLAIN_RE = re.compile(r"^\d{4}\.\d{4,5}$")
+
+# arXiv requests are serialized and spaced across DOI lookups in this process,
+# independently of the (usually much shorter) SIMBAD sleep_seconds setting.
+_ARXIV_REQUEST_INTERVAL = 3.0
+_ARXIV_MAX_RETRY_AFTER = 30.0
+_ARXIV_REQUEST_LOCK = threading.Lock()
+_arxiv_last_request_started: Optional[float] = None
+
+
+class ArxivRateLimitError(RuntimeError):
+    """Retryable service throttling; defer other remote DOI lookups this run."""
+
+
+def _arxiv_retry_after(value: str) -> Optional[float]:
+    """Parse Retry-After seconds or an HTTP date; ignore invalid values."""
+    try:
+        seconds = float(value)
+    except (ValueError, TypeError):
+        try:
+            when = parsedate_to_datetime(value)
+            seconds = when.timestamp() - time.time()
+        except (ValueError, TypeError, OverflowError):
+            return None
+    return max(0.0, seconds) if math.isfinite(seconds) else None
+
+
+def _arxiv_http_get(url: str, *, timeout: float, headers: Mapping[str, str]):
+    """Serialize single and batched arXiv requests on one process-wide clock."""
+    global _arxiv_last_request_started
+    import httpx
+
+    with _ARXIV_REQUEST_LOCK:
+        if _arxiv_last_request_started is not None:
+            wait = _ARXIV_REQUEST_INTERVAL - (
+                time.monotonic() - _arxiv_last_request_started
+            )
+            if wait > 0:
+                time.sleep(wait)
+        _arxiv_last_request_started = time.monotonic()
+        return httpx.get(url, timeout=timeout, headers=headers)
+
 
 GAIA_ID_COLUMN = "Gaia"
 RA_COLUMN = "RAICRS"
@@ -128,48 +173,38 @@ def arxiv_id_from_doi(
     doi: str,
     timeout: float = 30.0,
     max_retries: int = 4,
+    *,
+    expected_titles: Optional[Iterable[str]] = None,
 ) -> Optional[str]:
-    """Resolve a DOI to its arXiv id via the arXiv API (no key required).
+    """Strict single-DOI fallback using the same verified batch resolver.
 
-    Returns None only when the API completed successfully with no matching arXiv
-    preprint. Transport, parsing, and exhausted rate-limit failures raise so the
-    shared cache can keep them retryable instead of storing ``not_found``.
+    None means a complete Atom feed with no matching DOI. Ambiguous, truncated,
+    unidentifiable, or transport-failed feeds raise, preserving retryability in
+    ``cached_doi_arxiv``; a bounded 429 remains ``ArxivRateLimitError``.
+    Existing positional DOI/timeout/retry arguments remain accepted.
     """
     if not doi:
         return None
-    import time
-    import urllib.parse
-    import httpx
-    import xml.etree.ElementTree as ET
+    # Local import avoids a module-level cycle: arxiv_doi shares the pacing
+    # helper and rate-limit error defined in this module.
+    from astro_pipeline.sources.arxiv_doi import arxiv_ids_from_dois
 
-    params = urllib.parse.urlencode({"search_query": f"doi:{doi}", "max_results": 1})
-    url = f"https://export.arxiv.org/api/query?{params}"
-    headers = {"User-Agent": "astro-pipeline/0.4 (mailto:cetizhao@163.com)"}
-
-    for attempt in range(max_retries):
-        try:
-            resp = httpx.get(url, timeout=timeout, headers=headers)
-            if resp.status_code == 429:
-                # Respect arXiv rate limiting: back off, then retry.
-                wait = 5 * (attempt + 1)
-                logger.debug("arXiv 429 for DOI %s; backing off %ds", doi, wait)
-                time.sleep(wait)
-                continue
-            resp.raise_for_status()
-            root = ET.fromstring(resp.text)
-            ns = {"atom": "http://www.w3.org/2005/Atom"}
-            entry = root.find("atom:entry", ns)
-            if entry is None:
-                return None
-            id_el = entry.find("atom:id", ns)
-            if id_el is None or not id_el.text:
-                return None
-            m = re.search(r"arxiv\.org/abs/(.+?)(?:v\d+)?$", id_el.text.strip())
-            return m.group(1) if m else None
-        except Exception as e:
-            logger.debug("arXiv DOI lookup failed for %s: %s", doi, e)
-            raise RuntimeError(f"arXiv DOI lookup failed for {doi}") from e
-    raise RuntimeError(f"arXiv DOI lookup exhausted retries for {doi}")
+    if isinstance(expected_titles, str):
+        expected_titles = [expected_titles]
+    titles = list(expected_titles) if expected_titles is not None else []
+    result = arxiv_ids_from_dois(
+        [doi], timeout=timeout, max_retries=max_retries,
+        expected_titles={doi: titles} if titles else None,
+    )
+    if result.failed:
+        message = next(iter(result.failed.values()))
+        if result.rate_limited:
+            raise ArxivRateLimitError(message)
+        raise RuntimeError(f"arXiv DOI lookup failed for {doi}: {message}")
+    key = normalize_doi(doi)
+    if result.deferred or key not in result.resolved:
+        raise RuntimeError(f"arXiv DOI lookup for {doi} has no verified outcome")
+    return result.resolved[key]
 
 
 def enrich_bibcode(
@@ -219,7 +254,9 @@ def enrich_bibcode(
     # If still no arXiv id but we have a DOI, ask the arXiv API (optional).
     if resolve_doi and not rec.arxiv_id and rec.doi:
         try:
-            rec.arxiv_id = arxiv_id_from_doi(rec.doi)
+            rec.arxiv_id = arxiv_id_from_doi(
+                rec.doi, expected_titles=[rec.title] if rec.title else None,
+            )
         except Exception as exc:
             if strict:
                 raise
@@ -874,7 +911,7 @@ def _enrich_refs_table_library(
     refresh: bool,
     run_id: Optional[str],
 ) -> pd.DataFrame:
-    """Enrich through separate basic-metadata and DOI→arXiv caches."""
+    """Cache all basic metadata before optional, run-bounded DOI enrichment."""
     df = refs_table.copy()
     bibcodes = df["bibcode"].drop_duplicates().tolist()
     logger.info(
@@ -882,79 +919,164 @@ def _enrich_refs_table_library(
         len(bibcodes),
         resolve_doi,
     )
-    doi_results: dict[str, Optional[str]] = {}
+    metadata_status: dict[str, Any] = {
+        "status": "running", "total": len(bibcodes), "completed": 0, "failed": {},
+    }
+    doi_status: dict[str, Any] = {
+        "status": "pending" if resolve_doi else "not_requested",
+        "total": 0, "completed": 0, "found": 0, "not_found": 0,
+        "failed": {}, "deferred": [], "rate_limited": False,
+    }
+    status: dict[str, Any] = {
+        "schema_version": 1, "run_id": run_id, "status": "running",
+        "metadata": metadata_status, "doi": doi_status,
+    }
     checkpoint_every = 25
 
-    for index, bibcode in enumerate(bibcodes, start=1):
-        embedded_arxiv = bibcode_to_arxiv(bibcode)
-
-        def fetch_metadata(bibcode: str = bibcode) -> Mapping[str, Any]:
-            record = enrich_bibcode(
-                bibcode,
-                existing_arxiv=embedded_arxiv,
-                resolve_doi=False,
-                strict=True,
+    def checkpoint() -> None:
+        status["updated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        df.attrs["enrichment_status"] = status
+        if cache_path is not None:
+            path = Path(cache_path)
+            _write_parquet_atomic(_merge_ref_frames(preserved_refs, df), path)
+            sidecar = path.with_name(f"{path.stem}.enrichment.json")
+            temporary = sidecar.with_suffix(sidecar.suffix + ".tmp")
+            temporary.write_text(
+                json.dumps(status, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
             )
-            return _paper_metadata(record)
+            temporary.replace(sidecar)
 
-        try:
-            metadata_result = cached_paper_metadata(
-                library_store,
-                bibcode=bibcode,
-                fetch=fetch_metadata,
-                refresh=refresh,
-                run_id=run_id,
-            )
-        except Exception as exc:
-            logger.warning("enrich_bibcode failed for %s: %s", bibcode, exc)
-        else:
-            df = _apply_meta(
-                df, {bibcode: _record_from_metadata(bibcode, metadata_result.value)}
-            )
-            if metadata_result.fetched and sleep_seconds:
-                time.sleep(sleep_seconds)
+    checkpoint()
+    try:
+        # Finish/cache every SIMBAD title/DOI before arXiv can consume time.
+        for index, bibcode in enumerate(bibcodes, start=1):
+            def fetch_metadata(bibcode: str = bibcode) -> Mapping[str, Any]:
+                record = enrich_bibcode(
+                    bibcode,
+                    existing_arxiv=bibcode_to_arxiv(bibcode),
+                    resolve_doi=False,
+                    strict=True,
+                )
+                return _paper_metadata(record)
 
-        mask = df["bibcode"] == bibcode
-        doi_values = df.loc[mask, "doi"].dropna()
-        doi = next(
-            (str(value).strip() for value in doi_values if str(value).strip()),
-            "",
-        )
-        if resolve_doi and not embedded_arxiv and doi:
-            doi_key = normalize_doi(doi)
-            if doi_key not in doi_results:
+            try:
+                metadata_result = cached_paper_metadata(
+                    library_store,
+                    bibcode=bibcode,
+                    fetch=fetch_metadata,
+                    refresh=refresh,
+                    run_id=run_id,
+                )
+            except Exception as exc:
+                metadata_status["failed"][bibcode] = str(exc)
+                logger.warning("enrich_bibcode failed for %s: %s", bibcode, exc)
+            else:
+                metadata_status["completed"] += 1
+                df = _apply_meta(
+                    df, {bibcode: _record_from_metadata(bibcode, metadata_result.value)}
+                )
+                if metadata_result.fetched and sleep_seconds:
+                    time.sleep(sleep_seconds)
+
+            if index % checkpoint_every == 0:
+                checkpoint()
+                logger.info("Enrich metadata progress: %d/%d bibcodes", index, len(bibcodes))
+
+        metadata_status["status"] = "partial" if metadata_status["failed"] else "completed"
+        doi_requests: dict[str, dict[str, Any]] = {}
+        if resolve_doi:
+            for bibcode in bibcodes:
+                if bibcode_to_arxiv(bibcode):
+                    continue
+                doi_values = df.loc[df["bibcode"] == bibcode, "doi"].dropna()
+                doi = next((str(v).strip() for v in doi_values if str(v).strip()), "")
+                if doi:
+                    request = doi_requests.setdefault(
+                        normalize_doi(doi), {"doi": doi, "bibcodes": []}
+                    )
+                    request["bibcodes"].append(bibcode)
+            doi_status["status"] = "running"
+            doi_status["total"] = len(doi_requests)
+        # Persist even fewer than checkpoint_every titles before the first API call.
+        checkpoint()
+
+        for index, (doi_key, request) in enumerate(doi_requests.items(), start=1):
+            mask = df["bibcode"].isin(request["bibcodes"])
+            titles = list(dict.fromkeys(
+                str(value).strip() for value in df.loc[mask, "title"].dropna()
+                if str(value).strip()
+            ))
+            observed = False
+            arxiv_id = None
+            if doi_status["rate_limited"]:
+                # Continue using fresh observations, but do not create error or
+                # negative observations for DOI requests we never sent.
+                current = library_store.get_cache(DOI_ARXIV_NAMESPACE, doi_key)
+                if current is not None and not refresh:
+                    arxiv_id = (current.get("payload") or {}).get("arxiv_id")
+                    observed = True
+                else:
+                    doi_status["deferred"].append(doi_key)
+            else:
                 try:
                     doi_result = cached_doi_arxiv(
                         library_store,
-                        doi=doi,
-                        resolve=lambda doi=doi: arxiv_id_from_doi(doi),
+                        doi=request["doi"],
+                        resolve=lambda doi=request["doi"], titles=titles: arxiv_id_from_doi(
+                            doi, expected_titles=titles,
+                        ),
                         refresh=refresh,
                         run_id=run_id,
                     )
                 except Exception as exc:
-                    logger.warning("arXiv DOI lookup failed for %s: %s", doi, exc)
+                    doi_status["failed"][doi_key] = str(exc)
+                    if isinstance(exc, ArxivRateLimitError):
+                        doi_status["rate_limited"] = True
+                    logger.warning("arXiv DOI lookup failed for %s: %s", doi_key, exc)
                 else:
-                    doi_results[doi_key] = doi_result.value
-                    if doi_result.fetched and sleep_seconds:
-                        time.sleep(sleep_seconds)
-            if doi_key in doi_results:
-                arxiv_id = doi_results[doi_key]
-                # The DOI cache is authoritative for DOI-derived IDs, including
-                # explicit not-found observations. Embedded bibcode IDs never
-                # take this path.
+                    arxiv_id = doi_result.value
+                    observed = True
+
+            if observed:
+                doi_status["completed"] += 1
+                doi_status["found" if arxiv_id else "not_found"] += 1
+                # Only a successful observation may replace an older DOI ID.
                 df.loc[mask, "arxiv_id"] = arxiv_id or ""
                 if arxiv_id:
-                    library_store.upsert_paper(
-                        {"bibcode": bibcode, "arxiv_id": arxiv_id}
-                    )
-
-        if index % checkpoint_every == 0:
-            if cache_path is not None:
-                _write_parquet_atomic(
-                    _merge_ref_frames(preserved_refs, df), cache_path
+                    for bibcode in request["bibcodes"]:
+                        library_store.upsert_paper({"bibcode": bibcode, "arxiv_id": arxiv_id})
+            else:
+                # Failed/deferred refreshes retain positive historical IDs, not
+                # stale negatives. The cache's successful pointer is untouched.
+                previous = library_store.get_cache(
+                    DOI_ARXIV_NAMESPACE, doi_key, include_stale=True
                 )
-            logger.info("Enrich progress: %d/%d bibcodes", index, len(bibcodes))
+                old_id = ((previous or {}).get("payload") or {}).get("arxiv_id")
+                if old_id:
+                    df.loc[mask, "arxiv_id"] = old_id
 
+            if index % checkpoint_every == 0:
+                checkpoint()
+
+        if resolve_doi:
+            doi_status["status"] = (
+                "rate_limited" if doi_status["rate_limited"]
+                else "partial" if doi_status["failed"] else "completed"
+            )
+        status["status"] = (
+            "partial" if metadata_status["failed"] or doi_status["failed"] or doi_status["deferred"]
+            else "completed"
+        )
+        if doi_status["rate_limited"]:
+            logger.warning(
+                "arXiv enrichment rate-limited: %d failed DOI(s), %d deferred DOI(s), "
+                "%d completed observations; failures/deferred are retryable, not no-preprint results",
+                len(doi_status["failed"]), len(doi_status["deferred"]), doi_status["completed"],
+            )
+    finally:
+        # Interrupted runs keep a nonterminal status as well as useful titles.
+        checkpoint()
     return df
 
 

@@ -27,9 +27,11 @@ def test_mcp_registers_expected_tools():
         "gaia_product_status",
         "lookup_library_source",
         "lookup_library_paper",
+        "download_paper_corpus",
+        "paper_corpus_status",
         "library_status",
     } <= names
-    assert len(names) == 25
+    assert len(names) == 27
 
 
 def test_cached_lookup_has_structured_fresh_clone_fallback(monkeypatch):

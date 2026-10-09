@@ -1339,8 +1339,12 @@ def verify_library(store: LibraryStore) -> dict[str, Any]:
         store, registered_paths
     )
     pending_publications = _pending_publications(store)
+    from astro_pipeline.library.paper_corpus import verify_paper_text
+
+    paper_errors = verify_paper_text(store)
     ok = (
         integrity == ["ok"]
+        and not paper_errors
         and not foreign_keys
         and not missing
         and not corrupt
@@ -1355,6 +1359,7 @@ def verify_library(store: LibraryStore) -> dict[str, Any]:
         "integrity": integrity,
         "foreign_key_violations": foreign_keys,
         "n_registered_blobs": len(blob_rows),
+        "paper_errors": paper_errors,
         "missing_blobs": missing,
         "corrupt_blobs": corrupt,
         "orphan_objects": orphan_objects,
@@ -1850,6 +1855,15 @@ def export_corpus(
 ) -> dict[str, Any]:
     """Export a corpus to a new independent directory."""
     corpus = _resolve_corpus(store, source)
+    if store.read(
+        "SELECT 1 FROM runs WHERE corpus_id = ? "
+        "AND json_extract(options_json, '$.kind') = 'paper_corpus' LIMIT 1",
+        (corpus.get("corpus_id"),),
+    ):
+        raise ValueError(
+            "paper collections are local, license-unreviewed artifacts; "
+            "the Gaia corpus exporter does not export paper full text"
+        )
     source_path = Path(corpus["canonical_path"]).resolve()
     destination = Path(destination).expanduser().resolve()
     if not source_path.is_dir():

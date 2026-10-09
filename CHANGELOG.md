@@ -7,6 +7,33 @@ All notable changes to this project are documented here. Versions follow
 
 ### Added
 
+- Explicit, bounded arXiv full-text collections with version-pinned originals,
+  structured JSON, deterministic Markdown, per-input provenance, resumable
+  downloads and conservative HTML/LaTeX/PDF quality reporting. New MCP tools
+  `download_paper_corpus` and `paper_corpus_status`, library CLI build/status
+  commands, and a reproducible 20–50-paper pilot selector.
+- Additive shared-library schema v2 for paper downloads, text versions and
+  artifact pins, retaining read-only v1 compatibility and existing Gaia data.
+
+- A loopback-only, read-only whole-library HTML viewer with revision-aware
+  pagination, complete Hammer–Aitoff sky positions, source provenance,
+  bibliography, live refresh, and on-demand verified Gaia spectra.
+- Exact release/product spectrum adapters and separate global-current versus
+  corpus-pinned views; provisional DR4 spectra remain explicitly unsupported.
+- A bounded CrA/Upper Sco published-member-table collection runner with
+  per-attempt reports, matched/unmatched row accounting, XP verification, and
+  run-bound literature-enrichment completion records. Both fixed full tables
+  passed local delivery checks on 2026-09-29, including all availability-positive
+  XP products and literature stages; counts and scientific matching caveats are
+  recorded in the operator runbook.
+- Explicit membership-selection resume from a verified published run, exposed
+  through Python, MCP, and the fixed collection CLI; preserves frozen input and
+  match provenance without repeating VizieR/Gaia positional queries.
+- Bounded DOI batches through the official arXiv API with exact DOI mapping,
+  complete-feed checks, and auditable exact-title disambiguation; unresolved
+  ambiguities remain retryable rather than becoming negative cache entries.
+- Browser regression checks for full pagination, cross-release identity,
+  automatic refresh, spectrum scaling, mobile layouts, and untrusted text.
 - A default-on, release-qualified local library with a SQLite global index,
   immutable content-addressed objects, per-build run snapshots, and pinned Gaia
   product-reference documents.
@@ -14,7 +41,7 @@ All notable changes to this project are documented here. Versions follow
   availability caches with configurable positive/negative TTLs and explicit
   retryable failure history.
 - Global MCP tools `lookup_library_source`, `lookup_library_paper`, and
-  `library_status`; the server now exposes 25 tools.
+  `library_status`; together with paper collection tools the server exposes 27 tools.
 - `scripts/library.py` status, dry-run/non-destructive legacy import,
   verification/reconciliation, reference export, and standalone export
   workflows.
@@ -24,6 +51,11 @@ All notable changes to this project are documented here. Versions follow
 
 ### Changed
 
+- Static corpus HTML can embed spectra, show cached-product status only, or be
+  disabled; full region collection uses the lightweight status-only mode.
+- Bibliography enrichment checkpoints basic metadata before optional arXiv
+  lookups. Requests are spaced and repeated HTTP 429 defers uncached DOI work
+  without recording false negatives or declaring the build complete.
 - High-level corpus and membership builds use the shared library by default,
   while preserving label-root Parquet/checkpoint/HTML compatibility views and a
   configurable legacy path through `library.enabled: false`.
@@ -58,6 +90,21 @@ All notable changes to this project are documented here. Versions follow
 
 ### Fixed
 
+- VizieR discovery ignores invalid resource IDs; coordinate matching uses
+  numeric columns and explicit units, preserves old-release identifiers as
+  evidence, and does not confuse J2000 equinox with an observation epoch.
+- Viewer current-run selection follows manifest pins, including revision
+  changes caused by repinning without a SQLite write. Recent-run cards are sorted
+  newest first. Library disappearance and failed detail/spectrum refreshes clear
+  stale selections and plots, including late asynchronous responses; malformed
+  request URLs return a structured error. Failed/unpublished historical attempts
+  no longer imply active work in source badges or display as ongoing downloads.
+  Failed collection reports no longer borrow the previous published run's inventory.
+- DataLink requests use an isolated finite-timeout client without changing the
+  global socket timeout. Automatic import-time server announcements are
+  suppressed, and default XP batches are limited to 50 Sampled / 5 Continuous
+  sources. Local capability hints avoid astroquery's networked singleton import
+  and report unreadable declarations as unknown.
 - Failed builds preserve the prior published corpus; immutable run metadata and
   SQLite preparation finish before activation. Interrupted view/index updates
   remain explicitly pending and recoverable.

@@ -132,6 +132,43 @@ def test_describe_table_uses_discovered_schema():
         describe_gaia_table("dr4", "gaiadr3.gaia_source", fake_query)
 
 
+def test_local_datalink_hints_do_not_import_networked_gaia_client(monkeypatch):
+    import builtins
+
+    original_import = builtins.__import__
+
+    def guarded_import(name, *args, **kwargs):
+        if name.startswith("astroquery.gaia"):
+            raise AssertionError("Local capability discovery must not import the Gaia singleton")
+        return original_import(name, *args, **kwargs)
+
+    def no_http(*args, **kwargs):
+        raise AssertionError("No source ID means no live DataLink query")
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    result = list_gaia_datalink_products("dr4", http_get=no_http)
+    assert result["client_metadata_loaded"] is True
+    assert "SOURCE_ID" in result["linking_parameters"]
+    assert all(item["archive_confirmed_for_source"] is None for item in result["client_declared_products"])
+
+
+def test_unreadable_client_declarations_remain_unknown(monkeypatch, tmp_path):
+    from astro_pipeline import gaia_archive
+
+    source = tmp_path / "__init__.py"
+    source.write_text("class Conf:\n    VALID_DATALINK_RETRIEVAL_TYPES = unknown_function()\n")
+
+    class LocalDistribution:
+        def locate_file(self, path):
+            return source
+
+    monkeypatch.setattr(gaia_archive, "distribution", lambda name: LocalDistribution())
+    result = list_gaia_datalink_products("dr4")
+    assert result["client_metadata_loaded"] is False
+    assert all(item["accepted_by_installed_astroquery"] is None for item in result["client_declared_products"])
+    assert "unknown" in result["warnings"][-1]
+
+
 def test_datalink_product_list_separates_client_hint_from_live_confirmation():
     table = Table(
         {
