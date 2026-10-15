@@ -53,7 +53,7 @@ if not CATALOG.exists():
 if not CATALOG.exists():
     logger.warning(
         "Catalog %s not found; lookup_source/paper will return errors. "
-        "Set ASTRO_PIPELINE_CATALOG or bootstrap via README §13.",
+        "Set ASTRO_PIPELINE_CATALOG or see docs/operator-runbook.md#twa-demo-bootstrap.",
         CATALOG,
     )
 
@@ -334,8 +334,8 @@ def gaia_xp_spectrum(
     -------
     dict with: url (file://), format ("continuous" | "sampled" | "cached"),
     cached (bool), gaia_id, bp_n_points, rp_n_points. Returns {"error": ...}
-    if the source has no XP spectrum cached (download requires Gaia archive
-    credentials -- see README §13.2).
+    if the source has no XP spectrum cached (DataLink may require Gaia archive
+    credentials -- see docs/operator-runbook.md#credentials).
 
     Note
     ----

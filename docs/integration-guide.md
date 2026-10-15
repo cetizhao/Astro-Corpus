@@ -66,7 +66,12 @@ case cached `lookup_source`, `lookup_paper`, and `summarize_corpus` are not
 useful yet, but live search and all corpus-building tools remain available.
 Global `lookup_library_source`, `lookup_library_paper`, and `library_status`
 remain read-only; if the shared database is absent they return structured empty
-state and do not create or migrate it.
+state and do not create or migrate it. A clone does not include `TWAxgdr3.csv`,
+`data/twa/`, or `data/_library/`; the legacy demo requires an explicit local
+input/bootstrap. Its TWA sample is associated with Luhman (2023), “A Census of
+the TW Hya Association with Gaia” (bibcode `2023AJ....165..269L`, arXiv
+`2305.03557`). See the [TWA legacy demo bootstrap](operator-runbook.md#twa-demo-bootstrap)
+for the input contract and local setup options.
 
 ## Claude Code scopes and personal reuse
 
@@ -317,6 +322,52 @@ API remain scoped to one configured corpus. The three `lookup_library_*`/status
 tools query across current published runs without changing storage. Full cache,
 refresh, CLI, import/export, and backup semantics are documented in
 [library.md](library.md).
+
+### Direct CLI and Python queries
+
+`python -m astro_pipeline.corpus` and `Corpus` read one local catalog and its
+`data-dir` cache; they do not search every label in the shared library. For the
+optional TWA demo, these commands require the local input and generated files
+listed in the [TWA bootstrap runbook](operator-runbook.md#twa-demo-bootstrap):
+
+```bash
+uv run python -m astro_pipeline.corpus source 5412403269717562240 \
+  --offline --json --data-dir data/twa --catalog TWAxgdr3.csv
+uv run python -m astro_pipeline.corpus paper "2023AJ....165..269L" \
+  --offline --json --data-dir data/twa --catalog TWAxgdr3.csv
+uv run python -m astro_pipeline.corpus summary \
+  --data-dir data/twa --catalog TWAxgdr3.csv
+```
+
+The equivalent Python API is explicitly local and offline here:
+
+```python
+from astro_pipeline.corpus import Corpus
+
+corpus = Corpus(
+    data_dir="data/twa",
+    catalog_path="TWAxgdr3.csv",
+    offline=True,
+)
+source = corpus.lookup_source("5412403269717562240")
+paper = corpus.lookup_paper("2023AJ....165..269L")
+summary = corpus.summary()
+```
+
+These source–paper edges come from SIMBAD's curated per-object bibliography,
+not text search through article full text. Paper lookup accepts an arXiv ID,
+bibcode, or title substring. In online mode, the legacy corpus can query surveys
+live and fall back to cached survey tables; `--offline` / `offline=True` uses
+local data only. It does not create a missing catalog, bibliography, library, or
+spectra cache. A clean clone therefore cannot answer these demo lookups until
+the local inputs and cache have been provided or built.
+
+For cross-corpus queries, use the global MCP tools `library_status`,
+`lookup_library_source`, and `lookup_library_paper`, or the corresponding Python
+functions in `astro_pipeline.library.query` with `get_library(create=False)`.
+They read the shared `data/_library` index, not `TWAxgdr3.csv` or a single
+`data/<label>` directory; if the index is absent, read-only queries do not create
+it.
 
 ## Corpus products and progress
 

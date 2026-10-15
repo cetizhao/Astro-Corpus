@@ -171,6 +171,137 @@ explicit unmatched row. Live counts can change only if an external catalogue
 or matching service changes; the invariant is that totals and unmatched rows
 remain auditable.
 
+## TWA demo bootstrap
+
+This is the legacy single-corpus workflow, not an alias for the shared-library
+builder. The demo sample is associated with Luhman (2023), “A Census of the TW
+Hya Association with Gaia” (bibcode `2023AJ....165..269L`, arXiv `2305.03557`).
+A clean checkout contains no demo catalog or generated `data/twa/` files; this
+section documents local inputs and commands but does not ship or fetch data.
+
+### Input contract and safe local sources
+
+The legacy scripts expect `TWAxgdr3.csv` in the repository root and read
+`data/twa/` for label-local bibliography, spectra, visualization, and JSONL
+artifacts. The legacy `Corpus` loader expects a Gaia DR3 ID column named `Gaia`
+and the canonical coordinate columns `RAICRS` and `DEICRS`. Keep Gaia IDs as
+strings from CSV ingestion: converting a 19-digit identifier through a floating
+point spreadsheet cell can irreversibly change its digits.
+
+The source catalogue is VizieR `J/AJ/165/269`, table 1, but do not download its
+raw rows and simply rename that file to `TWAxgdr3.csv`. The raw selected table and
+the legacy normalized Gaia DR3 CSV are different artifacts. If using the current
+membership pipeline, preview the catalog and explicitly select the scientific
+member/candidate table first. Its outputs distinguish:
+
+- `membership_catalog.csv` / `.parquet`: the selected literature table, retained
+  unchanged;
+- `members.csv`: rows matched and normalized to Gaia DR3, with canonical `Gaia`,
+  `RAICRS`, and `DEICRS` fields;
+- `unmatched_members.csv`: selected rows that did not match.
+
+For an already-published local membership run, copy its `members.csv` (prefer a
+pinned `runs/<run_id>/members.csv`) to the legacy filename; preserve the original
+snapshot and its other artifacts:
+
+```bash
+cp /path/to/published/members.csv TWAxgdr3.csv
+```
+
+A collaborator-provided `TWAxgdr3.csv` is also suitable if its provenance and
+Gaia DR3 IDs are verified. Do not treat `membership_catalog.csv` as a drop-in
+replacement. `members.csv` contains only successful Gaia matches, so it may have
+fewer rows than the selected literature table; consult the original and unmatched
+files for row accounting. The pipeline does not silently filter membership
+probabilities, candidate status, RUWE, or other scientific criteria. Do not
+substitute a candidate table for an established-member table without an explicit
+scientific choice.
+
+This local check performs no network requests and verifies the expected legacy
+headers and digit-preserving ID representation before running any builder:
+
+```bash
+uv run python - <<'PY'
+import pandas as pd
+
+frame = pd.read_csv("TWAxgdr3.csv", dtype={"Gaia": "string"})
+required = {"Gaia", "RAICRS", "DEICRS"}
+missing = required - set(frame.columns)
+if missing:
+    raise SystemExit(f"Missing required columns: {sorted(missing)}")
+gaia_ids = frame["Gaia"].str.strip()
+invalid = gaia_ids.isna() | ~gaia_ids.str.fullmatch(r"\d{19}", na=False)
+if invalid.any():
+    raise SystemExit(f"Found {int(invalid.sum())} missing or invalid Gaia DR3 IDs")
+print(f"Rows: {len(frame)}; unique Gaia DR3 IDs: {gaia_ids.nunique()}")
+PY
+```
+
+This is a shape check, not proof that the IDs identify the intended DR3 sample,
+and it cannot recover digits already rounded upstream. Use a pinned membership
+match or collaborator snapshot with verifiable provenance.
+
+### Build the legacy bibliography
+
+The bibliography script uses SIMBAD online and hardcodes the repository-root
+`TWAxgdr3.csv`; it has no `--catalog` option. The first phase writes
+`data/twa/paper_edges.parquet`, `data/twa/simbad_refs.parquet`, and
+`data/twa/twa_refs_full.parquet`:
+
+```bash
+uv run python scripts/build_twa_paper_edges.py
+```
+
+Then resolve DOI-to-arXiv matches in bounded batches. `--max-batches` is the
+supported cap; the default batch size is 20 and the default pause is 3 seconds.
+The script targets `data/twa/paper_edges.parquet` and
+`data/twa/simbad_refs.parquet` unless `--target` is supplied, and creates a
+one-time `.bak` for each file before its first change. Rerun with the same bound
+to continue; do not use `--max-batches 0` unless an unbounded pass is intended:
+
+```bash
+uv run python scripts/resolve_arxiv_ids.py --max-batches 1
+```
+
+### Optional XP, visualization, and JSONL
+
+XP retrieval is optional and contacts Gaia. Both TWA XP scripts also hardcode
+root-level `TWAxgdr3.csv`; they do not accept `--catalog`:
+
+```bash
+uv run python scripts/download_twa_xp.py
+uv run python scripts/download_twa_xp_continuous.py
+```
+
+They call `PipelineConfig.load()`, which overlays `config/local.yaml` on the
+default configuration. When both `gaia.username` and `gaia.password` are set
+there, `GaiaSource` logs in automatically for DataLink retrieval; no separate
+login command is needed. Without credentials it attempts anonymous access, which
+may not be sufficient for DataLink. Keep credentials out of Git.
+
+The visualization and exporter accept an explicit `--catalog` path. These
+commands operate on local artifacts; `export_jsonl.py` defaults to offline mode:
+
+```bash
+uv run python scripts/build_viz.py \
+  --catalog TWAxgdr3.csv \
+  --edges data/twa/paper_edges.parquet \
+  --spectra-dir data/twa \
+  --output data/twa/source_paper_viz.html
+
+uv run python scripts/export_jsonl.py \
+  --catalog TWAxgdr3.csv \
+  --data-dir data/twa \
+  --output data/twa/twa_corpus.jsonl \
+  --offline
+```
+
+All paths above belong to the legacy `data/twa` layout. The high-level corpus
+builder uses the shared library by default and writes a managed run snapshot;
+it does not automatically create the legacy `TWAxgdr3.csv` input or make that
+snapshot equivalent to this label-local demo. The newer membership workflow's
+preserved input, matched rows, and unmatched rows remain separate and auditable.
+
 ## Fixed CrA and Upper Sco acquisition
 
 `scripts/collect_regions.py` is the bounded runner for two fixed published

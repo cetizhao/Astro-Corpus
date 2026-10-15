@@ -1,0 +1,41 @@
+---
+title: 显式论文选择、逐级读取回退与可追溯保存
+config:
+  theme: neutral
+  htmlLabels: false
+  fontFamily: 'Noto Sans CJK SC, PingFang SC, Microsoft YaHei, sans-serif'
+  flowchart:
+    htmlLabels: false
+    curve: linear
+    wrappingWidth: 300
+    nodeSpacing: 30
+    rankSpacing: 45
+---
+flowchart TB
+    selection["显式选择 1–50 篇 arXiv 论文<br/>保留每个输入及其来源"]
+    identity["解析论文身份和具体 vN 版本<br/>记录元数据与许可证据"]
+    html["尝试 HTML 获取与结构解析"]
+    latex["尝试源文件获取与 LaTeX 解析<br/>不执行 TeX"]
+    pdf["尝试 PDF 获取与文本解析<br/>无 OCR，始终低保真 partial"]
+    text["首个可用的主解析结果<br/>内容块、章节、定位与质量警告"]
+    reference["按请求补存同版本参考 PDF<br/>不与主解析正文拼接"]
+    derived["结构化 JSON → Markdown<br/>记录原始校验和与解析器版本"]
+    raw["已获取原文件独立保存<br/>元数据、HTML / 源文件 / PDF"]
+    publish["不可变文件对象 + SQLite 版本引用<br/>固定 collection run 与 manifest"]
+    failure["没有可用正文：记录失败或不可用<br/>保留已获取原文件与检查点"]
+
+    selection --> identity --> html
+    html -->|可用| text
+    html -->|不可用或解析失败| latex
+    latex -->|可用| text
+    latex -->|不可用或解析失败| pdf
+    pdf -->|可用| text
+    pdf -->|无可用正文| failure
+    identity -.->|保存元数据证据| raw
+    html -.->|仅保存成功获取的文件| raw
+    latex -.->|仅保存成功获取的文件| raw
+    pdf -.->|仅保存成功获取的文件| raw
+    text --> reference --> derived
+    reference -.->|已获取的参考文件| raw
+    derived --> publish
+    raw -->|成功解析时固定原文件引用| publish

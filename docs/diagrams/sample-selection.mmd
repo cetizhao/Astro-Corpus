@@ -1,0 +1,41 @@
+---
+title: 几何场源搜索与发表成员表选择不是同一条路径
+config:
+  theme: neutral
+  htmlLabels: false
+  fontFamily: 'Noto Sans CJK SC, PingFang SC, Microsoft YaHei, sans-serif'
+  flowchart:
+    htmlLabels: false
+    curve: linear
+    wrappingWidth: 300
+    nodeSpacing: 30
+    rankSpacing: 45
+---
+flowchart TB
+    request["使用者明确样本依据"]
+
+    subgraph geometric["几何天区路径"]
+        region["给定坐标锥形范围<br/>或用名称解析中心和半径"]
+        cone["查询 Gaia DR3 几何范围"]
+        field["Gaia 场源表<br/>不是自动识别的物理成员"]
+        region --> cone --> field
+    end
+
+    subgraph literature["发表成员目录路径"]
+        search["搜索 VizieR 成员目录"]
+        preview["预览表、列与样本角色"]
+        table["显式选择目录中的一张表<br/>不静默删掉候选成员或低概率行"]
+        match["匹配 Gaia DR3<br/>已确认 DR3 ID 或逐行坐标"]
+        outcomes["保留匹配 / 未匹配结果<br/>输入次序、重复行和匹配证据"]
+        original["原始 VizieR 表<br/>不改写成员定义或科学标志"]
+        search --> preview --> table
+        table -->|原样保存| original
+        table --> match --> outcomes
+    end
+
+    request -->|天区范围| region
+    request -->|文献样本定义| search
+    field --> build["继续构建 corpus<br/>可选 XP 产品和 SIMBAD 书目"]
+    outcomes --> build
+    original --> snapshot["运行快照<br/>保留选择来源和固定制品引用"]
+    build --> snapshot

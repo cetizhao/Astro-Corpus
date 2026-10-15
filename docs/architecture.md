@@ -2,28 +2,125 @@
 
 ## System boundary
 
-The production corpus path remains Gaia DR3 + literature metadata. A
-release-profile and runtime-discovery layer prepares the transport boundary for
-DR4 without claiming support for unpublished schemas or columns. LAMOST and
-SDSS adapters are retained but are not the current development focus. The
-pipeline is a data preparation and retrieval layer, not a foundation-model
-trainer.
+The implemented system prepares Gaia DR3 samples, optional XP products and
+SIMBAD bibliographies, with an independent, explicitly requested arXiv full-text
+workflow. A corpus is a selected sample plus its data and provenance; the shared
+library reuses observations without erasing each sample's original rows. The
+pipeline does not train a foundation model, perform in-repository language-model
+inference, or implement a complete retrieval-augmented question-answering system.
 
-```text
-Natural-language request
-  → MCP tool selection
-  → input resolver (name / cone / CSV / membership catalogue)
-  → canonical Gaia DR3 member table + retained input-row provenance
-  → shared SQLite index and immutable content-addressed objects
-  → optional Gaia XP products
-  → SIMBAD source-paper edges
-  → pinned run snapshot + label compatibility views
-  → Parquet / FITS / JSONL / per-corpus HTML
-  → read-only full-library viewer with on-demand local spectra
+Figure 1 shows the main construction and read paths in **shared-library mode**.
+The upper arrows are calls from interfaces to builders; the lower arrows describe
+persisted outputs and local read access, not the chronological order of every
+function call. CLI and Python are direct entry points, so an AI agent is optional.
+An external agent selects MCP tools; it is not a model embedded in the pipeline.
+Read-only queries do not require a build first. Their caller interfaces are named
+in the query box rather than repeated as crossing call arrows.
+
+![Figure 1. Implemented entry points, independent builders, separate storage responsibilities and local readers.](diagrams/system-overview.svg)
+
+The SQLite index holds identities, metadata, versions and progress. Immutable
+objects hold file bytes; run directories hold sample tables, provenance and exact
+artifact references. The optional static corpus HTML is a saved build artifact,
+not the separate loopback HTTP library viewer. Viewer requests read local data;
+they do not initiate Gaia, SIMBAD or arXiv downloads. Legacy mode, main-table bulk
+jobs and generic DataLink requests remain separate supported routes, omitted from
+this overview to avoid presenting it as an exhaustive call graph.
+
+<details>
+<summary>Figure 1: GitHub-renderable Mermaid source</summary>
+
+<!-- diagram-source:system-overview:start -->
+```mermaid
+---
+title: 当前系统的调用入口、持久存储与只读访问
+config:
+  theme: neutral
+  htmlLabels: false
+  fontFamily: 'Noto Sans CJK SC, PingFang SC, Microsoft YaHei, sans-serif'
+  flowchart:
+    htmlLabels: false
+    curve: linear
+    wrappingWidth: 300
+    nodeSpacing: 30
+    rankSpacing: 50
+---
+flowchart TB
+    agent["外部 AI agent<br/>理解任务并选择工具"]
+    cli["CLI / Python 使用者"]
+    mcp["MCP 工具接口"]
+    api["命令行 / Python 接口"]
+
+    agent -->|工具调用| mcp
+    cli -->|直接调用| api
+    mcp -->|构建| corpus
+    api -->|构建| corpus
+    mcp -->|显式全文请求| paper
+    api -->|显式全文请求| paper
+
+    corpus["Gaia 样本构建<br/>可选 XP 光谱与 SIMBAD 书目"]
+    paper["arXiv 全文构建<br/>固定版本，原文与派生文本"]
+
+    subgraph local["本地持久存储 · 默认 shared library 模式"]
+        db[("SQLite 元数据索引<br/>来源、版本、缓存、运行记录")]
+        objects["不可变文件对象<br/>按 SHA-256 保存产品与全文"]
+        runs["运行快照与兼容视图<br/>选表、匹配、制品引用、manifest<br/>可选 corpus 静态 HTML"]
+    end
+
+    corpus -->|索引与状态| db
+    paper -->|索引与状态| db
+    corpus -->|产品文件| objects
+    paper -->|原文件 / JSON / Markdown| objects
+    corpus -->|发布样本快照| runs
+    paper -->|固定全文集合引用| runs
+
+    query["CLI / Python / MCP 只读查询<br/>不存在的库不自动创建"]
+    viewer["浏览器中的本机查看器<br/>127.0.0.1 · 本地只读"]
+    db -->|已有元数据| query
+    db -->|源与产品元数据| viewer
+    objects -->|选择源后读取光谱| viewer
+    runs -->|核对当前或固定运行| viewer
 ```
+<!-- diagram-source:system-overview:end -->
+
+</details>
 
 The MCP server is a thin adapter. Domain logic remains callable from Python so
-other agents and future services are not coupled to one MCP client.
+other agents and future services are not coupled to one MCP client. A
+release-profile and runtime-discovery layer prepares the transport boundary for
+DR4 without assuming unpublished schemas or columns. LAMOST and SDSS adapters
+are retained but are not the current development focus.
+
+### Edit and regenerate the diagrams
+
+The three `.mmd` files in [diagrams/](diagrams/) are the authoritative editable
+sources. Change node labels and directed edges there, rather than editing the
+SVG or generated Markdown fence separately:
+
+```bash
+# Documentation-only tooling: Python, Node.js/npm and a local Chromium browser.
+uv run python scripts/render_diagrams.py
+
+# Re-render one diagram; explicit browser paths are supported on other systems.
+uv run python scripts/render_diagrams.py --diagram system-overview \
+  --browser /path/to/chrome
+
+# No browser or network: check committed source, SVG and Markdown consistency.
+uv run python scripts/render_diagrams.py --check
+```
+
+Rendering uses pinned Mermaid CLI 12.0.0 through npm, with a browser already
+installed locally. The first tool install may download npm packages; it does not
+upload diagram sources, download a browser, or add application runtime dependencies.
+`PUPPETEER_EXECUTABLE_PATH` can select the browser. SVG is a scalable display
+artifact; structural editing remains in Mermaid. Font/browser differences can
+slightly change layout, so byte-identical rendering is not promised. Chinese text
+uses installed CJK-capable fonts; no proprietary font files are bundled.
+
+The diagrams use neutral fills and explicit labels, not color-only semantics.
+Their source hash and renderer version are stamped into each SVG, and the helper
+updates the Markdown fences. Re-render and visually inspect after editing;
+`--check` alone does not prove that node relationships are correct.
 
 ## Input semantics
 
@@ -35,13 +132,70 @@ other agents and future services are not coupled to one MCP client.
 - `catalog`: user CSV with Gaia DR3 IDs or coordinates.
 
 The first two are geometric field selections. Physical membership is a
-separate literature workflow in `membership.py`:
+separate literature workflow in `membership.py`. Figure 2 shows why the two
+routes are not interchangeable: geometry defines a spatial selection, whereas
+a published table supplies the scientific membership or candidate definition.
+The table's original probability/flag columns are evidence, not an instruction
+for this pipeline to silently filter rows.
 
-```text
-VizieR discovery → table preview → explicit table selection
-  → Gaia DR3 ID match or batched small-cone coordinate match
-  → original table + matched members + unmatched rows
+![Figure 2. Geometric field selection and explicitly chosen literature-member tables converge only after their distinct selection provenance has been retained.](diagrams/sample-selection.svg)
+
+The figure covers cone/named-region selection and VizieR member tables. A single
+source name and an uploaded CSV are additional `resolve_members` inputs, not
+automatic association-membership classifiers. Older-release IDs in a chosen
+table remain evidence; they must not be relabeled as DR3 IDs. Matching adds its
+own outcomes and leaves the selected table unchanged.
+
+<details>
+<summary>Figure 2: GitHub-renderable Mermaid source</summary>
+
+<!-- diagram-source:sample-selection:start -->
+```mermaid
+---
+title: 几何场源搜索与发表成员表选择不是同一条路径
+config:
+  theme: neutral
+  htmlLabels: false
+  fontFamily: 'Noto Sans CJK SC, PingFang SC, Microsoft YaHei, sans-serif'
+  flowchart:
+    htmlLabels: false
+    curve: linear
+    wrappingWidth: 300
+    nodeSpacing: 30
+    rankSpacing: 45
+---
+flowchart TB
+    request["使用者明确样本依据"]
+
+    subgraph geometric["几何天区路径"]
+        region["给定坐标锥形范围<br/>或用名称解析中心和半径"]
+        cone["查询 Gaia DR3 几何范围"]
+        field["Gaia 场源表<br/>不是自动识别的物理成员"]
+        region --> cone --> field
+    end
+
+    subgraph literature["发表成员目录路径"]
+        search["搜索 VizieR 成员目录"]
+        preview["预览表、列与样本角色"]
+        table["显式选择目录中的一张表<br/>不静默删掉候选成员或低概率行"]
+        match["匹配 Gaia DR3<br/>已确认 DR3 ID 或逐行坐标"]
+        outcomes["保留匹配 / 未匹配结果<br/>输入次序、重复行和匹配证据"]
+        original["原始 VizieR 表<br/>不改写成员定义或科学标志"]
+        search --> preview --> table
+        table -->|原样保存| original
+        table --> match --> outcomes
+    end
+
+    request -->|天区范围| region
+    request -->|文献样本定义| search
+    field --> build["继续构建 corpus<br/>可选 XP 产品和 SIMBAD 书目"]
+    outcomes --> build
+    original --> snapshot["运行快照<br/>保留选择来源和固定制品引用"]
+    build --> snapshot
 ```
+<!-- diagram-source:sample-selection:end -->
+
+</details>
 
 The fixed CrA and Upper Sco acquisition presets are published-table
 selections, not sky regions:
@@ -100,6 +254,34 @@ For literature membership corpora, every source-table column is namespaced as
 `member_<original_name>`. Provenance columns identify catalogue/table, match
 method/radius, angular separation, and candidate multiplicity. This keeps the
 published sample definition available to downstream reviewers.
+
+## Simplified JSONL export
+
+`scripts/export_jsonl.py` is an explicit downstream export, not a file that every
+corpus build automatically creates. Its `to_record()` function defines the
+current simplified schema. **Each JSON line represents one catalog/sample row**;
+two input rows resolving to the same Gaia source remain two records. Use
+`provenance.input_row_id` and `provenance.run_id` when present to distinguish them.
+Unmatched source-table rows remain in their dedicated corpus artifacts rather
+than becoming invented Gaia records.
+
+| Field group | Meaning |
+|---|---|
+| `gaia_release`, `gaia_id` | Release-qualified source identity; IDs remain strings |
+| `ra_deg`, `dec_deg`, `parallax_mas`, `parallax_error_mas`, `g_mag`, `pm_ra_masyr`, `pm_dec_masyr` | Available astrometry/photometry with unit-bearing field names; missing values are null |
+| `quality` | Retained quality diagnostics and suggested boolean flags; no input filtering or scientific certification |
+| `multimodal.gaia_xp.sampled` / `.continuous` | Availability, locally readable/cached state, product location and supported spectrum/coefficients payload |
+| `multimodal.lamost`, `multimodal.sdss` | Availability flags from the configured single-corpus lookup, not evidence of a complete cross-survey fusion |
+| `papers`, `n_papers` | Bibliographic metadata and its count; not full paper text or paragraph-level evidence |
+| `provenance` | Pipeline/release and any retained input-row/run/raw-row provenance; unknown provenance stays null |
+
+Availability and readable cache state are distinct: a flagged available XP
+product is not proof that it was successfully downloaded. Suggested quality
+booleans are convenience heuristics, not universal science cuts; inspect the
+underlying diagnostics and choose criteria appropriate to the analysis. This
+export is not a stable training-data specification, and it does not include the
+separate paper-fulltext JSON documents. The operational command is documented
+in the [TWA bootstrap](operator-runbook.md#twa-demo-bootstrap).
 
 ## Corpus directory contract
 
@@ -189,10 +371,75 @@ not pull edges from unrelated corpora.
 ## Paper full-text data flow
 
 Explicit selections use `library/paper_corpus.py` independently of the Gaia and
-SIMBAD builders. `sources/paper_fulltext.py` validates arXiv identities and
-retrieves version-pinned evidence/artifacts; `paper_text.py` performs bounded,
-local HTML/LaTeX/PDF parsing in a time-limited subprocess. JSON preserves ordered,
-typed blocks and source locators, while Markdown is a deterministic derivative.
+SIMBAD builders. Figure 3 shows the acquisition/parse path when a pinned artifact
+cannot simply be reused. A bibliography edge does not automatically start this
+workflow. HTML, LaTeX and PDF are alternative main inputs, not three documents
+merged into one text.
+
+![Figure 3. Explicit, version-pinned paper acquisition tries progressively less structured formats while retaining raw evidence separately from derived text.](diagrams/paper-fulltext.svg)
+
+Solid edges show the main processing path; dashed edges mean that successfully
+retrieved raw evidence is retained independently. Only a usable parse publishes
+a new successful text version; a failed parse can still leave raw downloads and
+retryable checkpoints. The reference PDF is optional and requested by default;
+if it cannot be obtained, usable main text is retained with incomplete-acquisition
+status. JSON and Markdown remain tied to the raw file actually parsed.
+
+<details>
+<summary>Figure 3: GitHub-renderable Mermaid source</summary>
+
+<!-- diagram-source:paper-fulltext:start -->
+```mermaid
+---
+title: 显式论文选择、逐级读取回退与可追溯保存
+config:
+  theme: neutral
+  htmlLabels: false
+  fontFamily: 'Noto Sans CJK SC, PingFang SC, Microsoft YaHei, sans-serif'
+  flowchart:
+    htmlLabels: false
+    curve: linear
+    wrappingWidth: 300
+    nodeSpacing: 30
+    rankSpacing: 45
+---
+flowchart TB
+    selection["显式选择 1–50 篇 arXiv 论文<br/>保留每个输入及其来源"]
+    identity["解析论文身份和具体 vN 版本<br/>记录元数据与许可证据"]
+    html["尝试 HTML 获取与结构解析"]
+    latex["尝试源文件获取与 LaTeX 解析<br/>不执行 TeX"]
+    pdf["尝试 PDF 获取与文本解析<br/>无 OCR，始终低保真 partial"]
+    text["首个可用的主解析结果<br/>内容块、章节、定位与质量警告"]
+    reference["按请求补存同版本参考 PDF<br/>不与主解析正文拼接"]
+    derived["结构化 JSON → Markdown<br/>记录原始校验和与解析器版本"]
+    raw["已获取原文件独立保存<br/>元数据、HTML / 源文件 / PDF"]
+    publish["不可变文件对象 + SQLite 版本引用<br/>固定 collection run 与 manifest"]
+    failure["没有可用正文：记录失败或不可用<br/>保留已获取原文件与检查点"]
+
+    selection --> identity --> html
+    html -->|可用| text
+    html -->|不可用或解析失败| latex
+    latex -->|可用| text
+    latex -->|不可用或解析失败| pdf
+    pdf -->|可用| text
+    pdf -->|无可用正文| failure
+    identity -.->|保存元数据证据| raw
+    html -.->|仅保存成功获取的文件| raw
+    latex -.->|仅保存成功获取的文件| raw
+    pdf -.->|仅保存成功获取的文件| raw
+    text --> reference --> derived
+    reference -.->|已获取的参考文件| raw
+    derived --> publish
+    raw -->|成功解析时固定原文件引用| publish
+```
+<!-- diagram-source:paper-fulltext:end -->
+
+</details>
+
+`sources/paper_fulltext.py` validates arXiv identities and retrieves version-pinned
+evidence/artifacts; `paper_text.py` performs bounded, local HTML/LaTeX/PDF parsing
+in a time-limited subprocess. JSON preserves ordered, typed blocks and source
+locators, while Markdown is a deterministic derivative.
 
 Library schema v2 adds `paper_downloads`, `paper_text_versions`,
 `paper_text_artifacts`, `paper_text_current` and `paper_inputs`. Existing generic
@@ -210,6 +457,22 @@ not an automatic redistribution/training permission. No source-specific evidence
 relation is inferred from the existing bibliography edges.
 
 See [paper corpus guide](paper-corpus.md) for schema fields and operational limits.
+
+## Diagram-to-code map
+
+The figures are views of the current implementation, not a proposed science
+pipeline or an exhaustive dependency graph. These entry points justify their
+main nodes and edges:
+
+| Relationship in the figures | Implementation to inspect |
+|---|---|
+| CLI/MCP calls the same corpus builder | [`scripts/build_corpus.py`](../scripts/build_corpus.py), [`mcp_server.py`](../src/astro_pipeline/mcp_server.py), [`corpus_builder.py`](../src/astro_pipeline/corpus_builder.py): `build_corpus_snapshot`, `build_corpus_from_members` |
+| Geometry and literature membership use different selection paths | [`intake.py`](../src/astro_pipeline/intake.py): `resolve_members`; [`membership.py`](../src/astro_pipeline/membership.py): discovery, preview and `build_membership_corpus` |
+| Source bibliographies and optional XP are distinct stages | [`sources/simbad_refs.py`](../src/astro_pipeline/sources/simbad_refs.py), [`corpus_products.py`](../src/astro_pipeline/corpus_products.py) |
+| Index, immutable bytes and run publication have separate responsibilities | [`library/store.py`](../src/astro_pipeline/library/store.py): `LibraryStore`; [`library/files.py`](../src/astro_pipeline/library/files.py): `BlobStore`; [`library/build.py`](../src/astro_pipeline/library/build.py): `LibraryRun` |
+| Full text is an explicit, independent builder with parse fallback | [`library/paper_corpus.py`](../src/astro_pipeline/library/paper_corpus.py): `build_paper_corpus`, `_acquire_version`; [`sources/paper_fulltext.py`](../src/astro_pipeline/sources/paper_fulltext.py): `ArxivClient`; [`paper_text.py`](../src/astro_pipeline/paper_text.py): format parsers |
+| Viewer reads local metadata, pins and spectrum bytes, without fetching upstream data | [`viz/library_viewer.py`](../src/astro_pipeline/viz/library_viewer.py), [`library/overview.py`](../src/astro_pipeline/library/overview.py), [`spectral_adapters.py`](../src/astro_pipeline/spectral_adapters.py) |
+| Global lookup is independent of construction | [`library/query.py`](../src/astro_pipeline/library/query.py): `Library`; [`library/__init__.py`](../src/astro_pipeline/library/__init__.py): `get_library(create=False)` |
 
 ## Shared-library concurrency and lifecycle
 

@@ -1,0 +1,48 @@
+---
+title: 当前系统的调用入口、持久存储与只读访问
+config:
+  theme: neutral
+  htmlLabels: false
+  fontFamily: 'Noto Sans CJK SC, PingFang SC, Microsoft YaHei, sans-serif'
+  flowchart:
+    htmlLabels: false
+    curve: linear
+    wrappingWidth: 300
+    nodeSpacing: 30
+    rankSpacing: 50
+---
+flowchart TB
+    agent["外部 AI agent<br/>理解任务并选择工具"]
+    cli["CLI / Python 使用者"]
+    mcp["MCP 工具接口"]
+    api["命令行 / Python 接口"]
+
+    agent -->|工具调用| mcp
+    cli -->|直接调用| api
+    mcp -->|构建| corpus
+    api -->|构建| corpus
+    mcp -->|显式全文请求| paper
+    api -->|显式全文请求| paper
+
+    corpus["Gaia 样本构建<br/>可选 XP 光谱与 SIMBAD 书目"]
+    paper["arXiv 全文构建<br/>固定版本，原文与派生文本"]
+
+    subgraph local["本地持久存储 · 默认 shared library 模式"]
+        db[("SQLite 元数据索引<br/>来源、版本、缓存、运行记录")]
+        objects["不可变文件对象<br/>按 SHA-256 保存产品与全文"]
+        runs["运行快照与兼容视图<br/>选表、匹配、制品引用、manifest<br/>可选 corpus 静态 HTML"]
+    end
+
+    corpus -->|索引与状态| db
+    paper -->|索引与状态| db
+    corpus -->|产品文件| objects
+    paper -->|原文件 / JSON / Markdown| objects
+    corpus -->|发布样本快照| runs
+    paper -->|固定全文集合引用| runs
+
+    query["CLI / Python / MCP 只读查询<br/>不存在的库不自动创建"]
+    viewer["浏览器中的本机查看器<br/>127.0.0.1 · 本地只读"]
+    db -->|已有元数据| query
+    db -->|源与产品元数据| viewer
+    objects -->|选择源后读取光谱| viewer
+    runs -->|核对当前或固定运行| viewer

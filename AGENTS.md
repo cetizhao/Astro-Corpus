@@ -89,6 +89,9 @@ tests used for this release are documented in `docs/operator-runbook.md`.
 
 - Human/agent setup and tool workflow: `docs/integration-guide.md`
 - Data flow, schemas, and design boundaries: `docs/architecture.md`
+- Editable architecture sources: `docs/diagrams/*.mmd`; regenerate SVG/Markdown with
+  `scripts/render_diagrams.py`, or use `--check` for offline synchronization checks
+- Explicit paper full text, parser limitations, rights, and resume: `docs/paper-corpus.md`
 - Shared-library config, cache/run semantics, CLI, export, and backup: `docs/library.md`
 - Gaia DR4 preparation and known/unknown contracts: `docs/dr4-readiness.md`
 - Smoke tests, progress, resume, and troubleshooting: `docs/operator-runbook.md`
