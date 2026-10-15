@@ -54,6 +54,8 @@ All notable changes to this project are documented here. Versions follow
 - README is now a concise project entry point; TWA bootstrap, direct queries and
   export details live in topic guides. Architecture diagrams have editable Mermaid
   sources, locally rendered SVGs, and an offline synchronization check.
+- README opens with a native SVG project showcase; the three architecture
+  diagrams share a light palette, simpler connections and explicit workflow groups.
 - Static corpus HTML can embed spectra, show cached-product status only, or be
   disabled; full region collection uses the lightweight status-only mode.
 - Bibliography enrichment checkpoints basic metadata before optional arXiv
@@ -93,6 +95,14 @@ All notable changes to this project are documented here. Versions follow
 
 ### Fixed
 
+- Paper artifact publication closes its temporary writer before the blob store
+  reads it, avoiding Windows file-sharing errors during full-text collection builds.
+- Atomic files and shared objects sync through writable descriptors, as required
+  by Windows, before replacing the destination.
+- Offline fixtures handle Windows read-only files, UTF-8 text and SQLite restore
+  locks; symlink-dependent cases explicitly skip when the account lacks permission.
+- Library verification normalizes native object-path separators before reporting
+  orphan files, so registered Windows objects are not misclassified as residue.
 - VizieR discovery ignores invalid resource IDs; coordinate matching uses
   numeric columns and explicit units, preserves old-release identifiers as
   evidence, and does not confuse J2000 equinox with an observation epoch.

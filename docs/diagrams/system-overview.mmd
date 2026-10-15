@@ -1,48 +1,59 @@
 ---
-title: 当前系统的调用入口、持久存储与只读访问
 config:
-  theme: neutral
+  look: classic
+  theme: base
   htmlLabels: false
   fontFamily: 'Noto Sans CJK SC, PingFang SC, Microsoft YaHei, sans-serif'
+  themeVariables:
+    fontSize: 18px
+    primaryTextColor: '#20334b'
+    lineColor: '#8a9bb0'
+    clusterBkg: '#f8fafc'
+    clusterBorder: '#dce4ed'
+    edgeLabelBackground: '#ffffff'
   flowchart:
     htmlLabels: false
-    curve: linear
-    wrappingWidth: 300
-    nodeSpacing: 30
-    rankSpacing: 50
+    curve: basis
+    wrappingWidth: 320
+    nodeSpacing: 32
+    rankSpacing: 24
+    padding: 18
 ---
 flowchart TB
-    agent["外部 AI agent<br/>理解任务并选择工具"]
-    cli["CLI / Python 使用者"]
-    mcp["MCP 工具接口"]
-    api["命令行 / Python 接口"]
-
-    agent -->|工具调用| mcp
-    cli -->|直接调用| api
-    mcp -->|构建| corpus
-    api -->|构建| corpus
-    mcp -->|显式全文请求| paper
-    api -->|显式全文请求| paper
-
-    corpus["Gaia 样本构建<br/>可选 XP 光谱与 SIMBAD 书目"]
-    paper["arXiv 全文构建<br/>固定版本，原文与派生文本"]
-
-    subgraph local["本地持久存储 · 默认 shared library 模式"]
-        db[("SQLite 元数据索引<br/>来源、版本、缓存、运行记录")]
-        objects["不可变文件对象<br/>按 SHA-256 保存产品与全文"]
-        runs["运行快照与兼容视图<br/>选表、匹配、制品引用、manifest<br/>可选 corpus 静态 HTML"]
+    accTitle: Astro-Corpus 系统入口、构建路径与本地访问
+    accDescr: AI agent 通过 MCP 或使用者通过 CLI 和 Python 调用两条独立的构建路径，结果分别保存到 SQLite 索引、不可变文件和运行快照。查询与查看器只读本地已有数据，不触发远程下载。
+    subgraph entry["01 · 调用入口"]
+        direction LR
+        agent["外部 AI agent<br/>通过 MCP 选择工具"]:::entry
+        direct["CLI / Python<br/>直接调用相同能力"]:::entry
+        agent ~~~ direct
+    end
+    subgraph builders["02 · 两条独立构建路径"]
+        direction LR
+        corpus["Gaia DR3 样本语料<br/>可选 XP 光谱与 SIMBAD 书目"]:::sample
+        paper["arXiv 论文全文语料<br/>显式选文，保存固定版本"]:::paper
+        corpus ~~~ paper
+    end
+    subgraph local["03 · 本地持久存储 · 默认共享库模式"]
+        direction LR
+        db["SQLite 元数据索引<br/>身份、来源、版本、进度"]:::storage
+        objects["不可变文件对象<br/>产品、原文与派生文本"]:::storage
+        runs["运行快照与兼容视图<br/>原表、匹配、固定制品引用<br/>manifest 与可选静态 HTML"]:::storage
+        db ~~~ objects ~~~ runs
+    end
+    subgraph access["04 · 读取已有数据"]
+        direction LR
+        query["CLI / Python / MCP 查询<br/>不存在的库不自动创建"]:::reader
+        viewer["本机只读查看器<br/>按需读取已有光谱"]:::reader
+        query ~~~ viewer
     end
 
-    corpus -->|索引与状态| db
-    paper -->|索引与状态| db
-    corpus -->|产品文件| objects
-    paper -->|原文件 / JSON / Markdown| objects
-    corpus -->|发布样本快照| runs
-    paper -->|固定全文集合引用| runs
+    entry -->|显式请求构建| builders
+    builders -->|保存索引、文件与快照| local
+    local -->|只读访问本地数据| access
 
-    query["CLI / Python / MCP 只读查询<br/>不存在的库不自动创建"]
-    viewer["浏览器中的本机查看器<br/>127.0.0.1 · 本地只读"]
-    db -->|已有元数据| query
-    db -->|源与产品元数据| viewer
-    objects -->|选择源后读取光谱| viewer
-    runs -->|核对当前或固定运行| viewer
+    classDef entry fill:#edf3fc,stroke:#a7bfdf,color:#23476b,stroke-width:1.4px,rx:10,ry:10
+    classDef sample fill:#e9f5f1,stroke:#83b8a7,color:#1b5547,stroke-width:1.4px,rx:10,ry:10
+    classDef paper fill:#f0edfa,stroke:#b5a4d5,color:#584078,stroke-width:1.4px,rx:10,ry:10
+    classDef storage fill:#ffffff,stroke:#bdcad8,color:#20334b,stroke-width:1.4px,rx:10,ry:10
+    classDef reader fill:#edf5fa,stroke:#9dbed1,color:#28546c,stroke-width:1.4px,rx:10,ry:10

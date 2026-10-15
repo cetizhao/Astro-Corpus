@@ -1,41 +1,54 @@
 ---
-title: 几何场源搜索与发表成员表选择不是同一条路径
 config:
-  theme: neutral
+  look: classic
+  theme: base
   htmlLabels: false
   fontFamily: 'Noto Sans CJK SC, PingFang SC, Microsoft YaHei, sans-serif'
+  themeVariables:
+    fontSize: 18px
+    primaryTextColor: '#20334b'
+    lineColor: '#8a9bb0'
+    clusterBkg: '#f8fafc'
+    clusterBorder: '#dce4ed'
+    edgeLabelBackground: '#ffffff'
   flowchart:
     htmlLabels: false
-    curve: linear
+    curve: basis
     wrappingWidth: 300
-    nodeSpacing: 30
-    rankSpacing: 45
+    nodeSpacing: 36
+    rankSpacing: 32
+    padding: 18
 ---
 flowchart TB
-    request["使用者明确样本依据"]
+    accTitle: 几何场源与发表成员目录的样本选择
+    accDescr: 坐标范围或名称解析得到几何范围内的 Gaia 场源，不自动定义物理成员。成员路径先搜索预览 VizieR 目录并显式选表，再匹配 Gaia，保留原表、未匹配行、次序和重复输入，最后保存独立运行快照。
+    request["先明确样本的选择依据"]:::entry
 
-    subgraph geometric["几何天区路径"]
-        region["给定坐标锥形范围<br/>或用名称解析中心和半径"]
-        cone["查询 Gaia DR3 几何范围"]
-        field["Gaia 场源表<br/>不是自动识别的物理成员"]
-        region --> cone --> field
+    subgraph geometric["A · 按几何天区选择"]
+        region["给定坐标范围<br/>或用名称解析中心与半径"]:::field
+        cone["查询 Gaia DR3<br/>获取几何范围内的场源"]:::field
+        field["保留 Gaia 场源表<br/>记录几何选择来源"]:::field
+        scope["样本含义：天区内的场源<br/>不自动认定为物理成员"]:::field
+        region --> cone --> field --> scope
     end
 
-    subgraph literature["发表成员目录路径"]
-        search["搜索 VizieR 成员目录"]
-        preview["预览表、列与样本角色"]
-        table["显式选择目录中的一张表<br/>不静默删掉候选成员或低概率行"]
-        match["匹配 Gaia DR3<br/>已确认 DR3 ID 或逐行坐标"]
-        outcomes["保留匹配 / 未匹配结果<br/>输入次序、重复行和匹配证据"]
-        original["原始 VizieR 表<br/>不改写成员定义或科学标志"]
-        search --> preview --> table
-        table -->|原样保存| original
+    subgraph literature["B · 按发表成员目录选择"]
+        search["搜索并预览 VizieR 目录<br/>检查表、列与样本角色"]:::member
+        table["显式选表并原样保存<br/>保留概率、候选与科学标志"]:::member
+        match["匹配 Gaia DR3<br/>确认 DR3 ID 或逐行坐标"]:::member
+        outcomes["保留全部输入与匹配结果<br/>含未匹配行、次序和重复"]:::member
+        search --> table
         table --> match --> outcomes
     end
 
-    request -->|天区范围| region
-    request -->|文献样本定义| search
-    field --> build["继续构建 corpus<br/>可选 XP 产品和 SIMBAD 书目"]
+    request --> region
+    request --> search
+    scope --> build["构建样本语料<br/>按请求补充 XP 光谱与 SIMBAD 书目"]:::build
     outcomes --> build
-    original --> snapshot["运行快照<br/>保留选择来源和固定制品引用"]
-    build --> snapshot
+    build --> snapshot["保存独立运行快照<br/>样本与原表 / 选择与匹配证据<br/>固定版本与制品引用"]:::storage
+
+    classDef entry fill:#edf3fc,stroke:#a7bfdf,color:#23476b,stroke-width:1.4px,rx:10,ry:10
+    classDef field fill:#edf5fa,stroke:#9dbed1,color:#28546c,stroke-width:1.4px,rx:10,ry:10
+    classDef member fill:#f0edfa,stroke:#b5a4d5,color:#584078,stroke-width:1.4px,rx:10,ry:10
+    classDef build fill:#e9f5f1,stroke:#83b8a7,color:#1b5547,stroke-width:1.4px,rx:10,ry:10
+    classDef storage fill:#f8fafc,stroke:#bdcad8,color:#20334b,stroke-width:1.4px,rx:10,ry:10

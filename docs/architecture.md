@@ -10,12 +10,13 @@ pipeline does not train a foundation model, perform in-repository language-model
 inference, or implement a complete retrieval-augmented question-answering system.
 
 Figure 1 shows the main construction and read paths in **shared-library mode**.
-The upper arrows are calls from interfaces to builders; the lower arrows describe
-persisted outputs and local read access, not the chronological order of every
-function call. CLI and Python are direct entry points, so an AI agent is optional.
+Arrows connect groups of capabilities: either entry point can request either
+builder, both builders persist their outputs in the shared library, and readers
+access existing local data. The diagram does not impose a build-before-query
+sequence. CLI and Python are direct entry points, so an AI agent is optional.
 An external agent selects MCP tools; it is not a model embedded in the pipeline.
 Read-only queries do not require a build first. Their caller interfaces are named
-in the query box rather than repeated as crossing call arrows.
+in the query box.
 
 ![Figure 1. Implemented entry points, independent builders, separate storage responsibilities and local readers.](diagrams/system-overview.svg)
 
@@ -33,53 +34,64 @@ this overview to avoid presenting it as an exhaustive call graph.
 <!-- diagram-source:system-overview:start -->
 ```mermaid
 ---
-title: 当前系统的调用入口、持久存储与只读访问
 config:
-  theme: neutral
+  look: classic
+  theme: base
   htmlLabels: false
   fontFamily: 'Noto Sans CJK SC, PingFang SC, Microsoft YaHei, sans-serif'
+  themeVariables:
+    fontSize: 18px
+    primaryTextColor: '#20334b'
+    lineColor: '#8a9bb0'
+    clusterBkg: '#f8fafc'
+    clusterBorder: '#dce4ed'
+    edgeLabelBackground: '#ffffff'
   flowchart:
     htmlLabels: false
-    curve: linear
-    wrappingWidth: 300
-    nodeSpacing: 30
-    rankSpacing: 50
+    curve: basis
+    wrappingWidth: 320
+    nodeSpacing: 32
+    rankSpacing: 24
+    padding: 18
 ---
 flowchart TB
-    agent["外部 AI agent<br/>理解任务并选择工具"]
-    cli["CLI / Python 使用者"]
-    mcp["MCP 工具接口"]
-    api["命令行 / Python 接口"]
-
-    agent -->|工具调用| mcp
-    cli -->|直接调用| api
-    mcp -->|构建| corpus
-    api -->|构建| corpus
-    mcp -->|显式全文请求| paper
-    api -->|显式全文请求| paper
-
-    corpus["Gaia 样本构建<br/>可选 XP 光谱与 SIMBAD 书目"]
-    paper["arXiv 全文构建<br/>固定版本，原文与派生文本"]
-
-    subgraph local["本地持久存储 · 默认 shared library 模式"]
-        db[("SQLite 元数据索引<br/>来源、版本、缓存、运行记录")]
-        objects["不可变文件对象<br/>按 SHA-256 保存产品与全文"]
-        runs["运行快照与兼容视图<br/>选表、匹配、制品引用、manifest<br/>可选 corpus 静态 HTML"]
+    accTitle: Astro-Corpus 系统入口、构建路径与本地访问
+    accDescr: AI agent 通过 MCP 或使用者通过 CLI 和 Python 调用两条独立的构建路径，结果分别保存到 SQLite 索引、不可变文件和运行快照。查询与查看器只读本地已有数据，不触发远程下载。
+    subgraph entry["01 · 调用入口"]
+        direction LR
+        agent["外部 AI agent<br/>通过 MCP 选择工具"]:::entry
+        direct["CLI / Python<br/>直接调用相同能力"]:::entry
+        agent ~~~ direct
+    end
+    subgraph builders["02 · 两条独立构建路径"]
+        direction LR
+        corpus["Gaia DR3 样本语料<br/>可选 XP 光谱与 SIMBAD 书目"]:::sample
+        paper["arXiv 论文全文语料<br/>显式选文，保存固定版本"]:::paper
+        corpus ~~~ paper
+    end
+    subgraph local["03 · 本地持久存储 · 默认共享库模式"]
+        direction LR
+        db["SQLite 元数据索引<br/>身份、来源、版本、进度"]:::storage
+        objects["不可变文件对象<br/>产品、原文与派生文本"]:::storage
+        runs["运行快照与兼容视图<br/>原表、匹配、固定制品引用<br/>manifest 与可选静态 HTML"]:::storage
+        db ~~~ objects ~~~ runs
+    end
+    subgraph access["04 · 读取已有数据"]
+        direction LR
+        query["CLI / Python / MCP 查询<br/>不存在的库不自动创建"]:::reader
+        viewer["本机只读查看器<br/>按需读取已有光谱"]:::reader
+        query ~~~ viewer
     end
 
-    corpus -->|索引与状态| db
-    paper -->|索引与状态| db
-    corpus -->|产品文件| objects
-    paper -->|原文件 / JSON / Markdown| objects
-    corpus -->|发布样本快照| runs
-    paper -->|固定全文集合引用| runs
+    entry -->|显式请求构建| builders
+    builders -->|保存索引、文件与快照| local
+    local -->|只读访问本地数据| access
 
-    query["CLI / Python / MCP 只读查询<br/>不存在的库不自动创建"]
-    viewer["浏览器中的本机查看器<br/>127.0.0.1 · 本地只读"]
-    db -->|已有元数据| query
-    db -->|源与产品元数据| viewer
-    objects -->|选择源后读取光谱| viewer
-    runs -->|核对当前或固定运行| viewer
+    classDef entry fill:#edf3fc,stroke:#a7bfdf,color:#23476b,stroke-width:1.4px,rx:10,ry:10
+    classDef sample fill:#e9f5f1,stroke:#83b8a7,color:#1b5547,stroke-width:1.4px,rx:10,ry:10
+    classDef paper fill:#f0edfa,stroke:#b5a4d5,color:#584078,stroke-width:1.4px,rx:10,ry:10
+    classDef storage fill:#ffffff,stroke:#bdcad8,color:#20334b,stroke-width:1.4px,rx:10,ry:10
+    classDef reader fill:#edf5fa,stroke:#9dbed1,color:#28546c,stroke-width:1.4px,rx:10,ry:10
 ```
 <!-- diagram-source:system-overview:end -->
 
@@ -117,10 +129,17 @@ artifact; structural editing remains in Mermaid. Font/browser differences can
 slightly change layout, so byte-identical rendering is not promised. Chinese text
 uses installed CJK-capable fonts; no proprietary font files are bundled.
 
-The diagrams use neutral fills and explicit labels, not color-only semantics.
+The diagrams use a shared light palette: blue for entry points, green for sample
+construction or successful results, violet for paper processing, and gray for
+storage. Figure 2 uses blue and violet to distinguish its two selection routes.
+Every role is also named explicitly, so colors are not required to read the flow.
 Their source hash and renderer version are stamped into each SVG, and the helper
 updates the Markdown fences. Re-render and visually inspect after editing;
 `--check` alone does not prove that node relationships are correct.
+
+The README's [project showcase](diagrams/project-showcase.svg) is a separate,
+hand-edited SVG with native text. It summarizes the project for first-time
+readers; its decorative sky geometry is not an observed astronomical sample.
 
 ## Input semantics
 
@@ -152,46 +171,59 @@ own outcomes and leaves the selected table unchanged.
 <!-- diagram-source:sample-selection:start -->
 ```mermaid
 ---
-title: 几何场源搜索与发表成员表选择不是同一条路径
 config:
-  theme: neutral
+  look: classic
+  theme: base
   htmlLabels: false
   fontFamily: 'Noto Sans CJK SC, PingFang SC, Microsoft YaHei, sans-serif'
+  themeVariables:
+    fontSize: 18px
+    primaryTextColor: '#20334b'
+    lineColor: '#8a9bb0'
+    clusterBkg: '#f8fafc'
+    clusterBorder: '#dce4ed'
+    edgeLabelBackground: '#ffffff'
   flowchart:
     htmlLabels: false
-    curve: linear
+    curve: basis
     wrappingWidth: 300
-    nodeSpacing: 30
-    rankSpacing: 45
+    nodeSpacing: 36
+    rankSpacing: 32
+    padding: 18
 ---
 flowchart TB
-    request["使用者明确样本依据"]
+    accTitle: 几何场源与发表成员目录的样本选择
+    accDescr: 坐标范围或名称解析得到几何范围内的 Gaia 场源，不自动定义物理成员。成员路径先搜索预览 VizieR 目录并显式选表，再匹配 Gaia，保留原表、未匹配行、次序和重复输入，最后保存独立运行快照。
+    request["先明确样本的选择依据"]:::entry
 
-    subgraph geometric["几何天区路径"]
-        region["给定坐标锥形范围<br/>或用名称解析中心和半径"]
-        cone["查询 Gaia DR3 几何范围"]
-        field["Gaia 场源表<br/>不是自动识别的物理成员"]
-        region --> cone --> field
+    subgraph geometric["A · 按几何天区选择"]
+        region["给定坐标范围<br/>或用名称解析中心与半径"]:::field
+        cone["查询 Gaia DR3<br/>获取几何范围内的场源"]:::field
+        field["保留 Gaia 场源表<br/>记录几何选择来源"]:::field
+        scope["样本含义：天区内的场源<br/>不自动认定为物理成员"]:::field
+        region --> cone --> field --> scope
     end
 
-    subgraph literature["发表成员目录路径"]
-        search["搜索 VizieR 成员目录"]
-        preview["预览表、列与样本角色"]
-        table["显式选择目录中的一张表<br/>不静默删掉候选成员或低概率行"]
-        match["匹配 Gaia DR3<br/>已确认 DR3 ID 或逐行坐标"]
-        outcomes["保留匹配 / 未匹配结果<br/>输入次序、重复行和匹配证据"]
-        original["原始 VizieR 表<br/>不改写成员定义或科学标志"]
-        search --> preview --> table
-        table -->|原样保存| original
+    subgraph literature["B · 按发表成员目录选择"]
+        search["搜索并预览 VizieR 目录<br/>检查表、列与样本角色"]:::member
+        table["显式选表并原样保存<br/>保留概率、候选与科学标志"]:::member
+        match["匹配 Gaia DR3<br/>确认 DR3 ID 或逐行坐标"]:::member
+        outcomes["保留全部输入与匹配结果<br/>含未匹配行、次序和重复"]:::member
+        search --> table
         table --> match --> outcomes
     end
 
-    request -->|天区范围| region
-    request -->|文献样本定义| search
-    field --> build["继续构建 corpus<br/>可选 XP 产品和 SIMBAD 书目"]
+    request --> region
+    request --> search
+    scope --> build["构建样本语料<br/>按请求补充 XP 光谱与 SIMBAD 书目"]:::build
     outcomes --> build
-    original --> snapshot["运行快照<br/>保留选择来源和固定制品引用"]
-    build --> snapshot
+    build --> snapshot["保存独立运行快照<br/>样本与原表 / 选择与匹配证据<br/>固定版本与制品引用"]:::storage
+
+    classDef entry fill:#edf3fc,stroke:#a7bfdf,color:#23476b,stroke-width:1.4px,rx:10,ry:10
+    classDef field fill:#edf5fa,stroke:#9dbed1,color:#28546c,stroke-width:1.4px,rx:10,ry:10
+    classDef member fill:#f0edfa,stroke:#b5a4d5,color:#584078,stroke-width:1.4px,rx:10,ry:10
+    classDef build fill:#e9f5f1,stroke:#83b8a7,color:#1b5547,stroke-width:1.4px,rx:10,ry:10
+    classDef storage fill:#f8fafc,stroke:#bdcad8,color:#20334b,stroke-width:1.4px,rx:10,ry:10
 ```
 <!-- diagram-source:sample-selection:end -->
 
@@ -391,46 +423,58 @@ status. JSON and Markdown remain tied to the raw file actually parsed.
 <!-- diagram-source:paper-fulltext:start -->
 ```mermaid
 ---
-title: 显式论文选择、逐级读取回退与可追溯保存
 config:
-  theme: neutral
+  look: classic
+  theme: base
   htmlLabels: false
   fontFamily: 'Noto Sans CJK SC, PingFang SC, Microsoft YaHei, sans-serif'
+  themeVariables:
+    fontSize: 18px
+    primaryTextColor: '#20334b'
+    lineColor: '#8a9bb0'
+    clusterBkg: '#f8fafc'
+    clusterBorder: '#dce4ed'
+    edgeLabelBackground: '#ffffff'
   flowchart:
     htmlLabels: false
-    curve: linear
+    curve: basis
     wrappingWidth: 300
-    nodeSpacing: 30
-    rankSpacing: 45
+    nodeSpacing: 32
+    rankSpacing: 32
+    padding: 18
 ---
 flowchart TB
-    selection["显式选择 1–50 篇 arXiv 论文<br/>保留每个输入及其来源"]
-    identity["解析论文身份和具体 vN 版本<br/>记录元数据与许可证据"]
-    html["尝试 HTML 获取与结构解析"]
-    latex["尝试源文件获取与 LaTeX 解析<br/>不执行 TeX"]
-    pdf["尝试 PDF 获取与文本解析<br/>无 OCR，始终低保真 partial"]
-    text["首个可用的主解析结果<br/>内容块、章节、定位与质量警告"]
-    reference["按请求补存同版本参考 PDF<br/>不与主解析正文拼接"]
-    derived["结构化 JSON → Markdown<br/>记录原始校验和与解析器版本"]
-    raw["已获取原文件独立保存<br/>元数据、HTML / 源文件 / PDF"]
-    publish["不可变文件对象 + SQLite 版本引用<br/>固定 collection run 与 manifest"]
-    failure["没有可用正文：记录失败或不可用<br/>保留已获取原文件与检查点"]
+    accTitle: 显式论文选择、逐级读取回退与固定版本保存
+    accDescr: 显式选择一至五十篇论文并固定 arXiv 版本。按 HTML、LaTeX 源文件、PDF 文本依次尝试，首个可用正文即停止回退。保存成功获取的原文件、结构化文本和质量警告；没有可用正文时记录失败并保留检查点。
+    selection["显式选择 1–50 篇 arXiv 论文<br/>固定 vN 版本，记录来源与许可证据"]:::entry
+    subgraph readers["按顺序尝试 · 首个可用正文即停止回退"]
+        direction LR
+        html["HTML<br/>优先读取结构化正文"]:::reader
+        latex["LaTeX 源文件<br/>只解析，不执行 TeX"]:::reader
+        pdf["PDF 文本<br/>无 OCR · 低保真 partial"]:::reader
+        html -->|不可用 / 失败| latex
+        latex -->|不可用 / 失败| pdf
+    end
+    derived["生成 JSON 与 Markdown<br/>章节、内容块、定位与质量警告<br/>原始校验和、解析器版本"]:::result
+    reference["按请求补存同版本参考 PDF<br/>单独保存，不拼接到主正文"]:::storage
+    raw["独立保存成功获取的原文件<br/>元数据、HTML、源文件与 PDF"]:::storage
+    publish["发布固定版本的论文集合<br/>不可变文件对象 + SQLite 引用<br/>固定 run 与 manifest"]:::result
+    failure["没有可用正文<br/>记录失败，保留原文件与检查点"]:::warning
 
-    selection --> identity --> html
-    html -->|可用| text
-    html -->|不可用或解析失败| latex
-    latex -->|可用| text
-    latex -->|不可用或解析失败| pdf
-    pdf -->|可用| text
-    pdf -->|无可用正文| failure
-    identity -.->|保存元数据证据| raw
-    html -.->|仅保存成功获取的文件| raw
-    latex -.->|仅保存成功获取的文件| raw
-    pdf -.->|仅保存成功获取的文件| raw
-    text --> reference --> derived
-    reference -.->|已获取的参考文件| raw
+    selection --> readers
+    readers -->|首个可用正文| derived
+    readers -->|均无可用正文| failure
+    readers -.->|保存已获取文件与元数据| raw
+    derived --> reference
+    reference --> publish
     derived --> publish
-    raw -->|成功解析时固定原文件引用| publish
+    raw -.->|成功解析时固定引用| publish
+
+    classDef entry fill:#edf3fc,stroke:#a7bfdf,color:#23476b,stroke-width:1.4px,rx:10,ry:10
+    classDef reader fill:#f0edfa,stroke:#b5a4d5,color:#584078,stroke-width:1.4px,rx:10,ry:10
+    classDef result fill:#e9f5f1,stroke:#83b8a7,color:#1b5547,stroke-width:1.4px,rx:10,ry:10
+    classDef storage fill:#f8fafc,stroke:#bdcad8,color:#20334b,stroke-width:1.4px,rx:10,ry:10
+    classDef warning fill:#fff5e8,stroke:#d5b17b,color:#805b25,stroke-width:1.4px,rx:10,ry:10
 ```
 <!-- diagram-source:paper-fulltext:end -->
 
