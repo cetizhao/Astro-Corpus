@@ -396,6 +396,11 @@ uv run python scripts/library.py \
   --library-root /path/to/restored/library verify
 ```
 
+On Windows, stop the viewer and close other library connections before replacing
+an existing SQLite index during restoration. An open database file cannot be
+renamed there. Restart the reader after restoration so it reopens the restored
+database and discards pagination revisions from the previous file.
+
 `staging/` is diagnostic residue, not authoritative data.
 
 There is no automatic deletion, pruning, or garbage collection. Historical

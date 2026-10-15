@@ -103,10 +103,12 @@ def _blob(store: LibraryStore, data: bytes, extension: str, content_type: str) -
             return record
         except BlobIntegrityError:
             extension, content_type = record["extension"], record["content_type"]
-    with tempfile.NamedTemporaryFile(suffix=f".{extension}") as stream:
-        stream.write(data)
-        stream.flush()
-        blob = store.blobs.publish(stream.name, extension=extension,
+    # Close the writer before BlobStore reopens the file; Windows locks an open
+    # NamedTemporaryFile against this second read.
+    with tempfile.TemporaryDirectory(prefix="astro-paper-") as temporary:
+        source = Path(temporary) / "artifact"
+        source.write_bytes(data)
+        blob = store.blobs.publish(source, extension=extension,
                                    content_type=content_type, repair=True)
     return store.register_blob(blob)
 

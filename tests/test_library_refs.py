@@ -410,7 +410,7 @@ def test_standalone_artifact_paths_cannot_escape_reference_directory(
         ),
     )
 
-    with pytest.raises(BlobIntegrityError, match="confined"):
+    with pytest.raises(BlobIntegrityError, match="confined|escapes"):
         resolve_product(product_dir, "999", "XP_SAMPLED")
 
 

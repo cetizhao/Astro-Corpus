@@ -17,7 +17,7 @@ def test_status_only_html_reports_cached_spectra_without_parsing(monkeypatch, tm
     monkeypatch.setattr(spectra, "read_xp_spectrum", do_not_parse)
     output = build_overview_html(tmp_path / "overview.html", catalog_path=catalog,
                                  edges_path=edges, spectra_dir=tmp_path, include_spectra=False)
-    html = output.read_text()
+    html = output.read_text(encoding="utf-8")
     assert '"spectrum_status":"cached_not_embedded"' in html
     assert '"spectra_embedded":false' in html
     assert '"has_xp":true' in html

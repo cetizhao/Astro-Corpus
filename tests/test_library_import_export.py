@@ -623,6 +623,7 @@ def test_verify_reports_missing_corrupt_orphan_and_staging(tmp_path):
     store.register_blob(second_blob)
 
     first_path = store.blobs.path(first_blob)
+    first_path.chmod(0o644)
     first_path.unlink()
     second_path = store.blobs.path(second_blob)
     second_path.chmod(0o644)
@@ -795,7 +796,7 @@ def _product_reference_fixture(store: LibraryStore, source: Path) -> tuple[dict,
     return document, store.blobs.path(blob)
 
 
-def test_reference_and_standalone_exports_are_pinned_and_independent(tmp_path):
+def test_reference_and_standalone_exports_are_pinned_and_independent(tmp_path, make_symlink):
     source = tmp_path / "source"
     source.mkdir()
     (source / "members.csv").write_text("source_id\n123\n", encoding="utf-8")
@@ -841,7 +842,7 @@ def test_reference_and_standalone_exports_are_pinned_and_independent(tmp_path):
 
     legacy_product_dir = source / "gaia_xp_sampled"
     legacy_product_dir.mkdir()
-    (legacy_product_dir / "123.fits").symlink_to(cas_path)
+    make_symlink(legacy_product_dir / "123.fits", cas_path)
     standalone_destination = tmp_path / "standalone-export"
     standalone = export_corpus(
         store, source, standalone_destination, standalone=True
@@ -1125,7 +1126,10 @@ def test_standalone_legacy_export_preserves_metadata_without_inventing_ids(tmp_p
     assert "corpus_id" not in manifest
 
 
-def test_nested_standalone_refs_use_containing_directory_paths(tmp_path):
+def test_nested_standalone_refs_use_containing_directory_paths(tmp_path, tmp_path_factory):
+    if os.name == "nt":
+        # This case tests relative reference roots, not Windows' path-length cap.
+        tmp_path = tmp_path_factory.mktemp("nested")
     source = tmp_path / "source"
     source.mkdir()
     store = LibraryStore(tmp_path / "library")
@@ -1151,7 +1155,7 @@ def test_nested_standalone_refs_use_containing_directory_paths(tmp_path):
 
 
 def test_standalone_export_rejects_external_file_and_directory_symlinks(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, make_symlink
 ):
     from astro_pipeline.library import import_export as import_export_module
 
@@ -1160,7 +1164,7 @@ def test_standalone_export_rejects_external_file_and_directory_symlinks(
     secret = tmp_path / "secret.txt"
     secret.write_text("credential-like contents", encoding="utf-8")
     leak = source / "leak.txt"
-    leak.symlink_to(secret)
+    make_symlink(leak, secret)
     store = LibraryStore(tmp_path / "library")
     original_copy = import_export_module.atomic_copy
 
@@ -1178,8 +1182,8 @@ def test_standalone_export_rejects_external_file_and_directory_symlinks(
     external_directory = tmp_path / "external-directory"
     external_directory.mkdir()
     (external_directory / "outside.txt").write_text("outside", encoding="utf-8")
-    (source / "directory-link").symlink_to(
-        external_directory, target_is_directory=True
+    make_symlink(
+        source / "directory-link", external_directory, target_is_directory=True
     )
     directory_destination = tmp_path / "directory-export"
     with pytest.raises(ValueError, match="refuses external"):

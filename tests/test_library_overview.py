@@ -438,6 +438,10 @@ def test_atomic_database_replacement_starts_new_revision_generation(tmp_path):
     replacement_db = tmp_path / "replacement.sqlite3"
     replacement_store.backup(replacement_db)
     displaced = tmp_path / "original.sqlite3"
+    if os.name == "nt":
+        # Windows requires closing live SQLite readers before restoring a file.
+        # The reopened monitor must still detect the changed database identity.
+        overview.close()
     os.replace(store.db_path, displaced)
     os.replace(replacement_db, store.db_path)
 

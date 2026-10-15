@@ -229,7 +229,7 @@ class LibraryRun:
             try:
                 import shutil
                 shutil.copyfile(source, temporary)
-                with temporary.open("rb") as stream:
+                with temporary.open("r+b") as stream:
                     os.fsync(stream.fileno())
                 with self.fenced():
                     os.replace(temporary, destination)

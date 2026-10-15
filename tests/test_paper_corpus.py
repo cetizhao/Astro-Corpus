@@ -105,6 +105,26 @@ def test_absent_status_does_not_create(tmp_path):
     assert not (tmp_path / "data").exists()
 
 
+def test_build_persists_artifacts_with_real_spawned_parser(tmp_path):
+    """Exercise file publication and the actual parser process on every platform."""
+    store = LibraryStore(tmp_path / "library")
+    client = FakeArxiv()
+    result = pc.build_paper_corpus(
+        "spawned-parser", ["2305.03557v1"], store=store, client=client,
+        output_dir=tmp_path / "data", include_pdf=False,
+    )
+    assert result["n_fulltext"] == 1, result
+    paper = result["papers"][0]
+    assert paper["versioned_id"] == "2305.03557v1"
+    artifacts = {artifact["kind"]: artifact for artifact in paper["artifacts"]}
+    assert {"metadata", "html", "json", "markdown"}.issubset(artifacts)
+    for artifact in artifacts.values():
+        store.blobs.verify(artifact)
+    assert "The stellar census" in Path(artifacts["markdown"]["path"]).read_text(encoding="utf-8")
+    assert client.calls == [("resolve", "2305.03557v1"), ("html", "2305.03557v1")]
+    assert verify_library(store)["ok"]
+
+
 def test_build_deduplicates_but_keeps_occurrences_and_aliases(setup):
     store, client, data = setup
     papers = [{"arxiv_id": "2305.03557", "bibcode": "bibA", "source_run": "run-a"},
@@ -205,7 +225,9 @@ def test_missing_blob_regenerated_not_silently_reused(setup):
     store, client, _ = setup
     result = build(setup)
     artifact = next(a for a in result["papers"][0]["artifacts"] if a["kind"] == "html")
-    Path(artifact["path"]).unlink()
+    artifact_path = Path(artifact["path"])
+    artifact_path.chmod(0o644)
+    artifact_path.unlink()
     assert not verify_library(store)["ok"]
     repaired = build(setup)
     assert repaired["n_fulltext"] == 1
@@ -220,7 +242,9 @@ def test_missing_derivatives_reproduce_exact_pins_without_network(setup):
     calls = list(client.calls)
     for artifact in first["papers"][0]["artifacts"]:
         if artifact["kind"] in {"json", "markdown"}:
-            Path(artifact["path"]).unlink()
+            artifact_path = Path(artifact["path"])
+            artifact_path.chmod(0o644)
+            artifact_path.unlink()
     restored = build(setup)
     assert restored["n_fulltext"] == 1
     assert restored["papers"][0]["version_id"] == first["papers"][0]["version_id"]
@@ -271,7 +295,9 @@ def test_damaged_pin_never_rebinds_to_newer_global_bytes(setup):
     client.html_extra = b"<p>A newer server rendering.</p>"
     newer = build(setup, label="newer", refresh=True)
     newer_id = newer["papers"][0]["version_id"]
-    Path(original_html["path"]).unlink()
+    original_path = Path(original_html["path"])
+    original_path.chmod(0o644)
+    original_path.unlink()
     failed = build(setup)
     assert failed["papers"][0]["version_id"] == original_id
     assert failed["papers"][0]["status"] == "failed"
@@ -351,7 +377,9 @@ def test_missing_metadata_blob_repairs_exact_pinned_version(setup):
     store, client, _ = setup
     first = build(setup)
     metadata_artifact = next(a for a in first["papers"][0]["artifacts"] if a["kind"] == "metadata")
-    Path(metadata_artifact["path"]).unlink()
+    metadata_path = Path(metadata_artifact["path"])
+    metadata_path.chmod(0o644)
+    metadata_path.unlink()
     client.version = 2
     resumed = build(setup)
     assert resumed["papers"][0]["versioned_id"] == "2305.03557v1"

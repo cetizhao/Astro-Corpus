@@ -1328,7 +1328,7 @@ def verify_library(store: LibraryStore) -> dict[str, Any]:
     corrupt: list[dict[str, Any]] = []
     registered_paths: set[str] = set()
     for row in blob_rows:
-        registered_paths.add(str(row["relative_path"]))
+        registered_paths.add(Path(str(row["relative_path"])).as_posix())
         try:
             store.blobs.verify(row)
         except (BlobIntegrityError, OSError) as exc:

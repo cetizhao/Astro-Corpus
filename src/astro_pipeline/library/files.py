@@ -44,7 +44,8 @@ def atomic_file(path: Path | str, writer: Callable[[Path], None]) -> Path:
     temporary = Path(name)
     try:
         writer(temporary)
-        with temporary.open("rb") as stream:
+        # Windows' fsync implementation requires a writable file descriptor.
+        with temporary.open("r+b") as stream:
             os.fsync(stream.fileno())
         os.replace(temporary, path)
         fsync_directory(path.parent)
@@ -114,7 +115,7 @@ class BlobStore:
         temporary = Path(name)
         try:
             shutil.copyfile(source, temporary)
-            with temporary.open("rb") as stream:
+            with temporary.open("r+b") as stream:
                 os.fsync(stream.fileno())
             digest = sha256_file(temporary)
             destination = self.objects / digest[:2] / f"{digest}.{extension}"
