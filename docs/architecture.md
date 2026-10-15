@@ -137,11 +137,14 @@ Their source hash and renderer version are stamped into each SVG, and the helper
 updates the Markdown fences. Re-render and visually inspect after editing;
 `--check` alone does not prove that node relationships are correct.
 
-The README's [cover artwork](images/astro-corpus-hero.png) is a separate raster
-illustration generated with the built-in image generation tool. Its star field,
-spectral traces and paper layers represent the project's subject matter; they
-are conceptual artwork, not observed data or an application screenshot. The
-[design prompt](images/astro-corpus-hero.prompt.md) is saved for future revisions.
+The README's [illustrated overview](images/astro-corpus-hero.png) summarizes source
+selection, two independent corpus builds, local storage, and query/view access.
+It distinguishes the shared library from per-run snapshots and identifies CLI,
+Python and MCP as interfaces to the workflow. The viewer reads existing local
+data. The cover was generated with the built-in image generation tool; its
+plots, paper pages and viewer illustration are conceptual, not observed data
+or an application screenshot. The [design prompts](images/astro-corpus-hero.prompt.md)
+are saved for future revisions.
 
 ## Input semantics
 
