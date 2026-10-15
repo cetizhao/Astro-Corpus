@@ -1,8 +1,8 @@
 # Astro-Corpus
 
-![Astro-Corpus 项目总览：从星表、光谱与文献选择，经独立语料构建，到共享本地库与只读访问](docs/diagrams/project-showcase.svg)
+![Astro-Corpus：星场、光谱曲线与文献纸页交织的项目概念封面](docs/images/astro-corpus-hero.png)
 
-*项目总览：按需选择数据与论文，分别构建样本和全文语料，再以固定版本保存在本地。*
+*概念封面：将星表、光谱与文献汇入可追溯的本地语料库。*
 
 **以 Gaia 为主的天文数据与论文语料管线。** Python 包名为 `astro-pipeline`。
 

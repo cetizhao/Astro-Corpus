@@ -54,8 +54,10 @@ All notable changes to this project are documented here. Versions follow
 - README is now a concise project entry point; TWA bootstrap, direct queries and
   export details live in topic guides. Architecture diagrams have editable Mermaid
   sources, locally rendered SVGs, and an offline synchronization check.
-- README opens with a native SVG project showcase; the three architecture
-  diagrams share a light palette, simpler connections and explicit workflow groups.
+- README opens with an original illustrated cover combining stars, spectra and
+  literature; its generation prompt is included for future design revisions.
+  The three architecture diagrams share a light palette, simpler connections
+  and explicit workflow groups.
 - Static corpus HTML can embed spectra, show cached-product status only, or be
   disabled; full region collection uses the lightweight status-only mode.
 - Bibliography enrichment checkpoints basic metadata before optional arXiv

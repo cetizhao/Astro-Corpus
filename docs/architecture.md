@@ -137,9 +137,11 @@ Their source hash and renderer version are stamped into each SVG, and the helper
 updates the Markdown fences. Re-render and visually inspect after editing;
 `--check` alone does not prove that node relationships are correct.
 
-The README's [project showcase](diagrams/project-showcase.svg) is a separate,
-hand-edited SVG with native text. It summarizes the project for first-time
-readers; its decorative sky geometry is not an observed astronomical sample.
+The README's [cover artwork](images/astro-corpus-hero.png) is a separate raster
+illustration generated with the built-in image generation tool. Its star field,
+spectral traces and paper layers represent the project's subject matter; they
+are conceptual artwork, not observed data or an application screenshot. The
+[design prompt](images/astro-corpus-hero.prompt.md) is saved for future revisions.
 
 ## Input semantics
 
