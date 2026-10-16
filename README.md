@@ -42,11 +42,10 @@ AI agent 在管线外部选择工具；Python 代码负责实际获取、解析�
 ## 快速开始
 
 需要 Python **3.11+** 和 [uv](https://docs.astral.sh/uv/)。
-从包含所需功能的分支或提交安装；私有仓库需要相应访问权限。
-以下示例固定到当前完整功能分支，避免默认分支尚未合并时缺少入口：
+以下示例从 `main` 安装当前功能；私有仓库需要相应访问权限。
 
 ```bash
-git clone --branch feat/library-viewer-regions \
+git clone --branch main \
   https://github.com/cetizhao/Astro-Corpus.git astro-pipeline
 cd astro-pipeline
 uv sync --locked
