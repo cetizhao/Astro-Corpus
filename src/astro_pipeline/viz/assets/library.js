@@ -365,21 +365,38 @@
     if (scopes.some((item) => item.value === chosen)) $("spectrum-scope").value = chosen;
     const bibliography = data.active_bibliography;
     const papers = bibliography?.papers || data.papers || [];
-    $("paper-heading").textContent = `文献关联 · ${papers.length}${bibliography?.stale ? " · 缓存已过期" : ""}`;
+    const groups = new Map();
+    for (const [i,paper] of papers.entries()) {
+      const title=(paper.title||"").normalize("NFKC").trim().replace(/\s+/g," ").toLowerCase();
+      const key=title||`untitled:${paper.bibcode||i}`;
+      if(!groups.has(key))groups.set(key,[]);
+      groups.get(key).push(paper);
+    }
+    const year=p=>Number(p.year)||0;
+    const grouped=[...groups.values()].map(g=>g.sort((a,b)=>year(b)-year(a)))
+      .sort((a,b)=>year(b[0])-year(a[0]));
+    $("paper-heading").textContent = `文献关联 · ${grouped.length} 项 / ${papers.length} 条来源${bibliography?.stale ? " · 缓存已过期" : ""}`;
     const paperList = $("source-papers"); paperList.replaceChildren();
-    for (const paper of papers) {
+    for (const group of grouped) {
       const node = text("div", "", "paper-item");
+      node.paperRecords=group;
+      node.append(text("strong",group[0].title||group[0].bibcode||"论文"));
+      for(const paper of group){
       const link = document.createElement("a");
-      link.textContent = paper.title || paper.bibcode || "论文";
+      link.textContent = `${paper.year || "年份未知"} · ${paper.journal || ""} · ${paper.bibcode || ""}${paper.doi ? " · DOI: "+paper.doi : ""}${paper.arxiv_id ? " · arXiv: "+paper.arxiv_id : ""}`;
       link.href = paper.doi ? `https://doi.org/${encodeURIComponent(paper.doi)}` : paper.arxiv_id ? `https://arxiv.org/abs/${encodeURIComponent(paper.arxiv_id)}` : `https://ui.adsabs.harvard.edu/abs/${encodeURIComponent(paper.bibcode || "")}`;
       link.target = "_blank"; link.rel = "noopener noreferrer";
-      node.append(link, text("span", `${paper.year || "—"} · ${paper.bibcode || ""}`, "cell-secondary"));
+      link.className="cell-secondary";
+      node.append(link);
+      }
       paperList.append(node);
     }
     if (!papers.length) paperList.append(text("p", bibliography ? "本次文献观测没有关联条目；这与查询失败/尚未查询不同。" : "尚无可用文献观测。"));
     $("paper-section").hidden = false;
   }
   function clearDetail(message) {
+    document.getElementById("online-paper-panel")?.remove();
+    document.getElementById("paper-evidence-section")?.remove();
     ++state.spectrumToken;
     state.detail = null;
     state.spectrum = null;
@@ -411,6 +428,7 @@
       if (data.resolved === false) throw new Error(data.error || "源记录当前不可用");
       state.detail = data;
       renderDetail(data);
+      attachPaperActions(release, sourceId, token, data);
       await loadSpectrum();
     } catch (error) {
       if (token !== state.detailToken) return;
@@ -418,6 +436,121 @@
       $("source-title").textContent = "无法读取源";
       $("source-identity").textContent = error.message;
     }
+  }
+  function attachPaperActions(release, sourceId, token, data) {
+    const papers=(data.active_bibliography?.papers||data.papers||[]);
+    const list=$("source-papers"); const rows=new Map();let timer=null, busy=false;
+    const endpoint=`/api/v1/online-evidence/${encodeURIComponent(release)}/${encodeURIComponent(sourceId)}`;
+    const tools=text("div","","paper-actions");
+    const all=text("button","全选"),none=text("button","清空选择"),selected=text("button","检索所选（0）"),batch=text("button","批量检索未完成"),stop=text("button","停止");
+    const progress=text("p","勾选论文后批量检索，或点击每篇旁的“检索关联”。在线读取HTML，不下载PDF。","caption");
+    tools.append(all,none,selected,batch,stop,progress);
+    const labels={title:"标题",abstract:"摘要",body:"正文",figure_caption:"图注",table:"表格",vizier:"VizieR表"};
+    const statuses={identifier_unresolved:"本次未匹配到arXiv编号（不代表不存在）",identifier_candidates:"检索到候选，论文身份待确认",identifier_lookup_failed:"检索失败，可重试",no_arxiv_identifier:"编号未解析，可重试",insufficient_metadata:"论文信息不足",html_unavailable_or_failed:"HTML不可用或请求失败",no_match_in_supplied_materials:"已读取的HTML中未发现命中；图内文字和附表未检查"};
+    function update(){selected.textContent=`检索所选（${new Set([...rows.values()].filter(r=>r.check.checked).map(r=>r.check)).size}项）`;selected.disabled=busy;batch.disabled=busy;stop.disabled=!busy;for(const r of rows.values())r.button.disabled=busy;}
+    [...list.children].forEach(node=>{const group=(node.paperRecords||[]).filter(p=>p.bibcode);const paper=group[0];if(!paper)return;
+      const check=document.createElement("input");check.type="checkbox";check.setAttribute("aria-label",`选择论文 ${paper.title||paper.bibcode}`);check.onchange=update;
+      const button=text("button","检索关联");button.onclick=()=>submit(group.map(p=>p.bibcode));
+      const controls=text("div","","paper-actions");controls.append(check,button);
+      node.prepend(controls);
+      for(const source of group){const output=text("div","","paper-evidence-inline");node.append(output);
+      rows.set(source.bibcode,{check,button,output,signature:null,done:false,multiple:group.length>1});}
+    });list.prepend(tools);$("paper-section").open=true;
+    function render(job){busy=job.state==="running";update();
+      if(job.state!=="idle")progress.textContent=`${({running:"检索中",completed:"本次完成",cancelled:"已停止",failed:"失败",paused:"暂停"}[job.state]||job.state)} · ${job.processed||0}/${job.total??"待确认"} 篇${job.current?" · "+job.current:""}${job.error?" · "+job.error:""}`;
+      for(const item of job.papers||[]){const r=rows.get(item.paper.bibcode);if(!r)continue;const signature=JSON.stringify(item);if(r.signature===signature)continue;r.signature=signature;r.done=item.status==="mentions_found"||item.status==="no_match_in_supplied_materials";r.output.replaceChildren();
+        if(r.multiple)r.output.append(text("p",`来源：${item.paper.bibcode}`,"caption"));
+        r.output.append(text("p",item.groups?.length?"出现在："+item.groups.map(k=>labels[k]||k).join("、"):statuses[item.status]||item.status));
+        if(item.status==="rate_limited")r.output.firstElementChild.textContent="arXiv限流，待重试（不代表没有论文）";
+        if(item.error)r.output.append(text("p",item.error,"caption"));
+        if(item.status==="no_match_in_supplied_materials")r.output.firstElementChild.textContent="论文HTML标题、摘要、正文、图注及表格文本中未匹配到别名。";
+        if(item.aliases_checked){const d=document.createElement("details");d.append(text("summary",`查看实际匹配的 ${item.aliases_checked.length} 个名称`),text("p",item.aliases_checked.join("；")));r.output.append(d);}
+        if(item.vizier){const v=item.vizier;const messages={mentions_found:"在VizieR关联表中找到",no_linked_catalog_found:"未找到该bibcode对应的VizieR目录",no_match_in_linked_tables:"已返回的VizieR关联表文本未命中",partial:"VizieR检查不完整（表格截断或部分请求失败），不能判断未出现",lookup_failed:"VizieR查询失败，不能判断未出现"};r.output.append(text("p",messages[v.status]||v.status));for(const t of v.tables||[])r.output.append(text("p",`${t.id}：检查 ${t.rows_checked} 行${t.possibly_truncated?"（可能截断）":""}`,"caption"));if(v.errors?.length)r.output.append(text("p",v.errors.join("；"),"caption"));}
+        if(item.resolution?.errors?.length)r.output.append(text("p",item.resolution.errors.join("；"),"caption"));
+        if(item.abstract){const abstract=document.createElement("details");abstract.append(text("summary","摘要"),text("p",item.abstract));r.output.append(abstract);}
+        if(item.evidence?.length){const details=document.createElement("details");details.append(text("summary",`查看 ${item.evidence.length} 处原文证据`));for(const e of item.evidence){details.append(text("h4",`${labels[e.location_type]||e.location_type} · ${e.section||e.table_id||e.container_id||""}${e.row_index?" · 行 "+e.row_index:""}`),text("p",e.text));const url=e.locator?.url;if(url&&/^https?:\/\//i.test(url)){const a=text("a","原文位置");a.href=url;a.target="_blank";a.rel="noopener noreferrer";details.append(a);}}r.output.append(details);}
+        for(const candidate of item.resolution?.candidates||[]){const a=text("a",`候选：${candidate.title}`);a.href=`https://arxiv.org/abs/${encodeURIComponent(candidate.arxiv_id)}`;a.target="_blank";a.rel="noopener noreferrer";r.output.append(a);}
+      }
+      for(const button of new Set([...rows.values()].map(r=>r.button))){const entries=[...rows].filter(([,r])=>r.button===button);button.textContent=busy&&entries.some(([bib])=>job.current_bibcode===bib)?"正在检索…":entries.some(([,r])=>r.signature)?"重新检索":"检索关联";}
+      if(busy){clearTimeout(timer);timer=setTimeout(poll,2000);}
+    }
+    async function poll(){if(token!==state.detailToken||!tools.isConnected)return;try{const j=await api(endpoint);if(token===state.detailToken)render(j);}catch(e){progress.textContent="状态查询失败："+e.message;}}
+    async function submit(bibcodes,cancel=false){if(!cancel&&!bibcodes.length){progress.textContent="请先选择论文。";return;}clearTimeout(timer);busy=true;update();try{const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({bibcodes,cancel})});const j=await r.json();if(!r.ok)throw Error(j.error?.message||"请求失败");if(token===state.detailToken)render(j);}catch(e){busy=false;update();progress.textContent=e.message;}}
+    all.onclick=()=>{for(const r of rows.values())r.check.checked=true;update();};none.onclick=()=>{for(const r of rows.values())r.check.checked=false;update();};
+    selected.onclick=()=>submit([...rows].filter(([,r])=>r.check.checked).map(([b])=>b));
+    batch.onclick=()=>submit([...rows].filter(([,r])=>!r.done).map(([b])=>b));stop.onclick=()=>submit(null,true);update();poll();
+  }
+  function loadOnlinePanel(release, sourceId, token) {
+    document.getElementById("online-paper-panel")?.remove();
+    const panel = text("section", ""); panel.id="online-paper-panel";
+    const start = text("button", "在线分析该源（10篇/批）");
+    const stop = text("button", "停止");stop.disabled=true;
+    const progress=text("p", "在线查询SIMBAD全部别名与书目，按需读取arXiv HTML，不下载PDF。无HTML时显示不可用，不误判为没有提及。");
+    const output=text("div", "");
+    panel.append(text("h3","在线论文分析"),start,stop,progress,output);
+    $("paper-section").before(panel);
+    const endpoint=`/api/v1/online-evidence/${encodeURIComponent(release)}/${encodeURIComponent(sourceId)}`;
+    const labels={title:"标题",abstract:"摘要",body:"正文",figure_caption:"图注",table:"表格"};
+    async function show(job) {
+      if(token!==state.detailToken || !panel.isConnected)return;
+      start.disabled=job.state==="running"||job.state==="completed";stop.disabled=job.state!=="running";
+      start.textContent=job.processed ? "继续下一批（10篇）" : "在线分析该源（10篇/批）";
+      progress.textContent=`${job.state} · 已处理 ${job.processed||0}/${job.total??"待查询"} 篇 · 别名 ${job.aliases?.length||0} 个${job.current ? " · "+job.current : ""}${job.error ? " · "+job.error : ""}`;
+      output.replaceChildren();
+      const buckets = {};
+      for (const [key,label] of Object.entries({title:"标题出现",abstract:"摘要出现",body:"正文段落",figure_caption:"图注",table:"表格",unchecked:"待解析／检索未完成",absent:"已读HTML未命中"})) {
+        const section=document.createElement("details");const summary=text("summary",label+" · 0");section.append(summary);output.append(section);buckets[key]={section,summary,label,count:0};
+      }
+      function place(key,card){const b=buckets[key]||buckets.unchecked;b.section.append(card);b.count++;b.summary.textContent=`${b.label} · ${b.count} 篇`;}
+      if(job.title_matches?.length){const d=document.createElement("details");d.append(text("summary",`标题匹配 ${job.title_matches.length} 篇（仅标题证据）`));for(const p of job.title_matches)d.append(text("p",p.title));output.append(d);}
+      for(const p of job.papers||[]){const d=document.createElement("details");d.append(text("summary",`${p.paper.title||p.paper.bibcode} · ${p.groups?.map(k=>labels[k]||k).join("、") || ({no_arxiv_identifier:"旧结果：编号尚未解析",identifier_unresolved:"本次检索未匹配，不代表arXiv不存在",identifier_candidates:"找到候选，身份待确认",identifier_lookup_failed:"检索请求失败，可重试",insufficient_metadata:"缺少检索信息",html_unavailable_or_failed:"HTML不可用或请求失败",no_match_in_supplied_materials:"已读取HTML未命中"}[p.status]||p.status)}`));
+        for(const candidate of p.resolution?.candidates||[]){const a=text("a",`候选：${candidate.title}`);a.href=`https://arxiv.org/abs/${encodeURIComponent(candidate.arxiv_id)}`;a.target="_blank";a.rel="noopener noreferrer";d.append(a);}
+        if(p.resolution?.errors?.length)d.append(text("p",p.resolution.errors.join("；")));
+        if(p.abstract)d.append(text("p","摘要："+p.abstract));if(p.error)d.append(text("p",p.error));
+        for(const e of p.evidence||[]){d.append(text("h4",`${labels[e.location_type]||e.location_type} · ${e.section||e.table_id||""}`),text("p",e.text));const url=e.locator?.url;if(url&&/^https?:\/\//i.test(url)){const a=text("a","查看原文位置");a.href=url;a.target="_blank";a.rel="noopener noreferrer";d.append(a);}}
+        const categories=p.groups?.length ? p.groups : [p.status==="no_match_in_supplied_materials" ? "absent" : "unchecked"];
+        for(const category of categories){const card=d.cloneNode(true);for(const heading of card.querySelectorAll("h4")){if(!heading.textContent.startsWith(labels[category]+" ·")){const paragraph=heading.nextElementSibling;const link=paragraph?.nextElementSibling;if(link?.tagName==="A")link.remove();paragraph?.remove();heading.remove();}}place(category,card);}}
+      if(job.state==="running")setTimeout(poll,2000);
+    }
+    async function poll(){if(token!==state.detailToken||!panel.isConnected)return;try{await show(await api(endpoint));}catch(e){progress.textContent="状态查询失败："+e.message;start.disabled=false;}}
+    async function action(cancel){try{start.disabled=true;const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({cancel})});const j=await r.json();if(!r.ok)throw Error(j.error?.message||"请求失败");await show(j);}catch(e){progress.textContent=e.message;start.disabled=false;}}
+    start.onclick=()=>action(false);stop.onclick=()=>action(true);poll();
+  }
+  async function loadPaperEvidence(release, sourceId, token) {
+    document.getElementById("paper-evidence-section")?.remove();
+    const container = document.createElement("section");
+    container.id = "paper-evidence-section";
+    container.append(text("h3", "论文内容分类"), text("p", "正在匹配关联论文的本地全文…"));
+    $("paper-section").before(container);
+    const labels = {title:"标题",abstract:"摘要",body:"正文",figure_caption:"图注",table:"表格",page_text:"PDF页文本"};
+    try {
+      const result = await api(`/api/v1/evidence/${encodeURIComponent(release)}/${encodeURIComponent(sourceId)}`);
+      if (token !== state.detailToken) return;
+      container.replaceChildren(text("h3", "论文内容分类"),text("p", result.coverage, "caption"),text("p", `匹配别名：${result.aliases.join("、")}`, "caption"));
+      const available = result.papers.filter(item => item.status === "mentions_found");
+      const pending = result.papers.filter(item => item.status === "fulltext_not_cached");
+      container.append(text("p", `本次检查 ${result.papers.length} 篇 · 找到原文证据 ${available.length} 篇 · 未缓存全文 ${pending.length} 篇`));
+      const pendingList = document.createElement("details");
+      pendingList.append(text("summary", `未缓存全文的论文（${pending.length} 篇，展开查看）`));
+      for (const item of result.papers) {
+        const card = text("div", "", "paper-item");
+        card.append(text("h4", item.paper.title || item.paper.bibcode));
+        const status = {fulltext_not_cached:"全文尚未下载，无法判断",no_match_in_cached_text:"已缓存文本中未发现（不代表论文未提及）",unavailable_or_invalid_artifact:"全文文件不可用或校验失败"};
+        card.append(text("p", item.groups.length ? item.groups.map(k=>labels[k]||k).join(" · ") : status[item.status] || item.status));
+        if(item.abstract) card.append(text("p", `摘要：${item.abstract}`));
+        for(const e of item.evidence) {
+          const details=document.createElement("details");
+          details.append(text("summary", `${labels[e.category]||e.category} · ${e.section_path.join(" / ")} ${e.row ? "行 "+e.row : ""}`));
+          details.append(text("p",e.text),text("p",`位置：${JSON.stringify(e.locator)} · block ${e.block_id || "title"}`,"caption"));
+          card.append(details);
+        }
+        if (item.status === "fulltext_not_cached") pendingList.append(card);
+        else container.append(card);
+      }
+      if (pending.length) container.append(pendingList);
+      if (!result.papers.length) container.append(text("p","当前源尚无已缓存论文关联。"));
+      if(result.truncated) container.append(text("p","本次最多检查100篇关联论文。"));
+    } catch(error) { if(token===state.detailToken) container.replaceChildren(text("p",`论文分类读取失败：${error.message}`)); }
   }
   async function loadSpectrum() {
     if (!state.selected) return;

@@ -5,6 +5,16 @@ All notable changes to this project are documented here. Versions follow
 
 ## [Unreleased]
 
+### Paper evidence prototype
+
+- Extract overlapping source-alias mentions from supplied article HTML: title,
+  abstract, paragraphs, figure captions, table rows, and provenance-labelled
+  VizieR input rows. Preserve original text and explicit material coverage.
+- Save content-keyed analyses in the existing fenced SQLite cache; add
+  `analyze_paper_evidence` and `get_paper_evidence` MCP tools (27 tools total).
+- This first version requires caller-supplied HTML and verified aliases; it does
+  not download full text, parse PDF, OCR figures, or infer scientific identity.
+
 ### Added
 
 - Explicit, bounded arXiv full-text collections with version-pinned originals,

@@ -72,6 +72,47 @@ mcp = FastMCP("astro-corpus")
 
 # --------------------------------------------------------------------- tools
 @mcp.tool()
+def analyze_paper_evidence(
+    source_id: str, bibcode: str, html: str, document_url: str,
+    aliases: list[str], release: str = "dr3", paper_version: str = "unspecified",
+    alias_provenance: str = "caller-supplied", vizier_tables: list[dict] | None = None,
+    save: bool = True,
+) -> dict:
+    """Locate aliases in supplied article HTML and optional VizieR rows.
+
+    Returns overlapping title/abstract/body/caption/table evidence and explicit
+    coverage. Does not download articles, resolve aliases, OCR figures, or prove
+    scientific identity. VizieR inputs need bibcode/table_id/association_provenance/rows.
+    Saved results can be retrieved by analysis_id; original HTML is retained.
+    """
+    from astro_pipeline.paper_evidence import analyze_paper, save_analysis
+    from astro_pipeline.library import get_library
+
+    result = analyze_paper(
+        source_id=source_id, release=release, aliases=aliases, bibcode=bibcode,
+        html=html, document_url=document_url, paper_version=paper_version,
+        alias_provenance=alias_provenance, vizier_tables=vizier_tables,
+    )
+    if save:
+        store = get_library(create=True)
+        if store is None:
+            raise ValueError("Shared library is disabled; use save=False for extraction only")
+        save_analysis(store, result)
+    # Avoid echoing a whole source document in the MCP response.
+    result["document"] = {k: v for k, v in result["document"].items() if k != "original_html"}
+    result.pop("vizier_inputs")
+    return {**result, "saved": save}
+
+
+@mcp.tool()
+def get_paper_evidence(analysis_id: str) -> dict:
+    """Read a saved evidence analysis by exact ID without creating a library."""
+    from astro_pipeline.paper_evidence import load_analysis
+    from astro_pipeline.library import get_library
+    return load_analysis(get_library(create=False), analysis_id)
+
+
+@mcp.tool()
 def lookup_source(gaia_id: str) -> dict:
     """Look up astrometry, multimodal availability, and SIMBAD-curated paper list for a Gaia DR3 source.
 

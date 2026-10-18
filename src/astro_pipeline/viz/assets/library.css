@@ -149,3 +149,13 @@ footer { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 20px; color:
   #source-rows tr.selected { outline: 2px solid Highlight; }
   .key-dot { border: 2px solid CanvasText; }
 }
+/* Inline source-paper actions, shared by single and selected-paper requests. */
+.paper-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:8px 0; }
+.paper-actions > p { flex-basis:100%; }
+.paper-actions button { padding:5px 10px; cursor:pointer; }
+.paper-actions input[type=checkbox] { width:16px; height:16px; }
+.paper-evidence-inline { margin:8px 0; overflow-wrap:anywhere; }
+.paper-evidence-inline > p:first-child { font-weight:600; }
+.paper-evidence-inline details { margin:6px 0; }
+#source-papers { max-height:65vh; }
+#source-papers > .paper-actions { position:sticky; top:0; background:var(--panel, #fff); z-index:2; padding:8px; }
