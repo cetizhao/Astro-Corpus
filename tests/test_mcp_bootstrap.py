@@ -31,7 +31,8 @@ def test_mcp_registers_expected_tools():
         "paper_corpus_status",
         "library_status",
     } <= names
-    assert len(names) == 27
+    assert {"analyze_paper_evidence", "get_paper_evidence"} <= names
+    assert len(names) == 29
 
 
 def test_cached_lookup_has_structured_fresh_clone_fallback(monkeypatch):

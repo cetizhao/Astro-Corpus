@@ -27,8 +27,12 @@ logger = logging.getLogger(__name__)
 
 ARXIV_API = "https://export.arxiv.org/api/query"
 ARXIV_NAMESPACE = {"atom": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}
-ARXIV_ID_RE = re.compile(r"arxiv:(\d+\.\d+(?:v\d+)?)")
+ARXIV_ID_RE = re.compile(r"(?:arxiv:|https?://(?:export\.)?arxiv\.org/abs/)((?:\d{4}\.\d{4,5}|astro-ph/\d{7})(?:v\d+)?)$", re.IGNORECASE)
 USER_AGENT = "astro-pipeline/0.2 (mailto:cetizhao@163.com)"
+
+
+class ArxivSearchRateLimited(RuntimeError):
+    """Explicit rate limit, not an empty search result or a parser failure."""
 
 
 @dataclass
@@ -67,12 +71,20 @@ def search_arxiv(
             with httpx.Client(timeout=60, follow_redirects=True, headers={"User-Agent": USER_AGENT}) as client:
                 resp = client.get(url)
                 if resp.status_code == 429:
-                    wait = 5 * (attempt + 1)
-                    logger.warning("arXiv rate limit (429), waiting %ds...", wait)
-                    time.sleep(wait)
-                    continue
+                    raise ArxivSearchRateLimited(
+                        "arXiv HTTP 429：服务限流，请稍后重试；Retry-After="
+                        + resp.headers.get("Retry-After", "未提供")
+                    )
                 resp.raise_for_status()
+                try:
+                    root = ET.fromstring(resp.content)
+                except ET.ParseError as exc:
+                    raise RuntimeError("arXiv 返回非XML内容（可能为代理或服务错误页），本次未完成检索") from exc
+                if root.tag != "{http://www.w3.org/2005/Atom}feed":
+                    raise RuntimeError("arXiv 返回的内容不是论文检索Atom feed")
                 break
+        except ArxivSearchRateLimited:
+            raise
         except Exception as e:
             if attempt < max_retries - 1:
                 wait = (attempt + 1) * 5
@@ -81,7 +93,8 @@ def search_arxiv(
             else:
                 raise
 
-    root = ET.fromstring(resp.text)
+    if max_retries < 1:
+        raise ValueError("max_retries must be positive")
     papers: list[ArxivPaper] = []
 
     for entry in root.findall("atom:entry", ARXIV_NAMESPACE):

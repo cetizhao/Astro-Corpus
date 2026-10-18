@@ -22,6 +22,8 @@ from astro_pipeline.library.store import LibraryStore
 
 _LOOPBACK_HOST = "127.0.0.1"
 _SOURCE_PATH = re.compile(r"\A/api/v1/source/([^/]+)/([^/]+)\Z")
+_EVIDENCE_PATH = re.compile(r"\A/api/v1/evidence/([^/]+)/([^/]+)\Z")
+_ONLINE_PATH = re.compile(r"\A/api/v1/online-evidence/(dr3|dr4)/([0-9]+)\Z")
 _SPECTRUM_PATH = re.compile(r"\A/api/v1/spectrum/([^/]+)/([^/]+)\Z")
 
 _ASSET_PATHS = {
@@ -63,6 +65,8 @@ class LibraryViewerServer(ThreadingHTTPServer):
         if int(port) < 0 or int(port) > 65535:
             raise ValueError("port must be between 0 and 65535")
         self.store = store
+        from astro_pipeline.online_evidence import OnlineEvidence
+        self.online_evidence = OnlineEvidence(store)
         self.overview = LibraryOverview(store)
         self.poll_seconds = poll_seconds
         super().__init__((host, int(port)), LibraryViewerHandler)
@@ -93,6 +97,23 @@ class LibraryViewerHandler(BaseHTTPRequestHandler):
         self._dispatch(send_body=False)
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        match = _ONLINE_PATH.fullmatch(self.path)
+        if match and self._trusted_request():
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= 1_000_000:
+                    raise ValueError("invalid request size")
+                data = json.loads(self.rfile.read(length))
+                if not isinstance(data, dict):
+                    raise ValueError("expected JSON object")
+                release, sid = match.groups()
+                detail = self.server.overview.source(release, sid)
+                papers = (detail.get("active_bibliography") or {}).get("papers", [])
+                result = self.server.online_evidence.start(release, sid, papers, cancel=data.get("cancel", False), bibcodes=data.get("bibcodes"))
+                self._send_json(HTTPStatus.OK, result, send_body=True)
+            except (ValueError, TypeError) as exc:
+                self._error(HTTPStatus.BAD_REQUEST, "invalid_request", str(exc), send_body=True)
+            return
         self._method_not_allowed()
 
     def do_PUT(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
@@ -342,6 +363,19 @@ class LibraryViewerHandler(BaseHTTPRequestHandler):
                     if path.endswith("sources")
                     else self.server.overview.sky(**kwargs)
                 )
+                self._send_json(HTTPStatus.OK, payload, send_body=send_body)
+                return
+            online_match = _ONLINE_PATH.fullmatch(path)
+            if online_match:
+                self._query_values(target.query, set())
+                self._send_json(HTTPStatus.OK, self.server.online_evidence.status(*online_match.groups()), send_body=send_body)
+                return
+            evidence_match = _EVIDENCE_PATH.fullmatch(path)
+            if evidence_match is not None:
+                self._query_values(target.query, set())
+                from astro_pipeline.library.source_evidence import source_paper_evidence
+                detail = self.server.overview.source(unquote(evidence_match.group(1)), unquote(evidence_match.group(2)))
+                payload = source_paper_evidence(self.server.store, detail)
                 self._send_json(HTTPStatus.OK, payload, send_body=send_body)
                 return
             source_match = _SOURCE_PATH.fullmatch(path)

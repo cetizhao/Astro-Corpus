@@ -528,19 +528,26 @@ def _position_and_astrometry(
     field_provenance: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     if release == "dr3":
+        def number(*keys):
+            for key in keys:
+                value = _finite_number(attributes.get(key))
+                if value is not None:
+                    return value
+            return None
+
         profile = get_gaia_release_profile("dr3")
         ra_field, dec_field = "RAICRS", "DEICRS"
         ra = _finite_number(attributes.get(ra_field))
         dec = _finite_number(attributes.get(dec_field))
         astrometry = {
-            "parallax_mas": _finite_number(attributes.get("Plx_gdr3")),
-            "pmra_masyr": _finite_number(attributes.get("pmRA_gdr3")),
-            "pmdec_masyr": _finite_number(attributes.get("pmDE_gdr3")),
-            "radial_velocity_kms": _finite_number(attributes.get("RV_gdr3")),
-            "g_mag": _finite_number(attributes.get("Gmag_gdr3")),
-            "bp_mag": _finite_number(attributes.get("BPmag_gdr3")),
-            "rp_mag": _finite_number(attributes.get("RPmag_gdr3")),
-            "ruwe": _finite_number(attributes.get("RUWE_gdr3")),
+            "parallax_mas": number("Plx_gdr3", "parallax", "plx"),
+            "pmra_masyr": number("pmRA_gdr3", "pmra", "pmRA"),
+            "pmdec_masyr": number("pmDE_gdr3", "pmdec", "pmDE"),
+            "radial_velocity_kms": number("RV_gdr3", "radial_velocity"),
+            "g_mag": number("Gmag_gdr3", "phot_g_mean_mag", "Gmag"),
+            "bp_mag": number("BPmag_gdr3", "phot_bp_mean_mag", "GBPmag"),
+            "rp_mag": number("RPmag_gdr3", "phot_rp_mean_mag", "GRPmag"),
+            "ruwe": number("RUWE_gdr3", "ruwe", "RUWE"),
         }
         trusted_epoch_status = "release_reference_epoch"
     else:
