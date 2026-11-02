@@ -29,9 +29,12 @@ def test_mcp_registers_expected_tools():
         "lookup_library_paper",
         "download_paper_corpus",
         "paper_corpus_status",
+        "get_paper_evidence_context",
+        "record_paper_annotations",
+        "query_source_evidence",
         "library_status",
     } <= names
-    assert len(names) == 27
+    assert len(names) == 30
 
 
 def test_cached_lookup_has_structured_fresh_clone_fallback(monkeypatch):

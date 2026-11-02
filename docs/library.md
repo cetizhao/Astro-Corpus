@@ -182,7 +182,7 @@ The existing `Corpus`, `lookup_source`, `lookup_paper`, and `summarize_corpus`
 interfaces remain scoped to one configured corpus. Use the global library tools
 when the question spans labels.
 
-The MCP server exposes 27 tools in total, including these three offline global
+The MCP server exposes 30 tools in total, including these three offline global
 queries:
 
 - `lookup_library_source(source_id, release="dr3", limit=50, offset=0)`
@@ -194,6 +194,12 @@ queries:
   bibliography snapshots and their current dataset associations. Ambiguous
   title matches are returned for refinement.
 - `library_status()` reports global counts and paths.
+
+The separate [object–paper evidence layer](paper-evidence.md) adds
+`get_paper_evidence_context`, `record_paper_annotations`, and
+`query_source_evidence`. Schema v3 appends pending-review assessments without
+altering bibliography links. Evidence queries retain all batches and pinned
+paper versions instead of selecting a single accepted scientific conclusion.
 
 Pagination limits must be between 1 and 500. These queries call
 `get_library(create=False)`: they neither create nor migrate an absent database.

@@ -168,6 +168,17 @@ Claude Code references:
 
 ## First-use checks and collaborator data
 
+### Object–paper evidence
+
+The server also exposes `get_paper_evidence_context`, `record_paper_annotations`,
+and `query_source_evidence` (30 tools total). Read a pinned full-text version,
+submit per-object roles with exact passage/table evidence, then query the
+unreviewed history by Gaia release and source ID. Only recording writes; the
+other two do not download, create or migrate the library. See the
+[TWA workflow and request contract](paper-evidence.md) before annotating.
+
+### Local coverage
+
 A safe first prompt is:
 
 > Use astro-corpus to call library_status and list_corpora. Report local coverage
@@ -474,13 +485,15 @@ refresh. A reference PDF is requested by default (`include_pdf=False` opts out).
 
 A bibliography edge does not prove which paragraph discusses a Gaia source.
 License evidence is retained but training/redistribution permission is not
-inferred. No document text is sent to an external model or parsing service.
+inferred. Acquisition and parsing do not send text to an external model or
+parsing service. Explicit evidence-context calls return selected local text to
+the connected agent for annotation.
 Full commands, schema and limits: [paper corpus guide](paper-corpus.md).
 Restart existing MCP server processes after upgrading to load the new tools.
 
 ## Tool reference
 
-The server currently registers 27 tools.
+The server currently registers 30 tools.
 
 | Tool | Network | Writes data | Purpose |
 |---|---|---|---|
@@ -488,6 +501,9 @@ The server currently registers 27 tools.
 | `lookup_library_paper` | no | no | Global paper lookup with active source links and cached full-text versions/paths |
 | `download_paper_corpus` | yes | yes | Explicit 1–50-paper arXiv full-text collection with version pins and quality flags |
 | `paper_corpus_status` | no | no | Read local paper-collection checkpoints and artifact paths |
+| `get_paper_evidence_context` | no | no | Read pinned passages/cells, name candidates and original locators |
+| `record_paper_annotations` | no | yes | Validate exact quotes and append pending-review object assessments |
+| `query_source_evidence` | no | no | Read release-qualified, version-pinned relation/evidence history |
 | `library_status` | no | no | Read global SQLite coverage and paths without creating it |
 | `lookup_source` | no | no | Query the configured cached corpus by Gaia ID |
 | `lookup_paper` | no | no | Query by arXiv ID, bibcode, or title |

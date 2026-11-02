@@ -3,7 +3,9 @@
 Paper acquisition is a separate, **explicitly opt-in** workflow. Existing Gaia,
 SIMBAD and membership builds still retrieve bibliographic metadata only. A
 source–paper edge is not evidence that a particular paragraph discusses that
-source, and this feature does not extract source-specific scientific claims.
+source. Acquisition itself does not extract source-specific scientific claims.
+The separate [object–paper evidence workflow](paper-evidence.md) lets an external
+agent read pinned text and submit unreviewed role annotations with exact quotes.
 
 ## Scope
 

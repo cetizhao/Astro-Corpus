@@ -7,6 +7,15 @@ All notable changes to this project are documented here. Versions follow
 
 ### Added
 
+- Object–paper evidence with seven independent roles, exact passage/table/note
+  slices, original locators and source/component/system scope. Three MCP tools
+  read context, atomically record pending-review annotations and query history;
+  the server now exposes 30 tools.
+- Additive library schema v3 for immutable annotation batches, idempotent
+  retries and explicit uncertain/inspected-not-found outcomes. Read-only v1/v2
+  queries never migrate. Includes a TWA workflow, versioned annotation
+  instructions and synthetic offline contracts.
+
 - Explicit, bounded arXiv full-text collections with version-pinned originals,
   structured JSON, deterministic Markdown, per-input provenance, resumable
   downloads and conservative HTML/LaTeX/PDF quality reporting. New MCP tools
@@ -41,7 +50,7 @@ All notable changes to this project are documented here. Versions follow
   availability caches with configurable positive/negative TTLs and explicit
   retryable failure history.
 - Global MCP tools `lookup_library_source`, `lookup_library_paper`, and
-  `library_status`; together with paper collection tools the server exposes 27 tools.
+  `library_status`, alongside explicit paper collection tools.
 - `scripts/library.py` status, dry-run/non-destructive legacy import,
   verification/reconciliation, reference export, and standalone export
   workflows.

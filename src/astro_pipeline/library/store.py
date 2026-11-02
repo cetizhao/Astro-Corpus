@@ -28,7 +28,8 @@ from astro_pipeline.library.identity import (
     source_identity,
 )
 from astro_pipeline.library.schema import (
-    APPLICATION_ID, PAPER_SCHEMA_STATEMENTS, SCHEMA_STATEMENTS, SCHEMA_VERSION,
+    APPLICATION_ID, EVIDENCE_SCHEMA_STATEMENTS, PAPER_SCHEMA_STATEMENTS,
+    SCHEMA_STATEMENTS, SCHEMA_VERSION,
 )
 
 
@@ -189,9 +190,10 @@ class LibraryStore:
                         connection.execute(statement)
                     connection.execute(f"PRAGMA application_id = {APPLICATION_ID}")
                     connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
-                elif version == 1:
+                elif version in (1, 2):
                     self._validate_owner(connection)
-                    for statement in PAPER_SCHEMA_STATEMENTS:
+                    migrations = (PAPER_SCHEMA_STATEMENTS if version == 1 else ())
+                    for statement in migrations + EVIDENCE_SCHEMA_STATEMENTS:
                         connection.execute(statement)
                     connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
                 elif version != SCHEMA_VERSION:
@@ -265,7 +267,7 @@ class LibraryStore:
                 return result
             version = self._schema_version(connection)
             result["schema"] = version
-            if version not in (1, SCHEMA_VERSION):
+            if version not in (1, 2, SCHEMA_VERSION):
                 return result
             counts = {
                 "n_sources": "SELECT COUNT(*) FROM sources",
@@ -281,6 +283,9 @@ class LibraryStore:
             if version >= 2:
                 counts["n_paper_text_versions"] = "SELECT COUNT(*) FROM paper_text_versions"
                 counts["n_fulltext_papers"] = "SELECT COUNT(DISTINCT work_id) FROM paper_text_versions"
+            if version >= 3:
+                counts["n_paper_annotation_batches"] = "SELECT COUNT(*) FROM paper_annotation_batches"
+                counts["n_paper_annotations"] = "SELECT COUNT(*) FROM paper_annotations"
             for name, sql in counts.items():
                 result[name] = int(connection.execute(sql).fetchone()[0])
             return result

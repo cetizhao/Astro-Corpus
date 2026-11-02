@@ -171,6 +171,30 @@ explicit unmatched row. Live counts can change only if an external catalogue
 or matching service changes; the invariant is that totals and unmatched rows
 remain auditable.
 
+## TWA object–paper evidence smoke
+
+The first live evidence smoke on 2026-11-02 used `2305.03557v1` and three
+explicit Gaia DR3 subjects: `5414158429569765632` and `6143984423832713856`
+from its spectroscopic-candidate Table 1, and `3567379121431731328` from
+Sections II.3–II.4. These are selected paper subjects, **not a member catalogue**.
+VizieR search/preview timed out, so no published-member-table build is claimed.
+The existing explicit-ID corpus builder retrieved all three Gaia records and
+retained the CSV selection and its paper-location provenance.
+
+The paper collection `twa_evidence_pilot` contains one pinned HTML-derived
+document with 243 blocks and two tables. Acquisition completed; parse quality
+is `partial` because figure images were not separately downloaded. The source
+corpus is `twa_evidence_subjects`. A real stdio client exercised all three new
+tools, saved three pending-review assessments with 13 per-role statements, then
+queried them back. Repeating the identical batch created no duplicate records.
+This demonstrates the tool/storage workflow, not measured classification accuracy.
+
+Generated inputs, exact quotes, query outputs and the smoke report are local
+under `data/verification/twa_evidence_*`; they do not ship in Git. To reproduce
+the workflow with a fresh library, follow [paper-evidence.md](paper-evidence.md),
+keep Gaia IDs as strings, and select current immutable text-version IDs from
+your own build. Offline TWA-shaped fixtures contain synthetic text only.
+
 ## TWA demo bootstrap
 
 This is the legacy single-corpus workflow, not an alias for the shared-library

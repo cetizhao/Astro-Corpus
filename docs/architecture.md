@@ -1,5 +1,12 @@
 # Architecture and data contracts
 
+Object–paper evidence adds an append-only layer above pinned paper text: schema
+v3 stores annotation batches, source-scoped assessments and queryable role
+labels. Exact slices retain block/cell coordinates and original locators; all
+annotations remain unreviewed and do not replace SIMBAD bibliography edges.
+The external agent supplies interpretation. See the
+[evidence contract](paper-evidence.md) for identities, coverage and MCP tools.
+
 ## System boundary
 
 The implemented system prepares Gaia DR3 samples, optional XP products and

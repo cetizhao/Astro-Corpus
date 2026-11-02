@@ -1,7 +1,7 @@
 """Versioned SQLite schema for the shared local library."""
 from __future__ import annotations
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 APPLICATION_ID = 0x41535452
 
 SCHEMA_V1_STATEMENTS = (
@@ -309,4 +309,45 @@ PAPER_SCHEMA_STATEMENTS = (
     "CREATE INDEX IF NOT EXISTS idx_paper_inputs_work ON paper_inputs(work_id, run_id)",
 )
 
-SCHEMA_STATEMENTS = SCHEMA_V1_STATEMENTS + PAPER_SCHEMA_STATEMENTS
+EVIDENCE_SCHEMA_STATEMENTS = (
+    """
+    CREATE TABLE IF NOT EXISTS paper_annotation_batches (
+        batch_id TEXT PRIMARY KEY,
+        paper_version_id TEXT NOT NULL REFERENCES paper_text_versions(version_id),
+        document_sha256 TEXT NOT NULL REFERENCES blobs(sha256),
+        payload_hash TEXT NOT NULL,
+        request_json TEXT NOT NULL,
+        extractor_json TEXT NOT NULL,
+        created_at REAL NOT NULL
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_annotation_batches_version ON paper_annotation_batches(paper_version_id, created_at)",
+    """
+    CREATE TABLE IF NOT EXISTS paper_annotations (
+        annotation_id TEXT PRIMARY KEY,
+        batch_id TEXT NOT NULL REFERENCES paper_annotation_batches(batch_id),
+        ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
+        release TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        subject_scope TEXT NOT NULL CHECK (subject_scope IN ('source', 'component', 'system')),
+        assessment TEXT NOT NULL CHECK (assessment IN
+            ('evidence_found', 'uncertain', 'not_found_in_inspected_blocks')),
+        review_status TEXT NOT NULL CHECK (review_status = 'pending'),
+        annotation_json TEXT NOT NULL,
+        UNIQUE(batch_id, ordinal),
+        FOREIGN KEY (release, source_id) REFERENCES sources(gaia_release, source_id)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_paper_annotations_source ON paper_annotations(release, source_id, batch_id)",
+    """
+    CREATE TABLE IF NOT EXISTS paper_annotation_roles (
+        annotation_id TEXT NOT NULL REFERENCES paper_annotations(annotation_id),
+        role TEXT NOT NULL CHECK (role IN ('mentioned', 'in_sample', 'analysed',
+            'reports_result', 'cites_prior_result', 'comparison', 'calibrator')),
+        PRIMARY KEY(annotation_id, role)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_paper_annotation_roles_role ON paper_annotation_roles(role, annotation_id)",
+)
+
+SCHEMA_STATEMENTS = SCHEMA_V1_STATEMENTS + PAPER_SCHEMA_STATEMENTS + EVIDENCE_SCHEMA_STATEMENTS
