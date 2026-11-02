@@ -79,6 +79,7 @@ class SourceFilters:
     corpus_id: str | None = None
     scope: str = "all_indexed"
     spectrum_state: str = "all"
+    evidence_state: str = "all"
 
     @classmethod
     def create(
@@ -89,6 +90,7 @@ class SourceFilters:
         corpus_id: str | None = None,
         scope: str = "all_indexed",
         spectrum_state: str = "all",
+        evidence_state: str = "all",
     ) -> SourceFilters:
         query = None if q is None else str(q).strip()
         if query == "":
@@ -114,12 +116,15 @@ class SourceFilters:
             )
         if normalized_spectrum == "available":
             normalized_spectrum = "not_downloaded"
+        if evidence_state not in {"all", "recorded", "not_assessed"}:
+            raise ValueError("evidence_state must be all, recorded or not_assessed")
         return cls(
             q=query,
             release=normalized_release,
             corpus_id=corpus,
             scope=normalized_scope,
             spectrum_state=normalized_spectrum,
+            evidence_state=evidence_state,
         )
 
     @property
@@ -130,6 +135,7 @@ class SourceFilters:
             "corpus_id": self.corpus_id,
             "scope": self.scope,
             "spectrum_state": self.spectrum_state,
+            "evidence_state": self.evidence_state,
         }
         return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()[:24]
 
@@ -394,6 +400,24 @@ source_view AS (
 )
 """
 
+def _source_view_cte(connection: sqlite3.Connection) -> str:
+    # Schema 1/2 remain readable without creating or migrating evidence tables.
+    base = _SOURCE_VIEW_CTE.replace("source_view AS (", "base_source_view AS (")
+    present = connection.execute("PRAGMA user_version").fetchone()[0] >= 3
+    counts = "SELECT NULL AS release, NULL AS source_id, 0 AS annotation_count, 0 AS annotation_paper_count WHERE 0"
+    if present:
+        counts = """SELECT a.release, a.source_id, COUNT(*) AS annotation_count,
+            COUNT(DISTINCT v.work_id) AS annotation_paper_count
+            FROM paper_annotations a JOIN paper_annotation_batches b USING(batch_id)
+            JOIN paper_text_versions v ON v.version_id = b.paper_version_id
+            GROUP BY a.release, a.source_id"""
+    return base + f""", evidence_counts AS ({counts}), source_view AS (
+        SELECT sv.*, COALESCE(e.annotation_count, 0) AS annotation_count,
+        COALESCE(e.annotation_paper_count, 0) AS annotation_paper_count
+        FROM base_source_view sv LEFT JOIN evidence_counts e
+        ON e.release = sv.gaia_release AND e.source_id = sv.source_id)"""
+
+
 _DR3_VALID_POSITION_SQL = """
 sv.gaia_release = 'dr3'
 AND json_type(sv.attributes_json, '$.RAICRS') IN ('integer', 'real')
@@ -641,6 +665,8 @@ def _source_dto(
         "release": release,
         "source_id": source_id,
         "name": _display_name(release, source_id, attributes, row.get("ref_main_id")),
+        "annotation_count": row.get("annotation_count", 0),
+        "annotation_paper_count": row.get("annotation_paper_count", 0),
         "position": position,
         "astrometry": astrometry,
         "datasets": list(datasets),
@@ -790,6 +816,10 @@ class LibraryOverview:
             params.append(filters.spectrum_state)
         elif filters.spectrum_state in {"missing", "not_ready"}:
             clauses.append("sv.spectrum_status <> 'ready'")
+        if filters.evidence_state == "recorded":
+            clauses.append("sv.annotation_count > 0")
+        elif filters.evidence_state == "not_assessed":
+            clauses.append("sv.annotation_count = 0")
         if after is not None:
             clauses.append(
                 "(sv.gaia_release > ? OR "
@@ -808,7 +838,7 @@ class LibraryOverview:
     ) -> tuple[int, int, list[dict[str, Any]], bool]:
         count_where, count_params = LibraryOverview._where(filters)
         counts = connection.execute(
-            f"WITH {_SOURCE_VIEW_CTE} SELECT COUNT(*) AS total, "
+            f"WITH {_source_view_cte(connection)} SELECT COUNT(*) AS total, "
             "SUM(CASE WHEN sv.spectrum_status = 'ready' THEN 1 ELSE 0 END) "
             f"AS registered_xp_ready_sources FROM source_view AS sv{count_where}",
             count_params,
@@ -819,7 +849,7 @@ class LibraryOverview:
         )
         page_where, page_params = LibraryOverview._where(filters, after=after)
         rows = connection.execute(
-            f"WITH {_SOURCE_VIEW_CTE} "
+            f"WITH {_source_view_cte(connection)} "
             "SELECT sv.* FROM source_view AS sv"
             f"{page_where} ORDER BY sv.gaia_release, sv.source_id LIMIT ?",
             (*page_params, limit + 1),
@@ -1088,7 +1118,7 @@ class LibraryOverview:
                     "runs": [],
                 }
             aggregate = connection.execute(
-                f"WITH {_SOURCE_VIEW_CTE} SELECT COUNT(*) AS total_sources, "
+                f"WITH {_source_view_cte(connection)} SELECT COUNT(*) AS total_sources, "
                 f"SUM(CASE WHEN {_VALID_POSITION_SQL} THEN 1 ELSE 0 END) AS total_positions "
                 "FROM source_view AS sv"
             ).fetchone()
@@ -1099,7 +1129,7 @@ class LibraryOverview:
                     "total_positions": int(row["total_positions"] or 0),
                 }
                 for row in connection.execute(
-                    f"WITH {_SOURCE_VIEW_CTE} SELECT sv.gaia_release, "
+                    f"WITH {_source_view_cte(connection)} SELECT sv.gaia_release, "
                     "COUNT(*) AS total_sources, "
                     f"SUM(CASE WHEN {_VALID_POSITION_SQL} THEN 1 ELSE 0 END) AS total_positions "
                     "FROM source_view AS sv GROUP BY sv.gaia_release ORDER BY sv.gaia_release"
@@ -1282,7 +1312,7 @@ class LibraryOverview:
                 }
             count_where, count_params = self._where(filters)
             counts = connection.execute(
-                f"WITH {_SOURCE_VIEW_CTE} SELECT COUNT(*) AS total_sources, "
+                f"WITH {_source_view_cte(connection)} SELECT COUNT(*) AS total_sources, "
                 f"SUM(CASE WHEN {_VALID_POSITION_SQL} THEN 1 ELSE 0 END) AS total_positions, "
                 "SUM(CASE WHEN sv.spectrum_status = 'ready' THEN 1 ELSE 0 END) "
                 f"AS registered_xp_ready_sources FROM source_view AS sv{count_where}",
@@ -1290,7 +1320,7 @@ class LibraryOverview:
             ).fetchone()
             page_where, page_params = self._where(filters, after=after)
             rows = connection.execute(
-                f"WITH {_SOURCE_VIEW_CTE} SELECT sv.* FROM source_view AS sv"
+                f"WITH {_source_view_cte(connection)} SELECT sv.* FROM source_view AS sv"
                 f"{page_where} ORDER BY sv.gaia_release, sv.source_id LIMIT ?",
                 (*page_params, limit + 1),
             ).fetchall()
@@ -1368,7 +1398,7 @@ class LibraryOverview:
                     "query": query,
                 }
             row = connection.execute(
-                f"WITH {_SOURCE_VIEW_CTE} SELECT sv.* FROM source_view AS sv "
+                f"WITH {_source_view_cte(connection)} SELECT sv.* FROM source_view AS sv "
                 "WHERE sv.gaia_release = ? AND sv.source_id = ?",
                 (release, source_id),
             ).fetchone()

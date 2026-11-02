@@ -55,7 +55,7 @@
   }
   function filters() {
     const result = { scope: $("scope").value };
-    for (const [id, name] of [["search", "q"], ["release", "release"], ["dataset", "corpus_id"], ["spectrum-filter", "spectrum_state"]]) {
+    for (const [id, name] of [["search", "q"], ["release", "release"], ["dataset", "corpus_id"], ["spectrum-filter", "spectrum_state"], ["evidence-filter", "evidence_state"]]) {
       const value = $(id).value.trim();
       if (value) result[name] = value;
     }
@@ -144,7 +144,7 @@
       if (activeWork.length) datasets.append(text("span", `${activeWork.length} 个未发布关联`, "cell-secondary"));
       if (history.length) datasets.append(text("span", `${history.length} 个历史关联`, "cell-secondary"));
       if (source.provenance_status === "legacy_unverified") datasets.append(badge("legacy_unverified"));
-      row.append(identity, position, magnitude, spectrum, datasets);
+      row.append(identity, position, magnitude, spectrum, datasets, text("td", `${source.annotation_paper_count || 0} 篇`, "numeric"));
       const select = () => selectSource(source.release, String(source.source_id));
       row.addEventListener("click", select);
       row.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(); } });
@@ -152,7 +152,7 @@
     }
     if (!sources.length) {
       const cell = text("td", "当前筛选没有源。可调整筛选，或等待采集提交新记录。", "empty");
-      cell.colSpan = 5;
+      cell.colSpan = 6;
       const row = document.createElement("tr"); row.append(cell); body.append(row);
     }
     $("table-total").textContent = `共 ${integer(page.total)} 个源 · 本页 ${sources.length} 个`;
@@ -363,22 +363,39 @@
     const chosen = $("spectrum-scope").value;
     $("spectrum-scope").replaceChildren(...scopes.map((item) => new Option(item.label, item.value)));
     if (scopes.some((item) => item.value === chosen)) $("spectrum-scope").value = chosen;
-    const bibliography = data.active_bibliography;
-    const papers = bibliography?.papers || data.papers || [];
-    $("paper-heading").textContent = `文献关联 · ${papers.length}${bibliography?.stale ? " · 缓存已过期" : ""}`;
-    const paperList = $("source-papers"); paperList.replaceChildren();
-    for (const paper of papers) {
-      const node = text("div", "", "paper-item");
-      const link = document.createElement("a");
-      link.textContent = paper.title || paper.bibcode || "论文";
-      link.href = paper.doi ? `https://doi.org/${encodeURIComponent(paper.doi)}` : paper.arxiv_id ? `https://arxiv.org/abs/${encodeURIComponent(paper.arxiv_id)}` : `https://ui.adsabs.harvard.edu/abs/${encodeURIComponent(paper.bibcode || "")}`;
-      link.target = "_blank"; link.rel = "noopener noreferrer";
-      node.append(link, text("span", `${paper.year || "—"} · ${paper.bibcode || ""}`, "cell-secondary"));
-      paperList.append(node);
-    }
-    if (!papers.length) paperList.append(text("p", bibliography ? "本次文献观测没有关联条目；这与查询失败/尚未查询不同。" : "尚无可用文献观测。"));
+    $("paper-heading").textContent = "文献与证据";
+    $("source-papers").replaceChildren(text("p", "正在读取关系与证据…"));
     $("paper-section").hidden = false;
   }
+  async function loadEvidence(data, token) {
+    const selected = state.selected;
+    const records = [];
+    try {
+      let offset = 0, result;
+      do {
+        result = await api(`/api/v1/source/${selected.release}/${selected.source_id}/evidence`, { limit: 100, offset, revision: data.revision });
+        records.push(...result.assessments); offset += result.page.returned;
+      } while (result.page.has_more && token === state.detailToken);
+      if (token !== state.detailToken) return;
+      window.AstroEvidence.mount($("source-papers"), {
+        records, bibliography: data.active_bibliography?.papers || data.papers || [],
+        loadContext: async (version, block) => {
+          let result, offset = 0; const units = [];
+          do {
+            result = await api(`/api/v1/paper/${encodeURIComponent(version)}/context`, { block_id: block, offset, limit: 100, revision: data.revision });
+            units.push(...result.units); offset += result.page?.returned || 0;
+          } while (result.page?.has_more);
+          return { ...result, units };
+        },
+      });
+    } catch (error) {
+      if (token !== state.detailToken) return;
+      // Keep the independent bibliography readable when evidence cannot be loaded.
+      window.AstroEvidence.mount($("source-papers"), { bibliography: data.active_bibliography?.papers || data.papers || [] });
+      $("source-papers").prepend(text("p", `证据读取失败：${error.message}`, "caption"));
+    }
+  }
+
   function clearDetail(message) {
     ++state.spectrumToken;
     state.detail = null;
@@ -411,7 +428,7 @@
       if (data.resolved === false) throw new Error(data.error || "源记录当前不可用");
       state.detail = data;
       renderDetail(data);
-      await loadSpectrum();
+      await Promise.all([loadSpectrum(), loadEvidence(data, token)]);
     } catch (error) {
       if (token !== state.detailToken) return;
       clearDetail(`读取失败：${error.message}`);
@@ -526,7 +543,7 @@
     try { theme = localStorage.getItem("astro-library-theme") || theme; } catch (_) {}
     applyTheme(theme);
     $("filters").addEventListener("submit", (event) => { event.preventDefault(); changeFilters(); });
-    for (const id of ["release", "dataset", "scope", "spectrum-filter", "page-size"]) $(id).addEventListener("change", changeFilters);
+    for (const id of ["release", "dataset", "scope", "spectrum-filter", "evidence-filter", "page-size"]) $(id).addEventListener("change", changeFilters);
     let searchTimer;
     $("search").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(changeFilters, 350); });
     $("refresh").addEventListener("click", () => refreshView(true));

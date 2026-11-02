@@ -4,6 +4,10 @@ Object–paper evidence adds an append-only layer above pinned paper text: schem
 v3 stores annotation batches, source-scoped assessments and queryable role
 labels. Exact slices retain block/cell coordinates and original locators; all
 annotations remain unreviewed and do not replace SIMBAD bibliography edges.
+The v2 annotation contract adds attributed membership results inside the same
+immutable JSON records; it needs no new database migration. The live viewer
+uses the evidence service and revision checks. Standalone exports freeze
+selected assessment history and cited blocks, independently of later writes.
 The external agent supplies interpretation. See the
 [evidence contract](paper-evidence.md) for identities, coverage and MCP tools.
 

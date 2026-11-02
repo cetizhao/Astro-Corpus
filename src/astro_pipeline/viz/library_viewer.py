@@ -23,6 +23,8 @@ from astro_pipeline.library.store import LibraryStore
 _LOOPBACK_HOST = "127.0.0.1"
 _SOURCE_PATH = re.compile(r"\A/api/v1/source/([^/]+)/([^/]+)\Z")
 _SPECTRUM_PATH = re.compile(r"\A/api/v1/spectrum/([^/]+)/([^/]+)\Z")
+_EVIDENCE_PATH = re.compile(r"\A/api/v1/source/([^/]+)/([^/]+)/evidence\Z")
+_CONTEXT_PATH = re.compile(r"\A/api/v1/paper/([^/]+)/context\Z")
 
 _ASSET_PATHS = {
     "/": (Path(__file__).with_name("assets") / "library.html", "text/html; charset=utf-8"),
@@ -39,6 +41,11 @@ _ASSET_PATHS = {
         "text/javascript; charset=utf-8",
     ),
 }
+for _asset in ("evidence.js", "evidence.css"):
+    _ASSET_PATHS[f"/assets/{_asset}"] = (
+        Path(__file__).with_name("assets") / _asset,
+        "text/javascript; charset=utf-8" if _asset.endswith(".js") else "text/css; charset=utf-8",
+    )
 
 
 class LibraryViewerServer(ThreadingHTTPServer):
@@ -289,6 +296,7 @@ class LibraryViewerHandler(BaseHTTPRequestHandler):
             corpus_id=cls._optional(values, "corpus_id"),
             scope=values.get("scope") or "all_indexed",
             spectrum_state=values.get("spectrum_state") or "all",
+            evidence_state=values.get("evidence_state") or "all",
         )
 
     def _dispatch(self, *, send_body: bool) -> None:
@@ -326,6 +334,7 @@ class LibraryViewerHandler(BaseHTTPRequestHandler):
                         "corpus_id",
                         "scope",
                         "spectrum_state",
+                        "evidence_state",
                         "limit",
                         "cursor",
                         "revision",
@@ -342,6 +351,36 @@ class LibraryViewerHandler(BaseHTTPRequestHandler):
                     if path.endswith("sources")
                     else self.server.overview.sky(**kwargs)
                 )
+                self._send_json(HTTPStatus.OK, payload, send_body=send_body)
+                return
+            evidence_match = _EVIDENCE_PATH.fullmatch(path)
+            context_match = _CONTEXT_PATH.fullmatch(path)
+            if evidence_match or context_match:
+                from astro_pipeline.library.evidence import get_paper_evidence_context, query_source_evidence
+
+                allowed = {"revision", "limit", "offset"}
+                allowed |= {"role", "assessment", "membership_status"} if evidence_match else {"block_id"}
+                values = self._query_values(target.query, allowed)
+                offset = values.get("offset") or "0"
+                if not re.fullmatch(r"[0-9]+", offset):
+                    raise ValueError("offset must be a non-negative integer")
+                revision, _ = self.server.overview.monitor.require(self._optional(values, "revision"))
+                paging = {"limit": self._limit(values), "offset": int(offset)}
+                if evidence_match:
+                    payload = query_source_evidence(
+                        self.server.store, unquote(evidence_match.group(2)),
+                        release=unquote(evidence_match.group(1)),
+                        role=self._optional(values, "role"), assessment=self._optional(values, "assessment"),
+                        membership_status=self._optional(values, "membership_status"), **paging,
+                    )
+                else:
+                    block_id = self._optional(values, "block_id")
+                    payload = get_paper_evidence_context(
+                        self.server.store, unquote(context_match.group(1)),
+                        block_ids=[block_id] if block_id else None, **paging,
+                    )
+                self.server.overview.monitor.ensure_unchanged(revision)
+                payload["revision"] = revision
                 self._send_json(HTTPStatus.OK, payload, send_body=send_body)
                 return
             source_match = _SOURCE_PATH.fullmatch(path)

@@ -6,6 +6,8 @@
   <title>Astro-Corpus · 全库观测台</title>
   <link rel="stylesheet" href="/assets/library.css">
   <script defer src="/assets/echarts.min.js"></script>
+  <link rel="stylesheet" href="/assets/evidence.css">
+  <script defer src="/assets/evidence.js"></script>
   <script defer src="/assets/library.js"></script>
 </head>
 <body>
@@ -29,6 +31,7 @@
       <label>来源样本<select id="dataset"><option value="">全部样本</option></select></label>
       <label>样本范围<select id="scope"><option value="all_indexed">全部已登记源</option><option value="current_datasets">当前已发布样本</option></select></label>
       <label>光谱状态<select id="spectrum-filter"><option value="">全部状态</option><option value="ready">已登记缓存</option><option value="not_downloaded">尚未下载</option><option value="unavailable">档案库无产品</option><option value="pending">获取中</option><option value="failed">获取失败</option><option value="unsupported">待适配</option><option value="unknown">未知</option></select></label>
+      <label>文献证据<select id="evidence-filter"><option value="all">全部源</option><option value="recorded">已有标注</option><option value="not_assessed">尚未标注</option></select></label>
     </form>
 
     <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
@@ -52,8 +55,8 @@
           <div class="card-heading"><div><p class="eyebrow">SOURCE INDEX</p><h2>源目录</h2></div><span id="table-total" class="caption">—</span></div>
           <div class="table-wrap">
             <table id="source-table">
-              <thead><tr><th scope="col">源 / 标识</th><th scope="col">RA / Dec (deg)</th><th scope="col">G (mag)</th><th scope="col">光谱</th><th scope="col">来源</th></tr></thead>
-              <tbody id="source-rows"><tr><td colspan="5" class="empty">正在读取共享库…</td></tr></tbody>
+              <thead><tr><th scope="col">源 / 标识</th><th scope="col">RA / Dec (deg)</th><th scope="col">G (mag)</th><th scope="col">光谱</th><th scope="col">来源</th><th scope="col">标注论文</th></tr></thead>
+              <tbody id="source-rows"><tr><td colspan="6" class="empty">正在读取共享库…</td></tr></tbody>
             </table>
           </div>
           <nav class="pagination" aria-label="源目录分页"><button id="previous" type="button" disabled>上一页</button><span id="page-label">第 1 页</span><button id="next" type="button" disabled>下一页</button><label>每页<select id="page-size"><option>25</option><option selected>50</option><option>100</option><option>250</option><option>500</option></select></label></nav>
@@ -67,7 +70,7 @@
           <div id="source-badges" class="badges"></div>
           <dl id="source-properties" class="properties"></dl>
           <details id="provenance-section" hidden><summary>样本与字段来源</summary><div id="source-provenance" class="provenance"></div></details>
-          <details id="paper-section" hidden><summary id="paper-heading">文献关联</summary><div id="source-papers" class="paper-list"></div></details>
+          <details id="paper-section" open hidden><summary id="paper-heading">文献关联</summary><div id="source-papers" class="paper-list"></div></details>
         </article>
 
         <article class="card spectrum-card">

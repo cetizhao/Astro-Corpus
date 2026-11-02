@@ -177,6 +177,13 @@ unreviewed history by Gaia release and source ID. Only recording writes; the
 other two do not download, create or migrate the library. See the
 [TWA workflow and request contract](paper-evidence.md) before annotating.
 
+Set `ontology_version="object-paper-2"` to include structured membership
+judgements. Each keeps the association, author-reported label, normalized
+status, current-analysis/prior-work attribution, method, qualification and
+exact evidence. `query_source_evidence(membership_status="candidate", ...)`
+filters records without merging conflicting claims. v1 retries remain valid.
+Human review is not enabled: quote validation leaves every record pending.
+
 ### Local coverage
 
 A safe first prompt is:

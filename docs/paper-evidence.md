@@ -122,6 +122,101 @@ download_paper_corpus(
 
 ## 存储与兼容性
 
+### 第二版：成员资格判断
+
+`object-paper-2` 在对象评估中增加 `results`。第一种结果是成员资格，区分
+论文的判断与已获确认的事实，也区分本文分析与沿用前人结论。使用新批次
+ID 添加结果，历史 v1 批次保持不变。示例中的 `evidence` 必须替换为从固定
+版本读取的真实引文位置，不能直接提交占位列表：
+
+```python
+membership_result = {
+    "kind": "membership",
+    "association": "TWA",
+    "population": None,
+    "status": "candidate",  # member / candidate / non_member / uncertain
+    "reported_label": "possible member",
+    "origin": "current_analysis",  # 或 prior_work
+    "attribution": "论文作者与年份",
+    "method": "论文实际使用的运动学、年龄或其他判断依据",
+    "qualification": "原文保留的候选资格、测量限制和假设",
+    "evidence": [...],
+}
+# 放入 annotation.results，并将 batch.ontology_version 设为 object-paper-2。
+query_source_evidence(
+    source_id="3466327989885650176", release="dr3",
+    membership_status="candidate", limit=100,
+)
+```
+
+`reported_label` 必须出现在引文里。当前研究的结果需要同一评估中的
+`reports_result` 标签；前人结果需要 `cites_prior_result`。身份歧义尚未
+解决时，不能提交结构化结果。结果中的 `uncertain` 表示作者对成员资格
+未定，与“尚不能确定论文说的是哪个天体”不同。
+
+同一评估可保存两个不同归属的结果。例如，2019 年论文在表中沿用前人的
+分类，又在正文用 Gaia DR2 数据重新讨论 TWA 31。两项陈述各有依据和
+限制，不能把表中的分类误认为本文的新结论。详见
+[第二版标注指引](prompts/object-paper-2.md)。
+
+### HTML 查看与固定导出
+
+运行 `uv run python scripts/library.py serve` 后，访问
+`http://127.0.0.1:8765/`。源目录可筛选已标注/尚未标注的源，显示已标注
+论文数；选中源后打开“文献与证据”。论文卡片保留每个版本和批次，并可按
+关系或成员判断筛选。点击“原文”显示精确段落、表格单元格及表头/表注。
+字符位置按 Unicode 码点计算，不将浏览器的 UTF-16 索引误作原文位置。
+
+```bash
+uv run python scripts/export_paper_evidence.py --source dr3:3466327989885650176 --output data/twa31_evidence.html
+uv run python scripts/export_paper_evidence.py --all-annotated --output data/twa_evidence.html
+```
+
+导出只读取现有库，嵌入导出时间、批次 ID、论文版本、校验和及所引原文。
+页面可离线打开；新标注不会改变已导出的文件。重新生成原有
+`source_paper_viz.html` 时，也会为该页面的对象列表嵌入证据快照。
+
+### 扩展试点（2026-11-02）
+
+本地试点包含 **10 篇固定 v1 全文、32 个 Gaia DR3 源、59 个不同的
+天体—论文配对**。54 个新增表格评估与原先 3 个配对组成第一轮扩样；
+结构化成员判断再补入 TWA 31 在两篇论文中的评估。当前共有 71 条历史
+评估记录，其中 14 条 v2 记录携带 15 项成员判断；重复批次中的角色标签
+不作为独立研究数量。
+
+| 固定论文 | 本次选取的证据 |
+|---|---|
+| [2305.03557v1](https://arxiv.org/abs/2305.03557v1) | 新光谱分类、成员讨论 |
+| [2501.11716v1](https://arxiv.org/abs/2501.11716v1) | 表3中 this work 径向速度列，区别于合并后的 HQ 列 |
+| [1612.02881v1](https://arxiv.org/abs/1612.02881v1) | 表10总辐射光度及距离假设 |
+| [1610.01667v1](https://arxiv.org/abs/1610.01667v1) | 新视差测量与零点修正 |
+| [1205.3023v1](https://arxiv.org/abs/1205.3023v1) | 重新评估的成员代码与候选限制 |
+| [1909.06699v1](https://arxiv.org/abs/1909.06699v1) | 光谱拟合、前人成员代码、本文运动学讨论 |
+| [1401.1935v1](https://arxiv.org/abs/1401.1935v1) | 计算的空间速度与带限制的成员拒绝 |
+| [1211.2233v1](https://arxiv.org/abs/1211.2233v1) | 绝对视差结果 |
+| [1411.1858v1](https://arxiv.org/abs/1411.1858v1) | 盘倾角模型估计及有效范围 |
+| [astro-ph/0401318v1](https://arxiv.org/abs/astro-ph/0401318v1) | 12微米测光，区分观测通量与光球预测 |
+
+名称映射来自经过搜索/预览流程取得的 VizieR `J/AJ/165/269/table2`：
+完整保留 67 行，67 行匹配成功、无未匹配行，所得 ID 与原表逐行一致。
+该次运行使用坐标匹配并保留了 12 行多候选记录。实测发现描述词
+“Gaia DR3 source name”未被识别为 ID，现已修复，后续运行可使用明确的
+DR3 标识直接匹配；原运行仍保留其实际匹配方式。
+
+这些是围绕可明确定位的表格和段落选取的机器辅助候选，**没有人工复核，
+不是分类准确率评估集**。10 篇全文均可用于本次所需的结构化证据读取；
+解析质量仍为 partial，不代表图像、全部公式或所有附属数据均已获取。
+原始全文、输入、批次和验证报告位于 gitignored `data/`。新 clone 不附带
+这些本地数据。复核流程暂不启用，所有记录保持 `pending`。
+
+### 数据库兼容性
+
 共享库 schema v3 新增 `paper_annotation_batches`、`paper_annotations` 和 `paper_annotation_roles`。批次固定全文版本和 JSON 校验和；对象评估保存分类、引文和原定位；标签表用于过滤。它们只追加记录，不覆盖原书目或历史全文，也不发布可被旧任务覆盖的“当前标注”指针。唯一批次 ID 和内容校验处理并发重试。
+
+v2 结构化结果保存在同一不可变标注 JSON 内，不升级数据库版本。v1
+规范化请求不新增空 `results` 字段，原哈希与相同批次重试行为保持兼容。
+查询响应保留旧 `ontology_version` 字段，表示未变更的七类关系定义；每条
+`annotation.ontology_version` 才是该记录的 v1/v2 契约版本，支持列表见
+`supported_ontology_versions`。
 
 两个读取接口使用 `get_library(create=False)`，不创建或迁移数据库，能读取 v1/v2 的空标注状态。首次有效写入会进行追加式迁移。备份已有库应使用 `LibraryStore.backup()`。更新代码后重启 MCP 服务或 Codex，让客户端加载新工具；总工具数由 27 增至 30。

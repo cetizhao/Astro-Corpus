@@ -534,6 +534,14 @@ function showSourceFocus(srcId) {
     return `<li>${link}${year}<br/><span style="color:#94a3b8">${title}</span></li>`;
   }).join('');
   // Highlight on sky map
+  if (DATA.evidence_snapshot) {
+    const snapshot = DATA.evidence_snapshot;
+    window.AstroEvidence.mount(ul, {
+      records: snapshot.sources[`${DATA.meta.gaia_release}:${srcId}`] || [], bibliography: papers,
+      snapshotLabel: `固定导出 ${snapshot.exported_at}`,
+      loadContext: async (version, block) => snapshot.contexts[`${version}:${block}`],
+    });
+  }
   skyChart.setOption({series:[{data: skyPoints.map(p => {
     const sel = p.value[3] === srcId;
     return {...p, itemStyle: {color: sel ? '#fbbf24' : '#60a5fa', opacity: sel ? 1 : 0.4}};
@@ -614,8 +622,11 @@ def render_html(payload: dict, corpus_name: str = "TWA") -> str:
     for backward compat with the original TWA demo.
     """
     # Compact but readable; the file is meant to be opened, not edited.
-    json_str = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    from astro_pipeline.viz.evidence import script_json, snapshot_assets
+    json_str = script_json(payload)
     html = HTML_TEMPLATE.replace("__DATA_JSON__", json_str)
+    if payload.get("evidence_snapshot"):
+        html = html.replace("</head>", snapshot_assets() + "</head>")
     # Escape for HTML; also handle empty/None gracefully.
     safe_name = (corpus_name or "Source-Paper").replace("<", "").replace(">", "")
     return html.replace("__CORPUS_NAME__", safe_name)
@@ -633,6 +644,7 @@ def build_overview_html(
     spectra_dir: Path | str | None = None,
     include_spectra: bool = True,
     gaia_release: str = "dr3",
+    include_evidence: bool = True,
 ) -> Path:
     """Top-level entry: read corpus inputs, write the HTML, return its path.
 
@@ -701,6 +713,12 @@ def build_overview_html(
     for source in payload["sources"]:
         source["spectrum_status"] = spectrum_states.get(source["id"], {}).get("status", "unavailable")
         source["has_xp"] = source["id"] in spectrum_states
+    if include_evidence:
+        from astro_pipeline.library import get_library
+        from astro_pipeline.viz.evidence import evidence_snapshot
+        payload["evidence_snapshot"] = evidence_snapshot(
+            get_library(create=False), [(gaia_release, source["id"]) for source in payload["sources"]],
+        )
     html = render_html(payload, corpus_name=corpus_name)
 
     if inline_echarts:

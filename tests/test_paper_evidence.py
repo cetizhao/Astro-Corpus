@@ -102,6 +102,8 @@ def test_context_searches_cells_captions_aliases_and_boundaries(pilot):
     assert hit["field"] == "table_cell" and (hit["row"], hit["column"]) == (1, 0)
     assert any(u["field"] == "table_cell" and u["row"] == 0 for u in found["units"])
     assert any(u["field"] == "table_note" for u in found["units"])
+    empty = next(u for u in found["units"] if u["field"] == "table_cell" and (u["row"], u["column"]) == (2, 1))
+    assert empty["text"] == "" and empty["start"] == empty["end"] == 0
     assert found["paper"]["document_sha256"]
     assert found["paper"]["source"]["sha256"]
     assert found["units"][0]["source_url"].endswith("#table1")

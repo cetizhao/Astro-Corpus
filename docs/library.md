@@ -272,6 +272,33 @@ Sampled unless a product type is chosen explicitly. Current executable parsers
 are registered only for the exact DR3 product contracts; similarly named DR4
 products remain `unsupported` until validated against live Archive products.
 
+The viewer's **文献与证据** section combines bibliographic entries and annotated
+papers, including papers absent from SIMBAD. Counts distinguish independent
+papers from role labels and history records. Each batch retains its own scope,
+version and pending status. Relation buttons open a verified local paragraph
+or table, with exact evidence highlighting, table headers and notes. Membership
+judgements show both attribution and qualifications; they do not edit member
+catalogues. All reads remain offline.
+
+`GET /api/v1/source/{release}/{source_id}/evidence` and
+`GET /api/v1/paper/{paper_version_id}/context` expose bounded, revision-checked
+pages. Source/sky filtering accepts `evidence_state=recorded|not_assessed|all`.
+The context route accepts `block_id`, `limit` and `offset`; the evidence route
+also accepts `role`, `assessment` and `membership_status`.
+
+For an immutable, standalone page of the existing annotations:
+
+```bash
+uv run python scripts/export_paper_evidence.py --all-annotated --output data/evidence.html
+```
+
+Or select identities explicitly with repeated `--source dr3:<source_id>`.
+The export stores batch/version/checksum pins and cited parsed text. It fails
+on a changing library or an unavailable/corrupt pinned artifact instead of
+substituting a newer version. It never downloads missing text. Regenerated
+`source_paper_viz.html` pages also embed evidence for their own source list;
+their existing bibliography charts continue to count bibliography edges.
+
 ## Administration CLI
 
 The global `--library-root` option, when used, must appear before the subcommand.

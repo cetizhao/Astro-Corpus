@@ -1,0 +1,31 @@
+.evidence-view { color: var(--ink, #e2e8f0); min-width: 0; }
+.e-summary { font-size: 13px; font-weight: 600; }
+.e-cards { display: grid; gap: 16px; margin-top: 16px; }
+.e-paper { border: 1px solid var(--line, #334155); border-radius: 9px; padding: 16px; min-width: 0; }
+.e-paper h3 { font-size: 15px; margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
+.e-paper a { color: inherit; }
+.e-meta { color: var(--secondary, #94a3b8); font-size: 12px; overflow-wrap: anywhere; }
+.e-record { margin-top: 12px; border-top: 1px solid var(--line, #334155); padding-top: 12px; }
+.e-record summary { cursor: pointer; font-size: 12px; line-height: 1.8; }
+.e-relation { border-left: 3px solid var(--blue, #60a5fa); margin: 13px 0; padding-left: 12px; }
+.e-relation.role-cites_prior_result { border-color: var(--orange, #fb923c); }
+.e-relation p { margin: 5px 0; font-size: 13px; }
+.e-role { font-size: 11px; letter-spacing: .04em; font-weight: 650; }
+.evidence-view button, .evidence-dialog button { cursor: pointer; color: inherit; background: transparent; border: 1px solid var(--line, #475569); border-radius: 6px; padding: 5px 9px; }
+.e-evidence-link { font-size: 12px; margin: 4px 5px 0 0; }
+.evidence-view select { max-width: 100%; margin: 0 8px 8px 0; }
+.e-result { background: var(--soft, #1e293b); padding: 14px; border-radius: 8px; margin: 16px 0; }
+.e-result h4 { margin: 0 0 8px; font-size: 14px; }
+.e-result p { font-size: 12px; margin: 5px 0; }
+.e-hash { white-space: pre-wrap; overflow-wrap: anywhere; font-family: monospace; font-size: 11px; }
+.evidence-dialog { background: var(--surface, #0f172a); color: var(--ink, #e2e8f0); border: 1px solid var(--line, #475569); border-radius: 14px; padding: 24px; width: min(940px, 94vw); max-height: 88vh; box-sizing: border-box; }
+.evidence-dialog::backdrop { background: #0008; }
+.e-context { margin-top: 20px; min-width: 0; }
+.e-passage { white-space: pre-wrap; font-size: 15px; line-height: 1.9; overflow-wrap: anywhere; }
+.e-context pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.e-context mark { background: #f8d781; color: #1c2531; border-radius: 2px; }
+.e-table-wrap { overflow: auto; max-width: 100%; margin: 16px 0; }
+.e-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.e-table td, .e-table th { border: 1px solid var(--line, #475569); padding: 8px; text-align: left; }
+.e-table th { background: var(--soft, #1e293b); }
+#source-papers.evidence-view { max-height: none; overflow: visible; }

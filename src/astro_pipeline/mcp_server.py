@@ -37,7 +37,7 @@ from mcp.server.fastmcp import FastMCP
 
 from astro_pipeline.corpus import Corpus
 from astro_pipeline.intake import resolve_members
-from astro_pipeline.models.evidence import Assessment, EvidenceTarget, PaperAnnotationBatch, Role
+from astro_pipeline.models.evidence import Assessment, EvidenceTarget, MembershipStatus, PaperAnnotationBatch, Role
 from astro_pipeline.spectra import get_xp_spectrum_png
 
 logger = logging.getLogger(__name__)
@@ -273,6 +273,10 @@ def record_paper_annotations(batch: PaperAnnotationBatch) -> dict:
     must already exist in the library. Seven independent roles are supported:
     mentioned, in_sample, analysed, reports_result, cites_prior_result,
     comparison, calibrator. in_sample does not assert association membership.
+    With ontology_version=object-paper-2, results may contain attributed
+    membership judgements: association, optional population, status, literal
+    reported_label, current_analysis/prior_work origin, attribution, method,
+    qualification and exact evidence. They never change a member catalogue.
     Keep ambiguous identities uncertain; no evidence in inspected blocks is not
     evidence of absence. Exact-slice validation is NOT scientific validation:
     every record remains pending review. No bibliography edges are changed.
@@ -295,6 +299,7 @@ def query_source_evidence(
     paper_version_id: Optional[str] = None,
     role: Optional[Role] = None,
     assessment: Optional[Assessment] = None,
+    membership_status: Optional[MembershipStatus] = None,
     limit: int = 20,
     offset: int = 0,
 ) -> dict:
@@ -302,7 +307,8 @@ def query_source_evidence(
 
     Returns per-role quotes, original locators, immutable paper/text hashes,
     identity scope, coverage and extractor provenance. Optional filters select
-    paper version, role or assessment. Distinguishes not-yet-assessed from an
+    paper version, role, assessment or structured membership status. Returns
+    v1/v2 history with attributed structured results. Distinguishes not-yet-assessed from an
     explicit uncertain/not-found assessment. History is not collapsed into a
     single accepted claim; component/system statements remain scoped. No
     create/migration, network access or inferred Gaia DR3/DR4 cross-matching.
@@ -312,7 +318,7 @@ def query_source_evidence(
 
     try:
         return query(get_library(create=False), source_id, release=release,
-                     paper_version_id=paper_version_id, role=role, assessment=assessment,
+                     paper_version_id=paper_version_id, role=role, assessment=assessment, membership_status=membership_status,
                      limit=limit, offset=offset)
     except (ValueError, RuntimeError, OSError) as exc:
         return {"error": str(exc), "source_id": source_id, "release": release}

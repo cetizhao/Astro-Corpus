@@ -1039,6 +1039,7 @@ def _gaia_identifier_release(name: str, description: str) -> Optional[str]:
     }
     semantic_description = bool(
         re.search(r"\bsource[ _-]*(?:id|identifier)\b", text)
+        or re.search(r"\bgaia\s+(?:e?dr[23])\s+source\s+(?:name|designation)\b", text)
         or re.search(
             r"\bgaia\s*(?:e?dr[23]\s*)?(?:id|identifier)\b",
             text,

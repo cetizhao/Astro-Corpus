@@ -184,6 +184,19 @@ def test_detects_explicit_gaia_dr3_identifier():
     assert detected["match_strategy"] == "gaia_dr3_source_id"
 
 
+@pytest.mark.parametrize("description,expected", [
+    ("Gaia DR3 source name", ["Gaia"]),
+    ("Gaia DR3 source designation", ["Gaia"]),
+    ("Gaia DR2 source name", []),
+    ("Gaia source name", []),
+])
+def test_published_gaia_source_name_requires_explicit_dr3(description, expected):
+    table = _member_table()
+    source = Column([123, 456], name="Gaia", description=description)
+    table.add_column(source)
+    assert membership._detect_columns(table)["gaia_dr3_id_columns"] == expected
+
+
 def test_search_skips_invalid_keys_and_uses_valid_resource_metadata(monkeypatch):
     calls: list[str] = []
 

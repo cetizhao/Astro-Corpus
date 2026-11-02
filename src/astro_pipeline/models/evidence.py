@@ -14,6 +14,7 @@ Role = Literal[
     "cites_prior_result", "comparison", "calibrator",
 ]
 Assessment = Literal["evidence_found", "uncertain", "not_found_in_inspected_blocks"]
+MembershipStatus = Literal["member", "candidate", "non_member", "uncertain"]
 
 ROLE_DEFINITIONS = {
     "mentioned": "Explicitly names the object in text, a table or a caption.",
@@ -79,6 +80,21 @@ class RelationAnnotation(Contract):
     evidence: list[EvidenceSpan] = Field(min_length=1, max_length=12)
 
 
+class MembershipResult(Contract):
+    """An attributed membership judgement; it never edits a membership catalogue."""
+
+    kind: Literal["membership"] = "membership"
+    association: Name = Field(description="Association identifier, e.g. TWA; not a geometric search region.")
+    population: Name | None = None
+    status: MembershipStatus
+    reported_label: Name = Field(description="Literal label or phrase present in the cited evidence, including candidate markers.")
+    origin: Literal["current_analysis", "prior_work"]
+    attribution: Text = Field(description="Who makes the claim; identify the earlier work when origin=prior_work.")
+    method: Text
+    qualification: Text = Field(description="Retain the paper's limits, assumptions or uncertainty; explicitly state if none are specified.")
+    evidence: list[EvidenceSpan] = Field(min_length=1, max_length=12)
+
+
 class ObjectPaperAnnotation(Contract):
     target: EvidenceTarget
     paper_name: Name
@@ -89,6 +105,7 @@ class ObjectPaperAnnotation(Contract):
     assessment: Assessment
     inspected_block_ids: list[Name] = Field(min_length=1, max_length=2000)
     relations: list[RelationAnnotation] = Field(default_factory=list, max_length=7)
+    results: list[MembershipResult] = Field(default_factory=list, max_length=12)
     note: str = Field(default="", max_length=2000)
 
     @model_validator(mode="after")
@@ -107,6 +124,14 @@ class ObjectPaperAnnotation(Contract):
             raise ValueError("ambiguous identities must remain uncertain")
         if self.assessment != "evidence_found" and not self.note.strip():
             raise ValueError("uncertain/not-found assessments need an explanatory note")
+        if self.results and self.assessment != "evidence_found":
+            raise ValueError("structured results require evidence_found and a resolved identity")
+        for result in self.results:
+            required_role = "reports_result" if result.origin == "current_analysis" else "cites_prior_result"
+            if required_role not in roles:
+                raise ValueError(f"{result.origin} results require the {required_role} role")
+            if not any(result.reported_label in span.quote for span in result.evidence):
+                raise ValueError("reported_label must occur literally in result evidence")
         return self
 
 
@@ -117,8 +142,14 @@ class ExtractorProvenance(Contract):
 
 
 class PaperAnnotationBatch(Contract):
-    ontology_version: Literal["object-paper-1"] = "object-paper-1"
+    ontology_version: Literal["object-paper-1", "object-paper-2"] = "object-paper-1"
     batch_id: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=128)]
     paper_version_id: Name
     extractor: ExtractorProvenance
     annotations: list[ObjectPaperAnnotation] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def validate_result_version(self):
+        if self.ontology_version == "object-paper-1" and any(a.results for a in self.annotations):
+            raise ValueError("structured results require ontology_version=object-paper-2")
+        return self

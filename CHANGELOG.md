@@ -7,6 +7,26 @@ All notable changes to this project are documented here. Versions follow
 
 ### Added
 
+- Live HTML evidence cards, annotated-source and relation filters, independent
+  bibliography/annotation union, batch history and exact paragraph/table-cell
+  highlighting. Read-only context routes share the MCP evidence service.
+- Immutable standalone evidence HTML exports, also embedded in regenerated
+  source-paper overview pages. Exports include timestamps, batch IDs, paper
+  versions, checksums and the cited parsed blocks; opening them needs no server.
+- `object-paper-2` membership judgements with current/prior attribution,
+  literal labels, methods, qualifications and evidence. Existing three MCP
+  tools support the new contract; v1 batch hashes and retries stay compatible.
+  The local TWA pilot covers 10 papers, 59 object-paper pairs and 15 structured
+  membership claims, all pending review.
+
+### Fixed
+
+- Recognize explicitly release-labelled VizieR descriptions such as "Gaia DR3
+  source name" as identifiers, avoiding unnecessary coordinate matching.
+  EDR3/DR2 identities remain independent and unqualified names remain unknown.
+
+### Earlier additions in this release
+
 - Object–paper evidence with seven independent roles, exact passage/table/note
   slices, original locators and source/component/system scope. Three MCP tools
   read context, atomically record pending-review annotations and query history;

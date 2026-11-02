@@ -16,10 +16,11 @@ from astro_pipeline.library.identity import canonical_json, identity_hash, sourc
 from astro_pipeline.library.paper_corpus import _version
 from astro_pipeline.library.store import LibraryStore
 from astro_pipeline.models.evidence import (
-    Assessment, EvidenceSpan, EvidenceTarget, PaperAnnotationBatch, ROLE_DEFINITIONS, Role,
+    Assessment, EvidenceSpan, EvidenceTarget, MembershipStatus, PaperAnnotationBatch, ROLE_DEFINITIONS, Role,
 )
 
 ONTOLOGY_VERSION = "object-paper-1"
+SUPPORTED_ONTOLOGIES = ("object-paper-1", "object-paper-2")
 _UNIT_CHARS = 4000
 _MAX_BATCH_BYTES = 2 * 1024 * 1024
 
@@ -187,7 +188,10 @@ def get_paper_evidence_context(
         if block["id"] not in selected:
             continue
         for address, value in _fields(block):
-            for start in range(0, len(value), _UNIT_CHARS):
+            # Empty native cells still carry layout (including row/col spans).
+            # Omitting them shifts later values under the wrong table header.
+            extent = max(1, len(value)) if address["field"] == "table_cell" else len(value)
+            for start in range(0, extent, _UNIT_CHARS):
                 if offset <= total < offset + limit:
                     structure = {}
                     if address["field"] == "table_cell":
@@ -204,6 +208,7 @@ def get_paper_evidence_context(
     return {
         "available": True, "read_only": True, "paper": _paper_pin(version, document),
         "ontology_version": ONTOLOGY_VERSION, "roles": ROLE_DEFINITIONS,
+        "supported_ontology_versions": list(SUPPORTED_ONTOLOGIES),
         "targets": candidates, "candidate_matches": hits[:200],
         "candidate_match_count": len(hits), "candidate_matches_truncated": len(hits) > 200,
         "units": units,
@@ -235,10 +240,14 @@ def record_paper_annotations(store: LibraryStore | None, batch: PaperAnnotationB
     """
     batch = PaperAnnotationBatch.model_validate(batch)
     request = batch.model_dump(mode="json")
+    if batch.ontology_version == "object-paper-1":
+        # Preserve the canonical v1 payload byte-for-byte for historical retries.
+        for annotation in request["annotations"]:
+            annotation.pop("results")
     request_json = canonical_json(request)
     if len(request_json.encode("utf-8")) > _MAX_BATCH_BYTES:
         raise ValueError("annotation batch exceeds 2 MiB")
-    payload_hash = identity_hash(request, namespace=ONTOLOGY_VERSION)
+    payload_hash = identity_hash(request, namespace=batch.ontology_version)
     if store is None:
         raise ValueError("shared library is disabled")
     # A retry returns the historical result even if a cached alias later changes
@@ -267,6 +276,8 @@ def record_paper_annotations(store: LibraryStore | None, batch: PaperAnnotationB
         if inspected - blocks.keys():
             raise ValueError("inspected_block_ids include blocks absent from the pinned paper version")
         record = annotation.model_dump(mode="json")
+        if batch.ontology_version == "object-paper-1":
+            record.pop("results")
         record["ontology_version"] = batch.ontology_version
         record["identity_evidence"] = [
             _validate_span(span, blocks, inspected, version, document) for span in annotation.identity_evidence
@@ -294,6 +305,12 @@ def record_paper_annotations(store: LibraryStore | None, batch: PaperAnnotationB
              "evidence": [_validate_span(span, blocks, inspected, version, document) for span in relation.evidence]}
             for relation in annotation.relations
         ]
+        if batch.ontology_version == "object-paper-2":
+            record["results"] = [
+                {**result.model_dump(mode="json"),
+                 "evidence": [_validate_span(span, blocks, inspected, version, document) for span in result.evidence]}
+                for result in annotation.results
+            ]
         prepared.append({"annotation_id": str(uuid.uuid4()), "ordinal": ordinal,
                          "annotation": record})
     # All blob reads, checksum verification and field validation happen above.
@@ -338,6 +355,7 @@ def query_source_evidence(
     store: LibraryStore | None, source_id: str, *, release: str = "dr3",
     paper_version_id: str | None = None, role: Role | None = None,
     assessment: Assessment | None = None, limit: int = 20, offset: int = 0,
+    membership_status: MembershipStatus | None = None,
 ) -> dict:
     """Read assessment history, preserving version, scope and unresolved outcomes."""
     _page(limit, offset)
@@ -346,9 +364,14 @@ def query_source_evidence(
         raise ValueError("unknown relation role")
     if assessment is not None and assessment not in {"evidence_found", "uncertain", "not_found_in_inspected_blocks"}:
         raise ValueError("unknown assessment")
+    if membership_status is not None and membership_status not in {"member", "candidate", "non_member", "uncertain"}:
+        raise ValueError("unknown membership_status")
     result = {
         "source": {"release": release, "source_id": source_id}, "read_only": True,
-        "ontology_version": ONTOLOGY_VERSION, "assessments": [], "assessment_status": "not_assessed",
+        # Compatibility: the envelope names the unchanged seven-role ontology;
+        # each annotation carries its own v1/v2 contract version.
+        "ontology_version": ONTOLOGY_VERSION,
+        "supported_ontology_versions": list(SUPPORTED_ONTOLOGIES), "assessments": [], "assessment_status": "not_assessed",
         "schema_ready": _has_table(store, "paper_annotations"),
         "page": {"limit": limit, "offset": offset, "total": 0, "returned": 0, "has_more": False},
         "scientifically_verified": False,
@@ -376,10 +399,13 @@ def query_source_evidence(
     if assessment is not None:
         where += " AND a.assessment = ?"
         params.append(assessment)
+    if membership_status is not None:
+        where += " AND EXISTS (SELECT 1 FROM json_each(a.annotation_json, '$.results') r WHERE json_extract(r.value, '$.kind') = 'membership' AND json_extract(r.value, '$.status') = ?)"
+        params.append(membership_status)
     total = store.read("SELECT COUNT(*) AS n " + join + where, params)[0]["n"]
     rows = store.read(
         "SELECT a.*, b.paper_version_id, b.document_sha256, b.extractor_json, b.created_at, "
-        "v.work_id, v.arxiv_version, v.parser_version, v.quality_json "
+        "v.work_id, v.arxiv_version, v.parser_version, v.quality_json, v.metadata_json "
         + join + "JOIN paper_text_versions v ON v.version_id = b.paper_version_id " + where
         + " ORDER BY b.created_at DESC, b.batch_id, a.ordinal LIMIT ? OFFSET ?", [*params, limit, offset],
     )
@@ -387,6 +413,11 @@ def query_source_evidence(
         {"annotation_id": row["annotation_id"], "batch_id": row["batch_id"], "ordinal": row["ordinal"],
          "annotation": json.loads(row["annotation_json"]),
          "paper": {"paper_version_id": row["paper_version_id"], "document_sha256": row["document_sha256"],
+                   "title": json.loads(row["metadata_json"]).get("title"),
+                   "doi": json.loads(row["metadata_json"]).get("doi"),
+                   "year": json.loads(row["metadata_json"]).get("year"),
+                   "arxiv_year": (1900 if int(row["work_id"].split("/")[-1][:2]) >= 91 else 2000) + int(row["work_id"].split("/")[-1][:2]),
+                   "arxiv_id": row["work_id"],
                    "versioned_id": f"{row['work_id']}v{row['arxiv_version']}", "parser_version": row["parser_version"],
                    "quality": json.loads(row["quality_json"])},
          "extractor": json.loads(row["extractor_json"]), "created_at": row["created_at"],

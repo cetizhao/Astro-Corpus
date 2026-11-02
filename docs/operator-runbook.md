@@ -195,6 +195,47 @@ the workflow with a fresh library, follow [paper-evidence.md](paper-evidence.md)
 keep Gaia IDs as strings, and select current immutable text-version IDs from
 your own build. Offline TWA-shaped fixtures contain synthetic text only.
 
+### Expanded viewer and membership smoke (2026-11-02)
+
+The follow-up pilot acquired ten explicitly versioned arXiv papers, with all ten
+yielding usable structured full text (conservative quality remains `partial`).
+VizieR's Harvard mirror provided `J/AJ/165/269/table2`; search and preview receipts
+preceded the complete, unfiltered 67-row member build. The selected member run
+is `8224f3ee-050b-4654-b8bc-6fab97728948` under `data/twa_luhman2023/`.
+All 67 matches agree with the published DR3 IDs. The run used coordinate
+matching and retained 12 multiple-candidate outcomes. A description-recognition
+fix now recognizes the table's explicit "Gaia DR3 source name" ID semantics;
+the historical run's method has not been rewritten.
+
+The evidence collection has 32 objects, 59 distinct object-paper pairs and 71
+append-only assessment records. Four v2 batches add 15 attributed membership
+claims across 14 records. TWA 31 exercises disagreements across papers and the
+distinction between an adopted prior classification and a paper's own analysis.
+Every assessment is pending; no human review or accuracy benchmark was run.
+
+The installed user-level stdio MCP server exposed all 30 tools and passed v1
+retry, v2 write/retry, filtered history and original-context checks. Browser
+verification passed for live filtering and all 15 structured-result evidence
+links in the offline export. The complete offline suite passed: **562 passed,
+7 skipped, 6 deselected**; skips are two Windows symlink cases and five absent
+legacy fixture cases, and deselections are opt-in network tests.
+
+Local, gitignored receipts under `data/verification/`:
+
+- `twa_expanded_papers.json`, `twa_expanded_catalog_search.json`,
+  `twa_expanded_catalog_preview.json`, `twa_expanded_members_build.json`;
+- `twa_expanded_annotations.json`, `twa_membership_annotations.json`;
+- `twa_membership_mcp_report.json`, `twa_membership_query_results.json`;
+- `twa_viewer_final_report.json`, `twa_library_live.png`,
+  `twa_membership_context.png`, `pytest-viewer-membership-final.xml`;
+- `twa_evidence_expanded.html`, a self-contained evidence snapshot.
+
+Rebuild the offline page from the existing local library:
+
+```bash
+uv run python scripts/export_paper_evidence.py --all-annotated --output data/verification/twa_evidence_expanded.html
+```
+
 ## TWA demo bootstrap
 
 This is the legacy single-corpus workflow, not an alias for the shared-library
