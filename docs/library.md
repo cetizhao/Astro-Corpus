@@ -272,8 +272,21 @@ Sampled unless a product type is chosen explicitly. Current executable parsers
 are registered only for the exact DR3 product contracts; similarly named DR4
 products remain `unsupported` until validated against live Archive products.
 
-The viewer's **文献与证据** section combines bibliographic entries and annotated
-papers, including papers absent from SIMBAD. Counts distinguish independent
+Search accepts Gaia IDs, source names, names recorded in current published
+catalogue rows, and current sample labels. Case and whitespace are ignored, so
+`TWA31`, `TWA 31` and `twa 31` find the same recorded name. Catalogue names are
+displayed with their input field, row and run provenance; search neither rewrites
+source identities nor treats a name/sample-label match as membership evidence.
+Unmatched input rows and superseded or unpublished runs do not supply catalogue
+aliases for this search. Table and sky views use the same filters.
+
+The whole-library viewer is the primary entry point for **文献与证据**. Its
+top navigation and the selected source's **查看文献与证据** button lead to a
+full-width section below the observation and spectrum panels. Selecting another
+source updates all three views together. Evidence cards use two columns on
+wide screens and one on mobile; original passages open within the same page.
+This section combines bibliographic entries and annotated papers, including
+papers absent from SIMBAD. Counts distinguish independent
 papers from role labels and history records. Each batch retains its own scope,
 version and pending status. Relation buttons open a verified local paragraph
 or table, with exact evidence highlighting, table headers and notes. Membership
@@ -286,7 +299,8 @@ pages. Source/sky filtering accepts `evidence_state=recorded|not_assessed|all`.
 The context route accepts `block_id`, `limit` and `offset`; the evidence route
 also accepts `role`, `assessment` and `membership_status`.
 
-For an immutable, standalone page of the existing annotations:
+For an immutable, standalone copy for offline sharing or presentation backup
+(the live viewer reads the library directly and does not import this HTML):
 
 ```bash
 uv run python scripts/export_paper_evidence.py --all-annotated --output data/evidence.html

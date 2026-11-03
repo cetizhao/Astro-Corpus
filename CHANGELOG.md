@@ -7,6 +7,9 @@ All notable changes to this project are documented here. Versions follow
 
 ### Added
 
+- Whole-library navigation and a full-width literature/evidence section linked
+  to the selected source, alongside its observations and spectra. Standalone
+  evidence exports remain optional fixed snapshots for sharing.
 - Live HTML evidence cards, annotated-source and relation filters, independent
   bibliography/annotation union, batch history and exact paragraph/table-cell
   highlighting. Read-only context routes share the MCP evidence service.
@@ -21,6 +24,10 @@ All notable changes to this project are documented here. Versions follow
 
 ### Fixed
 
+- Whole-library search now includes names from published catalogue inputs and
+  current sample labels, with case/whitespace normalization and visible name
+  provenance. Historical/unpublished aliases and different Gaia releases remain
+  separate; original snapshots are read without modification.
 - Recognize explicitly release-labelled VizieR descriptions such as "Gaia DR3
   source name" as identifiers, avoiding unnecessary coordinate matching.
   EDR3/DR2 identities remain independent and unqualified names remain unknown.

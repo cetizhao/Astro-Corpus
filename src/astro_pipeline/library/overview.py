@@ -19,6 +19,7 @@ import re
 import secrets
 import sqlite3
 import threading
+import unicodedata
 from typing import Any, Iterator, Mapping, Sequence
 
 from astro_pipeline.gaia_releases import get_gaia_release_profile, normalize_gaia_release
@@ -309,6 +310,64 @@ current_runs AS (
 )
 """
 
+_NAME_FIELDS = ("main_id", "simbad_main_id", "name", "Name", "source_name", "object_name")
+_CATALOG_NAME_FIELDS = frozenset(
+    field.lower() for field in (*_NAME_FIELDS, *(f"member_{field}" for field in _NAME_FIELDS))
+)
+
+
+def _search_key(value: Any) -> str:
+    """Normalize spelling for lookup only; never merge source identities."""
+    return "".join(unicodedata.normalize("NFKC", str(value or "")).casefold().split())
+
+
+def _catalog_names_json(document: str | None) -> str:
+    # Some immutable input snapshots store the original row as a JSON string.
+    # Read both representations without rewriting the snapshot or its checksum.
+    parsed = _loads(document, {})
+    if isinstance(parsed, str):
+        parsed = _loads(parsed, {})
+    if not isinstance(parsed, dict):
+        return "[]"
+    return json.dumps([
+        {"field": field, "name": value.strip()}
+        for field, value in parsed.items()
+        if field.lower() in _CATALOG_NAME_FIELDS and isinstance(value, str) and value.strip()
+    ], ensure_ascii=False)
+
+
+_CURRENT_NAMES_CTE = """
+current_name_documents AS (
+    SELECT sm.release, sm.source_id, sm.input_row_id,
+           cr.run_id, cr.corpus_id, cr.label,
+           ir.raw_json AS document, 'input_row' AS origin
+    FROM sample_members sm JOIN current_runs cr ON cr.run_id = sm.run_id
+    JOIN input_rows ir ON ir.run_id = sm.run_id AND ir.input_row_id = sm.input_row_id
+    UNION ALL
+    SELECT sm.release, sm.source_id, sm.input_row_id,
+           cr.run_id, cr.corpus_id, cr.label,
+           sm.attributes_json AS document, 'sample_member' AS origin
+    FROM sample_members sm JOIN current_runs cr ON cr.run_id = sm.run_id
+),
+catalog_names AS (
+    SELECT d.release, d.source_id, d.input_row_id,
+           d.run_id, d.corpus_id, d.label, d.origin,
+           json_extract(n.value, '$.field') AS field,
+           json_extract(n.value, '$.name') AS name
+    FROM current_name_documents d, json_each(catalog_names_json(d.document)) n
+),
+catalog_name_groups AS (
+    SELECT release, source_id, json_group_array(json_object(
+        'name', name, 'field', field, 'origin', origin,
+        'run_id', run_id, 'corpus_id', corpus_id, 'label', label,
+        'input_row_id', input_row_id
+    )) AS catalog_names_json
+    FROM (SELECT DISTINCT * FROM catalog_names
+          ORDER BY name, label, run_id, input_row_id, origin, field)
+    GROUP BY release, source_id
+)
+"""
+
 _PRODUCT_RELEASE_SQL = """
 CASE lower(replace(trim(json_extract(pc.contract_json, '$.release')), '-', ' '))
     WHEN '3' THEN 'dr3'
@@ -327,6 +386,7 @@ END
 
 _SOURCE_VIEW_CTE = f"""
 {_CURRENT_RUNS_CTE},
+{_CURRENT_NAMES_CTE},
 xp_product_states AS (
     SELECT
         {_PRODUCT_RELEASE_SQL} AS release,
@@ -351,6 +411,7 @@ source_view AS (
         s.covered_fields_json,
         s.field_provenance_json,
         s.updated_at,
+        COALESCE(names.catalog_names_json, '[]') AS catalog_names_json,
         ref.snapshot_id AS ref_snapshot_id,
         ref.outcome AS ref_outcome,
         ref.main_id AS ref_main_id,
@@ -385,6 +446,8 @@ source_view AS (
             ELSE 'unknown'
         END AS spectrum_status
     FROM sources AS s
+    LEFT JOIN catalog_name_groups names
+      ON names.release = s.gaia_release AND names.source_id = s.source_id
     LEFT JOIN source_ref_current AS ref_current
       ON ref_current.release = s.gaia_release
      AND ref_current.source_id = s.source_id
@@ -530,14 +593,14 @@ def _finite_number(value: Any) -> float | None:
     return result if math.isfinite(result) else None
 
 
-def _display_name(release: str, source_id: str, attributes: Mapping[str, Any], main_id: Any) -> str:
+def _display_name(
+    release: str, source_id: str, attributes: Mapping[str, Any], main_id: Any,
+    catalog_names: Sequence[Mapping[str, Any]] = (),
+) -> str:
     candidates = (
         main_id,
-        attributes.get("main_id"),
-        attributes.get("simbad_main_id"),
-        attributes.get("name"),
-        attributes.get("Name"),
-        attributes.get("source_name"),
+        *(attributes.get(field) for field in _NAME_FIELDS),
+        *(item["name"] for item in catalog_names),
     )
     for candidate in candidates:
         if candidate is not None and str(candidate).strip():
@@ -654,6 +717,7 @@ def _source_dto(
     release = str(row["gaia_release"])
     source_id = str(row["source_id"])
     attributes = _object(row.get("attributes_json"))
+    catalog_names = _list(row.get("catalog_names_json"))
     position, astrometry = _position_and_astrometry(
         release,
         attributes,
@@ -664,7 +728,8 @@ def _source_dto(
         "key": f"{release}:{source_id}",
         "release": release,
         "source_id": source_id,
-        "name": _display_name(release, source_id, attributes, row.get("ref_main_id")),
+        "name": _display_name(release, source_id, attributes, row.get("ref_main_id"), catalog_names),
+        "catalog_names": catalog_names,
         "annotation_count": row.get("annotation_count", 0),
         "annotation_paper_count": row.get("annotation_paper_count", 0),
         "position": position,
@@ -760,6 +825,8 @@ class LibraryOverview:
                 return pins[path]
 
             connection.create_function("current_run_pin", 1, current_run_pin, deterministic=True)
+            connection.create_function("search_key", 1, _search_key, deterministic=True)
+            connection.create_function("catalog_names_json", 1, _catalog_names_json, deterministic=True)
             connection.execute("BEGIN")
             try:
                 yield revision, connection
@@ -781,16 +848,20 @@ class LibraryOverview:
             clauses.append("sv.gaia_release = ?")
             params.append(filters.release)
         if filters.q is not None:
-            pattern = f"%{_escape_like(filters.q)}%"
-            clauses.append(
-                "(sv.source_id LIKE ? ESCAPE '\\' COLLATE NOCASE "
-                "OR COALESCE(sv.ref_main_id, '') LIKE ? ESCAPE '\\' COLLATE NOCASE "
-                "OR COALESCE(json_extract(sv.attributes_json, '$.name'), '') "
-                "LIKE ? ESCAPE '\\' COLLATE NOCASE "
-                "OR COALESCE(json_extract(sv.attributes_json, '$.Name'), '') "
-                "LIKE ? ESCAPE '\\' COLLATE NOCASE)"
-            )
-            params.extend([pattern] * 4)
+            pattern = f"%{_escape_like(_search_key(filters.q))}%"
+            searchable = [
+                "search_key('Gaia ' || sv.gaia_release || ' ' || sv.source_id) LIKE ? ESCAPE '\\'",
+                "search_key(sv.ref_main_id) LIKE ? ESCAPE '\\'",
+                *(f"search_key(json_extract(sv.attributes_json, '$.{field}')) LIKE ? ESCAPE '\\'"
+                  for field in _NAME_FIELDS),
+                "EXISTS (SELECT 1 FROM catalog_names cn WHERE cn.release = sv.gaia_release "
+                "AND cn.source_id = sv.source_id AND search_key(cn.name) LIKE ? ESCAPE '\\')",
+                "EXISTS (SELECT 1 FROM sample_members sm JOIN current_runs cr ON cr.run_id = sm.run_id "
+                "WHERE sm.release = sv.gaia_release AND sm.source_id = sv.source_id "
+                "AND search_key(cr.label) LIKE ? ESCAPE '\\')",
+            ]
+            clauses.append("(" + " OR ".join(searchable) + ")")
+            params.extend([pattern] * len(searchable))
         if filters.scope == "current_datasets" or filters.corpus_id is not None:
             corpus_clause = ""
             if filters.corpus_id is not None:
@@ -1345,7 +1416,8 @@ class LibraryOverview:
                         "release": release,
                         "source_id": source_id,
                         "name": _display_name(
-                            release, source_id, attributes, row.get("ref_main_id")
+                            release, source_id, attributes, row.get("ref_main_id"),
+                            _list(row.get("catalog_names_json")),
                         ),
                         "ra_deg": position["ra_deg"],
                         "dec_deg": position["dec_deg"],

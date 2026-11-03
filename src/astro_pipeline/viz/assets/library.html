@@ -16,7 +16,7 @@
       <div>
         <p class="eyebrow">ASTRO-CORPUS / LOCAL LIBRARY</p>
         <h1>全库观测台</h1>
-        <p class="subtitle">同一颗源，一份身份；每次观测与样本来源，分别保留。</p>
+        <p class="subtitle">连接天体观测、论文结果与原文证据，保留每项记录的来源。</p>
       </div>
       <div class="header-actions">
         <span id="connection" class="status" role="status" aria-live="polite">○ 正在连接</span>
@@ -25,8 +25,14 @@
       </div>
     </header>
 
+    <nav class="section-nav" aria-label="观测台内容">
+      <a href="#observations">观测与光谱</a>
+      <a href="#paper-section">文献与证据</a>
+      <a href="#activity">采集与来源</a>
+    </nav>
+
     <form id="filters" class="filters" aria-label="筛选全库源">
-      <label class="search-label">搜索<input id="search" type="search" placeholder="Gaia ID 或源名称" autocomplete="off"></label>
+      <label class="search-label">搜索<input id="search" type="search" placeholder="Gaia ID、天体名称或样本（如 TWA）" autocomplete="off"></label>
       <label>数据版本<select id="release"><option value="">全部版本</option></select></label>
       <label>来源样本<select id="dataset"><option value="">全部样本</option></select></label>
       <label>样本范围<select id="scope"><option value="all_indexed">全部已登记源</option><option value="current_datasets">当前已发布样本</option></select></label>
@@ -42,7 +48,7 @@
       <article><span>已登记 ready 光谱源</span><strong id="count-spectra">—</strong><small>点开前校验文件；不等于 availability</small></article>
     </section>
 
-    <section class="workspace">
+    <section id="observations" class="workspace">
       <div class="overview-column">
         <article class="card sky-card">
           <div class="card-heading"><div><p class="eyebrow">SKY POSITION</p><h2>全天位置</h2></div><button id="fit-sky" type="button" class="quiet">重置视图</button></div>
@@ -65,12 +71,11 @@
 
       <aside class="detail-column" aria-label="选中源详情">
         <article class="card source-card">
-          <div class="card-heading"><div><p class="eyebrow">SOURCE DETAIL</p><h2 id="source-title">选择一颗源</h2></div></div>
+          <div class="card-heading"><div><p class="eyebrow">SOURCE DETAIL</p><h2 id="source-title">选择一颗源</h2></div><button id="show-source-evidence" type="button" class="quiet" disabled>查看文献与证据 ↓</button></div>
           <p id="source-identity" class="source-identity">点击天球上的点，或从目录中选择。</p>
           <div id="source-badges" class="badges"></div>
           <dl id="source-properties" class="properties"></dl>
           <details id="provenance-section" hidden><summary>样本与字段来源</summary><div id="source-provenance" class="provenance"></div></details>
-          <details id="paper-section" open hidden><summary id="paper-heading">文献关联</summary><div id="source-papers" class="paper-list"></div></details>
         </article>
 
         <article class="card spectrum-card">
@@ -85,7 +90,13 @@
       </aside>
     </section>
 
-    <section class="card activity-card">
+    <section id="paper-section" class="card evidence-card" aria-labelledby="paper-heading">
+      <div class="card-heading"><div><p class="eyebrow">PAPERS & EVIDENCE</p><h2 id="paper-heading" tabindex="-1">文献与证据</h2></div><a href="#observations" class="section-return">返回观测与光谱 ↑</a></div>
+      <p id="evidence-source" class="source-identity">从天球图或源目录选择天体，在这里查看它的论文与研究结果。</p>
+      <div id="source-papers" class="paper-list"><p class="empty">选择天体后显示论文关系、成员判断和原文证据。</p></div>
+    </section>
+
+    <section id="activity" class="card activity-card">
       <div class="card-heading"><div><p class="eyebrow">ACQUISITION & PROVENANCE</p><h2>采集与样本状态</h2></div><span id="library-summary" class="caption">只读 SQLite 视图</span></div>
       <p class="caption">当前发布、进行中和历史记录分别标注；已入库不等于所有阶段完成。Legacy 数据不被自动认证为成员表。</p>
       <div id="runs" class="runs"><p class="empty">等待状态信息。</p></div>

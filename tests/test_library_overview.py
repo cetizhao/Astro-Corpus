@@ -540,3 +540,82 @@ def test_cursor_is_bound_to_filters_and_requires_revision(tmp_path):
             revision=first["revision"],
         )
     overview.close()
+
+
+@pytest.fixture
+def named_catalogue(tmp_path):
+    clock = Clock()
+    store = LibraryStore(tmp_path / "library", clock=clock)
+    corpus_path = tmp_path / "twa"
+    corpus = store.register_corpus(corpus_path, "twa_pilot")
+
+    def publish(name, *, published=True):
+        run = store.start_run(corpus)
+        store.index_members(run, [{**_source("1", ra=10), "input_row_id": "42"}],
+                            input_rows=[{"input_row_id": "42", "raw": {"Name": name}}])
+        store.finish_run(run, "completed", metadata={"members_indexed": True, "published": published})
+        clock.advance()
+        return run
+
+    previous = publish("Retired Name")
+    current = store.start_run(corpus)
+    store.index_members(current, [
+        {**_source("1", ra=10), "input_row_id": "42"},
+        {**_source("1", ra=10), "input_row_id": "43"},
+        {**_source("2", ra=20), "input_row_id": "46"},
+        {**_source("3", ra=30), "input_row_id": "44"},
+    ], input_rows=[
+        # Exercise the JSON-string representation used by real membership runs.
+        {"input_row_id": "42", "raw_json": json.dumps({"Name": "TWA 31"})},
+        {"input_row_id": "43", "raw": {"Name": "TYC 123"}},
+        {"input_row_id": "44", "raw": {"Name": "Odd_% Name"}},
+        {"input_row_id": "45", "status": "unmatched", "raw": {"Name": "TWA 999"}},
+        {"input_row_id": "46", "raw": {"member_Name": "TWA 7"}},
+    ])
+    store.finish_run(current, "completed", metadata={"members_indexed": True, "published": True})
+    clock.advance()
+    publish("Draft Name", published=False)
+    other = store.register_corpus(tmp_path / "other", "control")
+    _finish_published(store, clock, other, [{"gaia_release": "dr4", "source_id": "1", "ra": 20, "dec": 30}])
+    return store, corpus_path, previous, current
+
+
+@pytest.mark.parametrize(("query", "expected"), [
+    ("TWA", {"1", "2", "3"}),  # Also matches the current sample label.
+    ("TWA31", {"1"}), ("tWa  31", {"1"}), ("TWA\u00a031", {"1"}),
+    ("TYC123", {"1"}), ("TWA7", {"2"}), ("Odd_%", {"3"}),
+    ("Gaia DR3 1", {"1"}), ("Retired Name", set()),
+    ("Draft Name", set()), ("TWA999", set()),
+])
+def test_searches_current_catalogue_names_and_labels_consistently(named_catalogue, query, expected):
+    store, _, _, _ = named_catalogue
+    overview = LibraryOverview(store)
+    try:
+        filters = SourceFilters.create(q=query)
+        rows = overview.sources(filters=filters)
+        sky = overview.sky(filters=filters)
+        assert {(s["release"], s["source_id"]) for s in rows["sources"]} == {("dr3", key) for key in expected}
+        assert {(s["release"], s["source_id"]) for s in sky["points"]} == {("dr3", key) for key in expected}
+        assert rows["total"] == sky["total_sources"] == len(expected)
+    finally:
+        overview.close()
+
+
+def test_catalogue_name_provenance_and_manifest_pin(named_catalogue):
+    store, path, previous, current = named_catalogue
+    original = store.read("SELECT raw_json FROM input_rows WHERE run_id = ? AND input_row_id = '42'", (current,))[0]["raw_json"]
+    overview = LibraryOverview(store)
+    try:
+        source = overview.source("dr3", "1")["dto"]
+        assert source["name"] == "TWA 31"
+        assert {n["name"] for n in source["catalog_names"]} == {"TWA 31", "TYC 123"}
+        name = next(n for n in source["catalog_names"] if n["name"] == "TWA 31")
+        assert (name["field"], name["input_row_id"], name["run_id"]) == ("Name", "42", current)
+        assert overview.source("dr4", "1")["dto"]["catalog_names"] == []
+        path.mkdir(exist_ok=True)
+        (path / "manifest.json").write_text(json.dumps({"snapshot_run_id": previous}), encoding="utf-8")
+        assert overview.sources(filters=SourceFilters.create(q="TWA31"))["total"] == 0
+        assert overview.source("dr3", "1")["dto"]["name"] == "Retired Name"
+        assert store.read("SELECT raw_json FROM input_rows WHERE run_id = ? AND input_row_id = '42'", (current,))[0]["raw_json"] == original
+    finally:
+        overview.close()

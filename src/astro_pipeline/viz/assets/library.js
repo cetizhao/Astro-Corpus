@@ -341,6 +341,14 @@
       property("身份", "Gaia release + source_id"),
     );
     const provenance = $("source-provenance"); provenance.replaceChildren();
+    if (source.catalog_names?.length) {
+      const names = text("div", "", "provenance-item");
+      names.append(text("strong", "当前样本中的名称"));
+      for (const item of source.catalog_names) {
+        names.append(text("div", `${item.name} · ${item.label} · 字段 ${item.field}${item.input_row_id != null ? ` · 输入行 ${item.input_row_id}` : ""}`, "caption"));
+      }
+      provenance.append(names);
+    }
     const datasets = data.datasets || source.datasets || [];
     const working = data.working_datasets || source.working_datasets || [];
     const scopes = [{ value: "global", label: "全库当前缓存" }];
@@ -363,9 +371,9 @@
     const chosen = $("spectrum-scope").value;
     $("spectrum-scope").replaceChildren(...scopes.map((item) => new Option(item.label, item.value)));
     if (scopes.some((item) => item.value === chosen)) $("spectrum-scope").value = chosen;
-    $("paper-heading").textContent = "文献与证据";
+    $("evidence-source").textContent = `${$("source-title").textContent} · ${$("source-identity").textContent}`;
+    $("show-source-evidence").disabled = false;
     $("source-papers").replaceChildren(text("p", "正在读取关系与证据…"));
-    $("paper-section").hidden = false;
   }
   async function loadEvidence(data, token) {
     const selected = state.selected;
@@ -401,7 +409,10 @@
     state.detail = null;
     state.spectrum = null;
     for (const id of ["source-title", "source-identity", "source-badges", "source-properties", "source-provenance", "source-papers", "spectrum-provenance", "spectrum-note", "spectrum-table-head", "spectrum-table-body"]) $(id).replaceChildren();
-    for (const id of ["provenance-section", "paper-section", "spectrum-chart", "spectrum-table-section"]) $(id).hidden = true;
+    for (const id of ["provenance-section", "spectrum-chart", "spectrum-table-section"]) $(id).hidden = true;
+    $("show-source-evidence").disabled = true;
+    $("evidence-source").textContent = message;
+    $("source-papers").replaceChildren(text("p", "选择天体后显示论文关系、成员判断和原文证据。", "empty"));
     charts.spectrum?.clear();
     $("spectrum-empty").hidden = false;
     $("spectrum-empty").textContent = message;
@@ -549,6 +560,10 @@
     $("refresh").addEventListener("click", () => refreshView(true));
     $("theme").addEventListener("click", () => applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
     $("fit-sky").addEventListener("click", () => renderSky(true));
+    $("show-source-evidence").addEventListener("click", () => {
+      $("paper-section").scrollIntoView({ block: "start" });
+      $("paper-heading").focus({ preventScroll: true });
+    });
     $("previous").addEventListener("click", () => { if (state.history.length) { state.cursor = state.history.pop(); refreshView(true); } });
     $("next").addEventListener("click", () => { if (state.page?.has_more) { state.history.push(state.cursor); state.cursor = state.page.next_cursor; refreshView(true); } });
     $("spectrum-product").addEventListener("change", loadSpectrum);
