@@ -13,7 +13,7 @@ from astro_pipeline.research_tasks import read_json, verify_bundle
 
 def project_bundle(bundle: dict) -> dict:
     verify_bundle(bundle)
-    if bundle["schema_version"] != "research-task-1":
+    if bundle["schema_version"] not in {"research-task-1", "research-task-2"}:
         raise ValueError("Unsupported bundle schema")
     paper_targets = {p["versioned_id"]: p.get("targets", []) for p in bundle["selection"]["papers"]}
     return {
@@ -28,7 +28,7 @@ def project_bundle(bundle: dict) -> dict:
         "materials": bundle["materials"],
         "tasks": [{k: t[k] for k in ("id", "question", "category", "targets", "material_ids",
                                      "reference", "split", "review_status", "leakage_group")}
-                  | ({"choices": t["choices"]} if "choices" in t else {})
+                  | {k: t[k] for k in ("choices", "title", "task_level", "response_fields") if k in t}
                   for t in bundle["tasks"]],
     }
 
@@ -112,3 +112,43 @@ def public_research_snapshot(bundle: dict, source_manifest: Path) -> dict:
     return {"exported_at": datetime.now(timezone.utc).isoformat(), "sources": sources,
             "datasets": [dataset], "contexts": contexts,
             "research_tasks": {"schema_version": "research-view-1", "suites": [suite], "warnings": []}}
+
+
+def merge_public_research(snapshots: list[dict]) -> dict:
+    """Combine suites sharing source pins without duplicating stars or losing excerpts."""
+    if not snapshots:
+        raise ValueError("At least one research snapshot is required")
+    sources, datasets, contexts, suites = {}, {}, {}, {}
+    for snapshot in snapshots:
+        for source in snapshot["sources"]:
+            if source["key"] in sources and sources[source["key"]] != source:
+                raise ValueError("Research suites disagree on a source snapshot")
+            sources[source["key"]] = source
+        for dataset in snapshot["datasets"]:
+            key = dataset["corpus_id"], dataset["run_id"]
+            if key in datasets and datasets[key] != dataset:
+                raise ValueError("Research suites disagree on a dataset")
+            datasets[key] = dataset
+        for key, context in snapshot["contexts"].items():
+            if key in contexts:
+                if contexts[key]["paper"] != context["paper"]:
+                    raise ValueError("Research suites disagree on a paper version")
+                units = contexts[key]["units"]
+                def contains(outer: dict, inner: dict) -> bool:
+                    return (all(outer.get(k) == inner.get(k) for k in ("block_id", "field", "row", "column", "note_index"))
+                            and outer["start"] <= inner["start"] <= inner["end"] <= outer["end"]
+                            and outer["text"][inner["start"] - outer["start"]:inner["end"] - outer["start"]] == inner["text"])
+                for unit in context["units"]:
+                    # Keep the wider exact excerpt once; both tasks' offsets still resolve.
+                    if not any(contains(existing, unit) for existing in units):
+                        units[:] = [existing for existing in units if not contains(unit, existing)]
+                        units.append(unit)
+            else:
+                contexts[key] = {**context, "units": list(context["units"])}
+        for suite in snapshot["research_tasks"]["suites"]:
+            if suite["suite_id"] in suites:
+                raise ValueError("Duplicate research suite")
+            suites[suite["suite_id"]] = suite
+    return {"exported_at": max(s["exported_at"] for s in snapshots),
+            "sources": list(sources.values()), "datasets": list(datasets.values()), "contexts": contexts,
+            "research_tasks": {"schema_version": "research-view-1", "suites": list(suites.values()), "warnings": []}}

@@ -5,6 +5,9 @@
     time_and_sampling: "时间与采样", measurement_extraction: "测量读取",
     result_attribution: "结果归属", scientific_scope: "结论适用范围",
     numerical_reasoning: "数值推理", insufficient_information: "信息不足判断",
+    physical_inference: "物理量推导", cross_paper_comparison: "跨论文比较",
+    uncertainty_analysis: "不确定度分析", catalog_literature_integration: "星表与论文联合分析",
+    observing_strategy: "观测与标定", data_quality: "数据质量", calibration_transfer: "标定适用范围",
   };
   const answers = {
     prior_work: "引用前人结果", not_simultaneous: "并非同期观测",
@@ -35,12 +38,14 @@
     const tools = el("div", "", "r-toolbar");
     const target = el("select"); target.id = "research-target";
     const category = el("select"); category.id = "research-category";
+    const level = el("select"); level.id = "research-level";
+    level.append(new Option("全部任务", ""), new Option("综合案例", "integrated_case"), new Option("基础题", "basic"));
     const count = el("span", "", "caption"); count.id = "research-count"; count.setAttribute("aria-live", "polite");
-    for (const [label, control] of [["任务关联天体", target], ["任务类型", category]]) {
+    for (const [label, control] of [["任务关联天体", target], ["任务层次", level], ["任务类型", category]]) {
       const wrapper = el("label", label); wrapper.append(control); tools.append(wrapper);
     }
     category.append(new Option("全部类型", ""), ...Object.entries(categories).map(([key, name]) => new Option(name, key)));
-    tools.append(count, button("查看全部任务", () => { target.value = ""; category.value = ""; draw(); }, "quiet"));
+    tools.append(count, button("查看全部任务", () => { target.value = ""; category.value = ""; level.value = ""; draw(); }, "quiet"));
     const list = el("div", "", "r-grid"); list.id = "research-list";
     const provenance = details("任务包版本与来源", "r-provenance");
     const dialog = el("dialog", "", "evidence-dialog r-dialog");
@@ -104,6 +109,7 @@
         const address = loc.field === "cell" ? `单元格 · ${loc.row_label} / ${loc.column_label} · 行 ${loc.row} 列 ${loc.column}（从 0 起）`
           : loc.field === "caption" ? "表注" : "正文";
         node.append(el("p", `${address} · ${loc.block_id} · 字符 ${loc.start}–${loc.end}`, "caption"));
+        if (loc.row_context && loc.row_context.length) node.append(el("p", loc.row_context.map(f => `${f.label}: ${f.value}`).join(" · "), "caption"));
         const actions = el("div", "", "r-links");
         actions.append(button("查看原文位置", () => openMaterial(material, suite), "quiet"), external("打开论文 ↗", p.url));
         node.append(actions);
@@ -114,8 +120,20 @@
       const node = el("article", "", "r-task"); node.dataset.taskId = task.id;
       const top = el("div", "", "r-task-top");
       top.append(el("span", task.id, "r-task-id"), el("span", categories[task.category] || task.category, "badge"),
+        el("span", task.task_level === "integrated_case" ? "综合案例" : "基础题", "badge"),
         el("span", task.review_status === "pending" ? "待复核" : task.review_status, "badge warning"));
-      node.append(top, el("h3", task.question, "r-question"));
+      node.append(top, el("h3", task.title || task.question, "r-question"));
+      if (task.title) node.append(el("p", task.question, "r-scenario"));
+      if (task.response_fields) {
+        const fields = details(`需要回答的检查点（${task.response_fields.length}）`, "r-fields");
+        const steps = el("ol");
+        for (const f of task.response_fields) {
+          const row = el("li", `${f.request}${f.unit ? ` 单位：${f.unit}。` : ""}`);
+          row.append(el("p", `${f.id}${f.choices ? ` · 选项：${f.choices.join(" / ")}` : ""}`, "caption"));
+          steps.append(row);
+        }
+        fields.append(steps); node.append(fields);
+      }
       if (task.choices) node.append(el("p", `选项：${task.choices.join(" / ")}`, "caption"));
       const links = el("div", "", "r-targets");
       for (const name of task.targets) {
@@ -133,7 +151,17 @@
       }
       const solution = details("参考解答与推导（待复核）", "r-answer");
       const ref = task.reference;
-      solution.append(el("p", `${answers[ref.answer] || ref.answer}${ref.unit ? ` ${ref.unit}` : ""}`, "r-answer-value"));
+      if (ref.kind === "structured") {
+        const checks = el("ol", "", "r-checkpoints");
+        for (const check of ref.checkpoints) {
+          const field = task.response_fields.find(f => f.id === check.id);
+          const row = el("li", field ? field.request : check.id);
+          row.append(el("p", `${answers[check.answer] || check.answer}${check.unit ? ` ${check.unit}` : ""}`, "r-answer-value"),
+            el("p", `证据：${check.required_evidence_ids.join("、")}`, "caption"));
+          checks.append(row);
+        }
+        solution.append(checks);
+      } else solution.append(el("p", `${answers[ref.answer] || ref.answer}${ref.unit ? ` ${ref.unit}` : ""}`, "r-answer-value"));
       const steps = el("ol"); (ref.worked_solution || []).forEach(step => steps.append(el("li", step))); solution.append(steps);
       solution.append(el("p", `参考证据：${ref.required_evidence_ids.join("、")}`, "caption"));
       node.append(materials, solution); return node;
@@ -146,6 +174,7 @@
         for (const task of suite.tasks) {
           if (target.value && (!wanted || !task.targets.includes(wanted.name))) continue;
           if (category.value && task.category !== category.value) continue;
+          if (level.value && (task.task_level || "basic") !== level.value) continue;
           list.append(card(task, suite)); shown++;
         }
       }
@@ -159,7 +188,9 @@
         const incoming = await load();
         if (token !== request) return;
         data = incoming; updateTargets();
-        summary.textContent = `${targets().size} 颗天体 · ${new Set(data.suites.flatMap(s => s.papers.map(p => p.versioned_id))).size} 篇论文 · ${data.suites.reduce((n, s) => n + s.tasks.length, 0)} 道开发题`;
+        const tasks = data.suites.flatMap(s => s.tasks);
+        const integrated = tasks.filter(t => t.task_level === "integrated_case");
+        summary.textContent = `${targets().size} 颗天体 · ${new Set(data.suites.flatMap(s => s.papers.map(p => p.versioned_id))).size} 篇论文 · ${integrated.length} 个综合案例 / ${tasks.length - integrated.length} 道基础题 · ${integrated.reduce((n, t) => n + t.response_fields.length, 0)} 个综合评分检查点。参考解答待复核；尚未进行模型试答。`;
         warning.textContent = (data.warnings || []).join("\n"); warning.hidden = !warning.textContent;
         provenance.replaceChildren(el("summary", "任务包版本与来源"));
         for (const suite of data.suites) provenance.append(el("p", `${suite.suite_id} · ${suite.created_at}\nSHA-256 ${suite.bundle_sha256}\n开发集 · 参考解答待复核 · 不代表模型评测成绩`, "r-hash"));
@@ -169,15 +200,16 @@
         if (token === request) { warning.hidden = false; warning.textContent = `科研任务读取失败：${error.message}`; summary.textContent = "科研任务暂时不可用"; }
       }
     }
-    target.addEventListener("change", draw); category.addEventListener("change", draw);
+    target.addEventListener("change", draw); category.addEventListener("change", draw); level.addEventListener("change", draw);
     return { reload, setSource(source) { selected = source; updateTargets(source ? keyOf(source) : ""); draw(); },
       bibliographyFor(release, sourceId) {
-        return data.suites.flatMap(suite => {
+        const papers = data.suites.flatMap(suite => {
           const t = suite.targets.find(t => keyOf(t) === `${release}:${sourceId}`);
           return t ? suite.papers.filter(p => p.targets.includes(t.name)).map(p => ({
             title: p.title, arxiv_id: p.versioned_id, versioned_id: p.versioned_id, association_origin: "research_task",
           })) : [];
         });
+        return [...new Map(papers.map(p => [p.versioned_id, p])).values()];
       },
     };
   }

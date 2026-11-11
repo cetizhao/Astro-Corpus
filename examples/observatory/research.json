@@ -1,5 +1,5 @@
 {
-  "exported_at": "2026-11-11T04:57:47.887208+00:00",
+  "exported_at": "2026-11-11T11:20:14.619752+00:00",
   "sources": [
     {
       "key": "dr3:5401795662560500352",
@@ -174,6 +174,838 @@
     }
   ],
   "contexts": {
+    "06966b6f-f59f-41ce-a3bb-cf7375e2755e:b000038": {
+      "available": true,
+      "paper": {
+        "versioned_id": "2308.14590v1",
+        "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+        "paper_version_id": "06966b6f-f59f-41ce-a3bb-cf7375e2755e",
+        "document_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000038",
+          "start": 0,
+          "end": 1018,
+          "section_path": [
+            "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+            "IV Measuring the veiling of TW Hya"
+          ],
+          "field": "text",
+          "text": "The optical spectrum of TW Hya consists of photospheric emission combined with line and continuum emission produced by the accretion flow and shock. Accretion processes produce strong H and He emission lines, H recombination emission, and an H^{-} continuum, as described and modeled by Calvet & Gullbring [27]. The accretion continuum is blue while the photosphere of a young low-mass star is red, so the ratio of accretion to photospheric flux decreases to longer wavelengths [11, 89, 45, e.g.]. This ratio of accretion flux $F_{\\rm acc,\\lambda}$ to photospheric flux $F_{\\rm phot,\\lambda}$ at a wavelength $\\lambda$ is defined as the veiling, $r_{\\lambda}=F_{\\rm acc,\\lambda}/F_{\\rm phot,\\lambda}$ . Veiling is measured by comparing the depth of photospheric features in the accreting spectrum to the depth in the spectrum of a photospheric template [62, e.g.]. In §4.3 (see also Figure 6), a properly scaled accretion continuum will be calculated from our measurements of $r_{\\lambda}$ and a photospheric template.",
+          "source_url": "https://arxiv.org/html/2308.14590v1#S4.p1.1"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "06966b6f-f59f-41ce-a3bb-cf7375e2755e:b000080": {
+      "available": true,
+      "paper": {
+        "versioned_id": "2308.14590v1",
+        "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+        "paper_version_id": "06966b6f-f59f-41ce-a3bb-cf7375e2755e",
+        "document_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000080",
+          "start": 0,
+          "end": 263,
+          "section_path": [
+            "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+            "IV Measuring the veiling of TW Hya",
+            "IV.3 Summary of veiling measurements and the accretion spectrum"
+          ],
+          "field": "text",
+          "text": "The combined approaches from the analysis above yield veiling measurements for 1169 spectra. The final veiling values for the 5000-5100 Å region range from 0.13–2.13 with a median of 0.67, after excluding observations obtained within 3 hrs of another observation.",
+          "source_url": "https://arxiv.org/html/2308.14590v1#S4.SS3.p1.1"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "06966b6f-f59f-41ce-a3bb-cf7375e2755e:b000088": {
+      "available": true,
+      "paper": {
+        "versioned_id": "2308.14590v1",
+        "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+        "paper_version_id": "06966b6f-f59f-41ce-a3bb-cf7375e2755e",
+        "document_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000088",
+          "start": 0,
+          "end": 123,
+          "section_path": [
+            "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+            "V Converting Veiling Measurements to Accretion Rate"
+          ],
+          "field": "text",
+          "text": "\\dot{M}_{\\rm acc}=(1-\\frac{R_{*}}{R_{\\rm in}})^{-1}\\frac{L_{\\rm acc}R_{*}}{GM_{*}}\\sim 1.25\\frac{L_{\\rm acc}R_{*}}{GM_{*}},",
+          "source_url": "https://arxiv.org/html/2308.14590v1#S5.E1"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "06966b6f-f59f-41ce-a3bb-cf7375e2755e:b000089": {
+      "available": true,
+      "paper": {
+        "versioned_id": "2308.14590v1",
+        "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+        "paper_version_id": "06966b6f-f59f-41ce-a3bb-cf7375e2755e",
+        "document_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000089",
+          "start": 0,
+          "end": 328,
+          "section_path": [
+            "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+            "V Converting Veiling Measurements to Accretion Rate"
+          ],
+          "field": "text",
+          "text": "where $R_{*}$ and $M_{*}$ are the stellar radius and mass. For convention and consistency with other estimates, we adopt R ${}_{\\rm in}\\sim 5~$ R_{∗} as the disk truncation radius [90, 94, e.g.]. The truncation radius of $\\sim 3.5$ R_{∗} meaured by Gravity Collaboration et al. [66] would increase the accretion rate by $12\\%$ .",
+          "source_url": "https://arxiv.org/html/2308.14590v1#S5.p2.2"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "06966b6f-f59f-41ce-a3bb-cf7375e2755e:b000098": {
+      "available": true,
+      "paper": {
+        "versioned_id": "2308.14590v1",
+        "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+        "paper_version_id": "06966b6f-f59f-41ce-a3bb-cf7375e2755e",
+        "document_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000098",
+          "start": 0,
+          "end": 66,
+          "section_path": [
+            "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+            "V Converting Veiling Measurements to Accretion Rate",
+            "V.1 Bolometric corrections for high resolution spectra"
+          ],
+          "field": "text",
+          "text": "L_{\\rm acc}=0.050\\times r_{\\rm lowres}=0.062\\times r_{\\rm highres}",
+          "source_url": "https://arxiv.org/html/2308.14590v1#S5.E2"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "06966b6f-f59f-41ce-a3bb-cf7375e2755e:b000099": {
+      "available": true,
+      "paper": {
+        "versioned_id": "2308.14590v1",
+        "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+        "paper_version_id": "06966b6f-f59f-41ce-a3bb-cf7375e2755e",
+        "document_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000099",
+          "start": 0,
+          "end": 510,
+          "section_path": [
+            "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+            "V Converting Veiling Measurements to Accretion Rate",
+            "V.1 Bolometric corrections for high resolution spectra"
+          ],
+          "field": "text",
+          "text": "with an uncertainty of $\\sim 10\\%$ that is consistent with typical uncertainties in flux calibration. The low-resolution calculation is obtained directly from average value on the right panel in Figure 8, while the conversion for high resolution (the right side of the equation) adjusts for the $\\sim 20\\%$ difference between the veiling measured from the high and low-resolution spectra (described above). This equation now allows us to convert our set of 1169 veiling measurements to an accretion luminosity.",
+          "source_url": "https://arxiv.org/html/2308.14590v1#S5.SS1.p3.2"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "06966b6f-f59f-41ce-a3bb-cf7375e2755e:b000003": {
+      "available": true,
+      "paper": {
+        "versioned_id": "2308.14590v1",
+        "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+        "paper_version_id": "06966b6f-f59f-41ce-a3bb-cf7375e2755e",
+        "document_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000003",
+          "start": 0,
+          "end": 1262,
+          "section_path": [
+            "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+            "Abstract"
+          ],
+          "field": "text",
+          "text": "Accretion plays a central role in the physics that governs the evolution and dispersal of protoplanetary disks. The primary goal of this paper is to analyze the stability over time of the mass accretion rate onto TW Hya, the nearest accreting solar-mass young star. We measure veiling across the optical spectrum in 1169 archival high-resolution spectra of TW Hya, obtained from 1998–2022. The veiling is then converted to accretion rate using 26 flux-calibrated spectra that cover the Balmer jump. The accretion rate measured from the excess continuum has an average of $2.51\\times 10^{-9}$ M_{⊙} yr^{-1} and a Gaussian distribution with a FWHM of 0.22 dex. This accretion rate may be underestimated by a factor of up to 1.5 because of uncertainty in the bolometric correction and another factor of 1.7 because of excluding the fraction of accretion energy that escapes in lines, especially Ly $\\alpha$ . The accretion luminosities are well correlated with He line luminosities but poorly correlated with H $\\alpha$ and H $\\beta$ luminosity. The accretion rate is always flickering over hours but on longer timescales has been stable over 25 years. This level of variability is consistent with previous measurements for most, but not all, accreting young stars.",
+          "source_url": "https://arxiv.org/html/2308.14590v1#abstract1.1"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "ef73f30c-ce3a-4906-8db3-2d322cb5d54d:b000003": {
+      "available": true,
+      "paper": {
+        "versioned_id": "2405.21038v1",
+        "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+        "paper_version_id": "ef73f30c-ce3a-4906-8db3-2d322cb5d54d",
+        "document_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000003",
+          "start": 0,
+          "end": 1427,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Abstract"
+          ],
+          "field": "text",
+          "text": "The Classical T Tauri Star (CTTS) stage is a critical phase of the star and planet formation process. In an effort to better understand the mass accretion processes, which can dictate future stellar evolution and planet formation, a multi-epoch, multi-wavelength photometric and spectroscopic monitoring campaign of four CTTSs (TW Hya, RU Lup, BP Tau, and GM Aur) was carried out in 2021 and 2022/2023 as part of the Outflows and Disks Around Young Stars: Synergies for the Exploration of ULLYSES Spectra (ODYSSEUS) program. Here we focus on the $HST$ UV spectra obtained by the $HST$ Director’s Discretionary Time UV Legacy Library of Young Stars as Essential Standards (ULLYSES) program. Using accretion shock modeling, we find that all targets exhibit accretion variability, varying from short increases in accretion rate by up to a factor of 3 within 48 hours, to longer decreases in accretion rate by a factor of 2.5 over the course of 1 year. This is despite the generally consistent accretion morphology within each target. Additionally, we test empirical relationships between accretion rate and UV luminosity and find stark differences, showing that these relationships should not be used to estimate the accretion rate for an individual target. Our work reinforces that future multi-epoch and simultaneous multi-wavelength studies are critical in our understanding of the accretion process in low-mass star formation.",
+          "source_url": "https://arxiv.org/html/2405.21038v1#abstract1.1"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "546ef8da-3b8d-4055-813e-bfd2781c6fd5:b000003": {
+      "available": true,
+      "paper": {
+        "versioned_id": "2408.04465v1",
+        "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical Spectra",
+        "paper_version_id": "546ef8da-3b8d-4055-813e-bfd2781c6fd5",
+        "document_sha256": "18ee2e0b1f9a0ffd35a408c7a306d56a79839d70dc638ba46b198f3751504de5",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000003",
+          "start": 0,
+          "end": 1290,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical SpectraFacilities: HST (COS), CTIO:1.5m, VLT, TLS",
+            "Abstract"
+          ],
+          "field": "text",
+          "text": "Classical T Tauri Stars (CTTSs) are highly variable stars that possess gas- and dust-rich disks from which planets form. Much of their variability is driven by mass accretion from the surrounding disk, a process that is still not entirely understood. A multi-epoch optical spectral monitoring campaign of four CTTSs (TW Hya, RU Lup, BP Tau, and GM Aur) was conducted along with contemporaneous $HST$ UV spectra and ground-based photometry in an effort to determine accretion characteristics and gauge variability in this sample. Using an accretion flow model, we find that the magnetospheric truncation radius varies between 2.5–5 R_{⋆} across all of our observations. There is also significant variability in all emission lines studied, particularly H ${\\alpha}$ , H ${\\beta}$ , and H ${\\gamma}$ . Using previously established relationships between line luminosity and accretion, we find that, on average, most lines reproduce accretion rates consistent with accretion shock modeling of $HST$ spectra to within 0.5 dex. Looking at individual contemporaneous observations, however, these relationships are less accurate, suggesting that variability trends differ from the trends of the population and that these empirical relationships should be used with caution in studies of variability.",
+          "source_url": "https://arxiv.org/html/2408.04465v1#abstract1.1"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "546ef8da-3b8d-4055-813e-bfd2781c6fd5:b000026": {
+      "available": true,
+      "paper": {
+        "versioned_id": "2408.04465v1",
+        "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical Spectra",
+        "paper_version_id": "546ef8da-3b8d-4055-813e-bfd2781c6fd5",
+        "document_sha256": "18ee2e0b1f9a0ffd35a408c7a306d56a79839d70dc638ba46b198f3751504de5",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000026",
+          "start": 0,
+          "end": 1199,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical SpectraFacilities: HST (COS), CTIO:1.5m, VLT, TLS",
+            "II Observations and Data Reduction",
+            "II.5 Flux Calibration"
+          ],
+          "field": "text",
+          "text": "In order to properly compare line fluxes at different epochs and to utilize empirical relationships such as those from Alcalá et al. [2], we need flux-calibrated spectra. To this end, we flux calibrate our spectra by using contemporaneous photometry (see Paper II). For each observation, we find all photometry contemporaneous within 6 hours. Then, for each filter (X) we calculate an average photometric flux (F_{Phot,X}) where photometry obtained closer in time to the spectrum is weighted more, as $\\frac{1}{\\Delta t+0.1}$ , where $\\Delta t$ is the time difference (in days) between the spectrum and photometry point. Then for each F_{Phot,X}, we calculate a scaling factor $s_{X}=F_{Phot,X}/F_{Spec,X}$ and scale the entire spectrum by the average $s_{X}$ for all filters with at least one contemporaneous photometry point. In total, we are able to flux-calibrate 236 of 269 spectra. This includes the XSHOOTER spectra which have already been flux-calibrated, though perform additional calibration for consistency. It is important to note that the final line fluxes are sensitive to the assumed extinction, A_{V}, which here is assumed to be constant throughout all observations for each target.",
+          "source_url": "https://arxiv.org/html/2408.04465v1#S2.SS5.p1.1"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "546ef8da-3b8d-4055-813e-bfd2781c6fd5:b000043": {
+      "available": true,
+      "paper": {
+        "versioned_id": "2408.04465v1",
+        "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical Spectra",
+        "paper_version_id": "546ef8da-3b8d-4055-813e-bfd2781c6fd5",
+        "document_sha256": "18ee2e0b1f9a0ffd35a408c7a306d56a79839d70dc638ba46b198f3751504de5",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000043",
+          "start": 0,
+          "end": 438,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical SpectraFacilities: HST (COS), CTIO:1.5m, VLT, TLS",
+            "III Analysis and Results",
+            "III.1 Optical Lines",
+            "III.1.2 Non-Balmer Lines"
+          ],
+          "field": "text",
+          "text": "Alcalá et al. [2] simultaneously and self-consistently estimate the accretion luminosities and line luminosities of 92 YSOs and derive relationships between these parameters. For every line they study, they find strong correlations, suggesting a connection between optical line luminosity and accretion luminosity. We use these same relationships to estimate mean accretion luminosities in our sample. These results are shown in Figure 3.",
+          "source_url": "https://arxiv.org/html/2408.04465v1#S3.SS1.SSS2.p2.1"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "546ef8da-3b8d-4055-813e-bfd2781c6fd5:b000092": {
+      "available": true,
+      "paper": {
+        "versioned_id": "2408.04465v1",
+        "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical Spectra",
+        "paper_version_id": "546ef8da-3b8d-4055-813e-bfd2781c6fd5",
+        "document_sha256": "18ee2e0b1f9a0ffd35a408c7a306d56a79839d70dc638ba46b198f3751504de5",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000092",
+          "start": 0,
+          "end": 1125,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical SpectraFacilities: HST (COS), CTIO:1.5m, VLT, TLS",
+            "IV Discussion",
+            "IV.2 Accretion Rates: Shock vs Flow"
+          ],
+          "field": "text",
+          "text": "The accretion rates derived here are also generally in line with previous studies. Using empirical relationships from Alcalá et al. [2], Gangi et al. [22] estimate the accretion rate of BP Tau at 0.56 $\\times$ 10^{-8} M_{⊙} yr^{-1} in January 2020. This is consistent with our estimates using those same relationships, which underestimate the accretion rate as compared to our shock modeling n BP Tau specifically. Gangi et al. [22] also find the accretion rate of GM Aur to be 0.51 $\\times$ 10^{-8} M_{⊙} yr^{-1}, which is at the higher end of our estimates using those empirical relationships, suggesting that GM Aur may have been in an enhanced accretion state during their observations. Armeni et al. [5] estimate the accretion rate of RU Lup also using the empirical relationships from Alcalá et al. [2] (though only using the He I_{5875} line), finding average rates between 7–40 $\\times$ 10^{-8} M_{⊙} yr^{-1}. These accretion rates are roughly consistent with, though slightly higher than, our findings using any method. Armeni et al. [5] also see that the accretion rate in RU Lup in 2022 is about half that of 2021.",
+          "source_url": "https://arxiv.org/html/2408.04465v1#S4.SS2.p6.1"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "546ef8da-3b8d-4055-813e-bfd2781c6fd5:b000093": {
+      "available": true,
+      "paper": {
+        "versioned_id": "2408.04465v1",
+        "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical Spectra",
+        "paper_version_id": "546ef8da-3b8d-4055-813e-bfd2781c6fd5",
+        "document_sha256": "18ee2e0b1f9a0ffd35a408c7a306d56a79839d70dc638ba46b198f3751504de5",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000093",
+          "start": 0,
+          "end": 717,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical SpectraFacilities: HST (COS), CTIO:1.5m, VLT, TLS",
+            "IV Discussion",
+            "IV.2 Accretion Rates: Shock vs Flow"
+          ],
+          "field": "text",
+          "text": "The top panel of Figure 7 also shows a comparison of accretion rates calculated using the 11 emission lines from Section III and the empirical relationships of Alcalá et al. [2] to those calculated using the shock model (Paper I) and the flow model. The empirical relationships produce similar accretion rates as compared to the shock model in TW Hya and RU Lup: $\\sim$ 23.8% lower in TW Hya and 4.7% higher in RU Lup. Accretion rates in BP Tau and GM Aur and 71.9% and 56.1% lower using the Alcalá et al. [2] relationships. This further reinforces that while these empirical relationships can provide accurate accretion rates in some cases, they fail in others and should be used sparingly in studies of variability.",
+          "source_url": "https://arxiv.org/html/2408.04465v1#S4.SS2.p7.1"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "95ce7593-6e73-404a-be32-4816872de11e:b000003": {
+      "available": true,
+      "paper": {
+        "versioned_id": "astro-ph/0504654v1",
+        "title": "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescence",
+        "paper_version_id": "95ce7593-6e73-404a-be32-4816872de11e",
+        "document_sha256": "019d98c3a5cf905df864363ecfb12971189c28bfb600328f4d1d9e638bce0297",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000003",
+          "start": 411,
+          "end": 535,
+          "section_path": [
+            "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescenceNote: submitted to AJ",
+            "Abstract"
+          ],
+          "field": "text",
+          "text": "We estimate a mass accretion rate of $(5\\pm 2)\\times 10^{-8}$ $M_{\\odot}$ yr^{-1} using the optical-NUV accretion continuum.",
+          "source_url": "https://arxiv.org/html/astro-ph/0504654v1#abstract1.1"
+        },
+        {
+          "block_id": "b000003",
+          "start": 281,
+          "end": 410,
+          "section_path": [
+            "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescenceNote: submitted to AJ",
+            "Abstract"
+          ],
+          "field": "text",
+          "text": "Absorption in the Ly $\\alpha$ profile constrains the extinction to $A_{V}\\sim 0.07$ mag, which we confirm with other diagnostics.",
+          "source_url": "https://arxiv.org/html/astro-ph/0504654v1#abstract1.1"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "95ce7593-6e73-404a-be32-4816872de11e:b000011": {
+      "available": true,
+      "paper": {
+        "versioned_id": "astro-ph/0504654v1",
+        "title": "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescence",
+        "paper_version_id": "95ce7593-6e73-404a-be32-4816872de11e",
+        "document_sha256": "019d98c3a5cf905df864363ecfb12971189c28bfb600328f4d1d9e638bce0297",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000011",
+          "start": 969,
+          "end": 979,
+          "section_path": [
+            "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescenceNote: submitted to AJ",
+            "II Properties of RU Lupi"
+          ],
+          "field": "text",
+          "text": "$d=140$ pc",
+          "source_url": "https://arxiv.org/html/astro-ph/0504654v1#S2.p1.1"
+        },
+        {
+          "block_id": "b000011",
+          "start": 1129,
+          "end": 1149,
+          "section_path": [
+            "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescenceNote: submitted to AJ",
+            "II Properties of RU Lupi"
+          ],
+          "field": "text",
+          "text": "$R=1.64$ $R_{\\odot}$",
+          "source_url": "https://arxiv.org/html/astro-ph/0504654v1#S2.p1.1"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "95ce7593-6e73-404a-be32-4816872de11e:b000043": {
+      "available": true,
+      "paper": {
+        "versioned_id": "astro-ph/0504654v1",
+        "title": "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescence",
+        "paper_version_id": "95ce7593-6e73-404a-be32-4816872de11e",
+        "document_sha256": "019d98c3a5cf905df864363ecfb12971189c28bfb600328f4d1d9e638bce0297",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000043",
+          "start": 458,
+          "end": 585,
+          "section_path": [
+            "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescenceNote: submitted to AJ",
+            "IV THE ISM IN OUR LINE OF SIGHT TO RU LUPI",
+            "IV.2 Dust Extinction"
+          ],
+          "field": "text",
+          "text": "$A_{V}=1.28$ mag calculated by Hughes et al. [38] based on optical colors, which are contaminated by emission due to accretion.",
+          "source_url": "https://arxiv.org/html/astro-ph/0504654v1#S4.SS2.p5.1"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "ef73f30c-ce3a-4906-8db3-2d322cb5d54d:b000034": {
+      "available": true,
+      "paper": {
+        "versioned_id": "2405.21038v1",
+        "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+        "paper_version_id": "ef73f30c-ce3a-4906-8db3-2d322cb5d54d",
+        "document_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000034",
+          "start": 0,
+          "end": 524,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "III Observations and Data Reduction"
+          ],
+          "field": "caption",
+          "text": "Table 1: Target Parameters ^{†}^{†}footnotetext: a: Gaia Collaboration et al. [34], b: Ingleby et al. [60], c: Sicilia-Aguilar et al. [90], d: Manara et al. [70], e: Robinson & Espaillat [84] (from Manara et al. [70] with updated Gaia distances), f: [7], g: Sousa et al. [97], h: Stempels et al. [98], i: Herczeg et al. [49], j: [39], k: Vrba et al. [104], l: Percy & Palaniappan [79], m: Gullbring et al. [41], n: Johns-Krull et al. [63], o: Zhang et al. [110], p: Macías et al. [69], *: Updated with current Gaia distances",
+          "source_url": "https://arxiv.org/html/2405.21038v1#S3.T1"
+        },
+        {
+          "block_id": "b000034",
+          "start": 0,
+          "end": 25,
+          "row": 2,
+          "column": 5,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "III Observations and Data Reduction"
+          ],
+          "field": "table_cell",
+          "text": "0.79^{d}^{d}footnotemark:",
+          "source_url": "https://arxiv.org/html/2405.21038v1#S3.T1"
+        },
+        {
+          "block_id": "b000034",
+          "start": 0,
+          "end": 25,
+          "row": 2,
+          "column": 7,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "III Observations and Data Reduction"
+          ],
+          "field": "table_cell",
+          "text": "0.93^{e}^{e}footnotemark:",
+          "source_url": "https://arxiv.org/html/2405.21038v1#S3.T1"
+        },
+        {
+          "block_id": "b000034",
+          "start": 0,
+          "end": 48,
+          "row": 4,
+          "column": 2,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "III Observations and Data Reduction"
+          ],
+          "field": "table_cell",
+          "text": "156.0 ${}^{+1.2}_{-1.1}$ ^{ a}^{ a}footnotemark:",
+          "source_url": "https://arxiv.org/html/2405.21038v1#S3.T1"
+        },
+        {
+          "block_id": "b000034",
+          "start": 0,
+          "end": 27,
+          "row": 4,
+          "column": 7,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "III Observations and Data Reduction"
+          ],
+          "field": "table_cell",
+          "text": "1.83^{*i}^{*i}footnotemark:",
+          "source_url": "https://arxiv.org/html/2405.21038v1#S3.T1"
+        },
+        {
+          "block_id": "b000034",
+          "start": 0,
+          "end": 25,
+          "row": 4,
+          "column": 8,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "III Observations and Data Reduction"
+          ],
+          "field": "table_cell",
+          "text": "0.07^{i}^{i}footnotemark:",
+          "source_url": "https://arxiv.org/html/2405.21038v1#S3.T1"
+        },
+        {
+          "block_id": "b000034",
+          "start": 0,
+          "end": 48,
+          "row": 8,
+          "column": 2,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "III Observations and Data Reduction"
+          ],
+          "field": "table_cell",
+          "text": "155.0 ${}^{+1.4}_{-2.0}$ ^{ a}^{ a}footnotemark:",
+          "source_url": "https://arxiv.org/html/2405.21038v1#S3.T1"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "ef73f30c-ce3a-4906-8db3-2d322cb5d54d:b000238": {
+      "available": true,
+      "paper": {
+        "versioned_id": "2405.21038v1",
+        "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+        "paper_version_id": "ef73f30c-ce3a-4906-8db3-2d322cb5d54d",
+        "document_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000238",
+          "start": 0,
+          "end": 102,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "caption",
+          "text": "Table 5: Shock model results for BP Tau and GM Aur.^{a}^{a}footnotetext: No contemporaneous photometry",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T5"
+        },
+        {
+          "block_id": "b000238",
+          "start": 0,
+          "end": 8,
+          "row": 2,
+          "column": 2,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "59446.84",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T5"
+        },
+        {
+          "block_id": "b000238",
+          "start": 0,
+          "end": 12,
+          "row": 3,
+          "column": 2,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "59448.82^{a}",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T5"
+        },
+        {
+          "block_id": "b000238",
+          "start": 0,
+          "end": 25,
+          "row": 2,
+          "column": 3,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "1.86 ${}^{+0.09}_{-0.08}$",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T5"
+        },
+        {
+          "block_id": "b000238",
+          "start": 0,
+          "end": 22,
+          "row": 3,
+          "column": 3,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "2.1 ${}^{+0.2}_{-0.2}$",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T5"
+        },
+        {
+          "block_id": "b000238",
+          "start": 0,
+          "end": 24,
+          "row": 1,
+          "column": 3,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "[10^{-8} M_{⊙} yr^{-1} ]",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T5"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
+    "ef73f30c-ce3a-4906-8db3-2d322cb5d54d:b000237": {
+      "available": true,
+      "paper": {
+        "versioned_id": "2405.21038v1",
+        "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+        "paper_version_id": "ef73f30c-ce3a-4906-8db3-2d322cb5d54d",
+        "document_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000237",
+          "start": 0,
+          "end": 24,
+          "row": 1,
+          "column": 3,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "[10^{-8} M_{⊙} yr^{-1} ]",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T4"
+        },
+        {
+          "block_id": "b000237",
+          "start": 0,
+          "end": 8,
+          "row": 2,
+          "column": 2,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "59302.69",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T4"
+        },
+        {
+          "block_id": "b000237",
+          "start": 0,
+          "end": 8,
+          "row": 3,
+          "column": 2,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "59303.68",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T4"
+        },
+        {
+          "block_id": "b000237",
+          "start": 0,
+          "end": 28,
+          "row": 2,
+          "column": 3,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "0.078 ${}^{+0.012}_{-0.007}$",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T4"
+        },
+        {
+          "block_id": "b000237",
+          "start": 0,
+          "end": 25,
+          "row": 3,
+          "column": 3,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "0.25 ${}^{+0.04}_{-0.05}$",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T4"
+        },
+        {
+          "block_id": "b000237",
+          "start": 0,
+          "end": 23,
+          "row": 23,
+          "column": 3,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "13.1 ${}^{+0.3}_{-0.3}$",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T4"
+        },
+        {
+          "block_id": "b000237",
+          "start": 0,
+          "end": 23,
+          "row": 24,
+          "column": 3,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "12.7 ${}^{+0.7}_{-0.9}$",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T4"
+        },
+        {
+          "block_id": "b000237",
+          "start": 0,
+          "end": 23,
+          "row": 25,
+          "column": 3,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "12.6 ${}^{+1.2}_{-0.6}$",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T4"
+        },
+        {
+          "block_id": "b000237",
+          "start": 0,
+          "end": 23,
+          "row": 26,
+          "column": 3,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "11.8 ${}^{+1.4}_{-0.6}$",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T4"
+        },
+        {
+          "block_id": "b000237",
+          "start": 0,
+          "end": 23,
+          "row": 33,
+          "column": 3,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "12.0 ${}^{+0.5}_{-0.5}$",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T4"
+        },
+        {
+          "block_id": "b000237",
+          "start": 0,
+          "end": 22,
+          "row": 34,
+          "column": 3,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "6.4 ${}^{+0.1}_{-0.1}$",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T4"
+        },
+        {
+          "block_id": "b000237",
+          "start": 0,
+          "end": 22,
+          "row": 35,
+          "column": 3,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "8.5 ${}^{+0.2}_{-0.2}$",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T4"
+        },
+        {
+          "block_id": "b000237",
+          "start": 0,
+          "end": 22,
+          "row": 36,
+          "column": 3,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "Appendix C Shock Model Results"
+          ],
+          "field": "table_cell",
+          "text": "5.7 ${}^{+0.1}_{-0.1}$",
+          "source_url": "https://arxiv.org/html/2405.21038v1#A3.T4"
+        }
+      ],
+      "coverage": "selected_excerpts_only"
+    },
     "ef73f30c-ce3a-4906-8db3-2d322cb5d54d:b000035": {
       "available": true,
       "paper": {
@@ -188,20 +1020,6 @@
           "block_id": "b000035",
           "start": 0,
           "end": 15,
-          "row": 2,
-          "column": 3,
-          "section_path": [
-            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
-            "III Observations and Data Reduction"
-          ],
-          "field": "table_cell",
-          "text": "59302.7-59312.6",
-          "source_url": "https://arxiv.org/html/2405.21038v1#S3.T2"
-        },
-        {
-          "block_id": "b000035",
-          "start": 0,
-          "end": 15,
           "row": 4,
           "column": 3,
           "section_path": [
@@ -210,6 +1028,34 @@
           ],
           "field": "table_cell",
           "text": "59436.9-59447.3",
+          "source_url": "https://arxiv.org/html/2405.21038v1#S3.T2"
+        },
+        {
+          "block_id": "b000035",
+          "start": 0,
+          "end": 15,
+          "row": 5,
+          "column": 3,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "III Observations and Data Reduction"
+          ],
+          "field": "table_cell",
+          "text": "59801.3-59815.4",
+          "source_url": "https://arxiv.org/html/2405.21038v1#S3.T2"
+        },
+        {
+          "block_id": "b000035",
+          "start": 0,
+          "end": 15,
+          "row": 2,
+          "column": 3,
+          "section_path": [
+            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+            "III Observations and Data Reduction"
+          ],
+          "field": "table_cell",
+          "text": "59302.7-59312.6",
           "source_url": "https://arxiv.org/html/2405.21038v1#S3.T2"
         },
         {
@@ -298,243 +1144,3145 @@
         }
       ],
       "coverage": "selected_excerpts_only"
-    },
-    "06966b6f-f59f-41ce-a3bb-cf7375e2755e:b000003": {
-      "available": true,
-      "paper": {
-        "versioned_id": "2308.14590v1",
-        "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
-        "paper_version_id": "06966b6f-f59f-41ce-a3bb-cf7375e2755e",
-        "document_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
-        "parser_version": "0.1.0:9cc64120640509ec"
-      },
-      "units": [
-        {
-          "block_id": "b000003",
-          "start": 499,
-          "end": 658,
-          "section_path": [
-            "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
-            "Abstract"
-          ],
-          "field": "text",
-          "text": "The accretion rate measured from the excess continuum has an average of $2.51\\times 10^{-9}$ M_{⊙} yr^{-1} and a Gaussian distribution with a FWHM of 0.22 dex.",
-          "source_url": "https://arxiv.org/html/2308.14590v1#abstract1.1"
-        },
-        {
-          "block_id": "b000003",
-          "start": 1043,
-          "end": 1149,
-          "section_path": [
-            "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
-            "Abstract"
-          ],
-          "field": "text",
-          "text": "The accretion rate is always flickering over hours but on longer timescales has been stable over 25 years.",
-          "source_url": "https://arxiv.org/html/2308.14590v1#abstract1.1"
-        },
-        {
-          "block_id": "b000003",
-          "start": 659,
-          "end": 905,
-          "section_path": [
-            "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
-            "Abstract"
-          ],
-          "field": "text",
-          "text": "This accretion rate may be underestimated by a factor of up to 1.5 because of uncertainty in the bolometric correction and another factor of 1.7 because of excluding the fraction of accretion energy that escapes in lines, especially Ly $\\alpha$ .",
-          "source_url": "https://arxiv.org/html/2308.14590v1#abstract1.1"
-        }
-      ],
-      "coverage": "selected_excerpts_only"
-    },
-    "95ce7593-6e73-404a-be32-4816872de11e:b000003": {
-      "available": true,
-      "paper": {
-        "versioned_id": "astro-ph/0504654v1",
-        "title": "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescence",
-        "paper_version_id": "95ce7593-6e73-404a-be32-4816872de11e",
-        "document_sha256": "019d98c3a5cf905df864363ecfb12971189c28bfb600328f4d1d9e638bce0297",
-        "parser_version": "0.1.0:9cc64120640509ec"
-      },
-      "units": [
-        {
-          "block_id": "b000003",
-          "start": 281,
-          "end": 410,
-          "section_path": [
-            "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescenceNote: submitted to AJ",
-            "Abstract"
-          ],
-          "field": "text",
-          "text": "Absorption in the Ly $\\alpha$ profile constrains the extinction to $A_{V}\\sim 0.07$ mag, which we confirm with other diagnostics.",
-          "source_url": "https://arxiv.org/html/astro-ph/0504654v1#abstract1.1"
-        },
-        {
-          "block_id": "b000003",
-          "start": 411,
-          "end": 535,
-          "section_path": [
-            "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescenceNote: submitted to AJ",
-            "Abstract"
-          ],
-          "field": "text",
-          "text": "We estimate a mass accretion rate of $(5\\pm 2)\\times 10^{-8}$ $M_{\\odot}$ yr^{-1} using the optical-NUV accretion continuum.",
-          "source_url": "https://arxiv.org/html/astro-ph/0504654v1#abstract1.1"
-        }
-      ],
-      "coverage": "selected_excerpts_only"
-    },
-    "ef73f30c-ce3a-4906-8db3-2d322cb5d54d:b000034": {
-      "available": true,
-      "paper": {
-        "versioned_id": "2405.21038v1",
-        "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
-        "paper_version_id": "ef73f30c-ce3a-4906-8db3-2d322cb5d54d",
-        "document_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
-        "parser_version": "0.1.0:9cc64120640509ec"
-      },
-      "units": [
-        {
-          "block_id": "b000034",
-          "start": 0,
-          "end": 25,
-          "row": 4,
-          "column": 8,
-          "section_path": [
-            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
-            "III Observations and Data Reduction"
-          ],
-          "field": "table_cell",
-          "text": "0.07^{i}^{i}footnotemark:",
-          "source_url": "https://arxiv.org/html/2405.21038v1#S3.T1"
-        },
-        {
-          "block_id": "b000034",
-          "start": 302,
-          "end": 324,
-          "section_path": [
-            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
-            "III Observations and Data Reduction"
-          ],
-          "field": "caption",
-          "text": "i: Herczeg et al. [49]",
-          "source_url": "https://arxiv.org/html/2405.21038v1#S3.T1"
-        }
-      ],
-      "coverage": "selected_excerpts_only"
-    },
-    "546ef8da-3b8d-4055-813e-bfd2781c6fd5:b000043": {
-      "available": true,
-      "paper": {
-        "versioned_id": "2408.04465v1",
-        "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical Spectra",
-        "paper_version_id": "546ef8da-3b8d-4055-813e-bfd2781c6fd5",
-        "document_sha256": "18ee2e0b1f9a0ffd35a408c7a306d56a79839d70dc638ba46b198f3751504de5",
-        "parser_version": "0.1.0:9cc64120640509ec"
-      },
-      "units": [
-        {
-          "block_id": "b000043",
-          "start": 0,
-          "end": 438,
-          "section_path": [
-            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical SpectraFacilities: HST (COS), CTIO:1.5m, VLT, TLS",
-            "III Analysis and Results",
-            "III.1 Optical Lines",
-            "III.1.2 Non-Balmer Lines"
-          ],
-          "field": "text",
-          "text": "Alcalá et al. [2] simultaneously and self-consistently estimate the accretion luminosities and line luminosities of 92 YSOs and derive relationships between these parameters. For every line they study, they find strong correlations, suggesting a connection between optical line luminosity and accretion luminosity. We use these same relationships to estimate mean accretion luminosities in our sample. These results are shown in Figure 3.",
-          "source_url": "https://arxiv.org/html/2408.04465v1#S3.SS1.SSS2.p2.1"
-        }
-      ],
-      "coverage": "selected_excerpts_only"
-    },
-    "546ef8da-3b8d-4055-813e-bfd2781c6fd5:b000003": {
-      "available": true,
-      "paper": {
-        "versioned_id": "2408.04465v1",
-        "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical Spectra",
-        "paper_version_id": "546ef8da-3b8d-4055-813e-bfd2781c6fd5",
-        "document_sha256": "18ee2e0b1f9a0ffd35a408c7a306d56a79839d70dc638ba46b198f3751504de5",
-        "parser_version": "0.1.0:9cc64120640509ec"
-      },
-      "units": [
-        {
-          "block_id": "b000003",
-          "start": 799,
-          "end": 1290,
-          "section_path": [
-            "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical SpectraFacilities: HST (COS), CTIO:1.5m, VLT, TLS",
-            "Abstract"
-          ],
-          "field": "text",
-          "text": "Using previously established relationships between line luminosity and accretion, we find that, on average, most lines reproduce accretion rates consistent with accretion shock modeling of $HST$ spectra to within 0.5 dex. Looking at individual contemporaneous observations, however, these relationships are less accurate, suggesting that variability trends differ from the trends of the population and that these empirical relationships should be used with caution in studies of variability.",
-          "source_url": "https://arxiv.org/html/2408.04465v1#abstract1.1"
-        }
-      ],
-      "coverage": "selected_excerpts_only"
-    },
-    "06966b6f-f59f-41ce-a3bb-cf7375e2755e:b000038": {
-      "available": true,
-      "paper": {
-        "versioned_id": "2308.14590v1",
-        "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
-        "paper_version_id": "06966b6f-f59f-41ce-a3bb-cf7375e2755e",
-        "document_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
-        "parser_version": "0.1.0:9cc64120640509ec"
-      },
-      "units": [
-        {
-          "block_id": "b000038",
-          "start": 498,
-          "end": 702,
-          "section_path": [
-            "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
-            "IV Measuring the veiling of TW Hya"
-          ],
-          "field": "text",
-          "text": "This ratio of accretion flux $F_{\\rm acc,\\lambda}$ to photospheric flux $F_{\\rm phot,\\lambda}$ at a wavelength $\\lambda$ is defined as the veiling, $r_{\\lambda}=F_{\\rm acc,\\lambda}/F_{\\rm phot,\\lambda}$ .",
-          "source_url": "https://arxiv.org/html/2308.14590v1#S4.p1.1"
-        }
-      ],
-      "coverage": "selected_excerpts_only"
-    },
-    "06966b6f-f59f-41ce-a3bb-cf7375e2755e:b000080": {
-      "available": true,
-      "paper": {
-        "versioned_id": "2308.14590v1",
-        "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
-        "paper_version_id": "06966b6f-f59f-41ce-a3bb-cf7375e2755e",
-        "document_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
-        "parser_version": "0.1.0:9cc64120640509ec"
-      },
-      "units": [
-        {
-          "block_id": "b000080",
-          "start": 0,
-          "end": 263,
-          "section_path": [
-            "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
-            "IV Measuring the veiling of TW Hya",
-            "IV.3 Summary of veiling measurements and the accretion spectrum"
-          ],
-          "field": "text",
-          "text": "The combined approaches from the analysis above yield veiling measurements for 1169 spectra. The final veiling values for the 5000-5100 Å region range from 0.13–2.13 with a median of 0.67, after excluding observations obtained within 3 hrs of another observation.",
-          "source_url": "https://arxiv.org/html/2308.14590v1#S4.SS3.p1.1"
-        }
-      ],
-      "coverage": "selected_excerpts_only"
     }
   },
   "research_tasks": {
     "schema_version": "research-view-1",
     "suites": [
       {
+        "suite_id": "ctts_herczeg_cases_v2",
+        "bundle_sha256": "0d76456a51f7e5c5549c4c114a5885b09f672545561804316bf9b47637c20c74",
+        "created_at": "2026-11-11T11:18:37.965253+00:00",
+        "split": "development",
+        "review_status": "pending",
+        "targets": [
+          {
+            "name": "TW Hya",
+            "release": "dr3",
+            "source_id": "5401795662560500352"
+          },
+          {
+            "name": "RU Lup",
+            "release": "dr3",
+            "source_id": "6010114558131195392"
+          },
+          {
+            "name": "BP Tau",
+            "release": "dr3",
+            "source_id": "164832740220756608"
+          },
+          {
+            "name": "GM Aur",
+            "release": "dr3",
+            "source_id": "156907907082740480"
+          }
+        ],
+        "papers": [
+          {
+            "versioned_id": "2308.14590v1",
+            "library_version_id": "06966b6f-f59f-41ce-a3bb-cf7375e2755e",
+            "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+            "url": "https://arxiv.org/abs/2308.14590v1",
+            "artifact_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
+            "targets": [
+              "TW Hya"
+            ]
+          },
+          {
+            "versioned_id": "astro-ph/0504654v1",
+            "library_version_id": "95ce7593-6e73-404a-be32-4816872de11e",
+            "title": "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescence",
+            "url": "https://arxiv.org/abs/astro-ph/0504654v1",
+            "artifact_sha256": "019d98c3a5cf905df864363ecfb12971189c28bfb600328f4d1d9e638bce0297",
+            "targets": [
+              "RU Lup"
+            ]
+          },
+          {
+            "versioned_id": "2405.21038v1",
+            "library_version_id": "ef73f30c-ce3a-4906-8db3-2d322cb5d54d",
+            "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+            "url": "https://arxiv.org/abs/2405.21038v1",
+            "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+            "targets": [
+              "TW Hya",
+              "RU Lup",
+              "BP Tau",
+              "GM Aur"
+            ]
+          },
+          {
+            "versioned_id": "2408.04465v1",
+            "library_version_id": "546ef8da-3b8d-4055-813e-bfd2781c6fd5",
+            "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical Spectra",
+            "url": "https://arxiv.org/abs/2408.04465v1",
+            "artifact_sha256": "18ee2e0b1f9a0ffd35a408c7a306d56a79839d70dc638ba46b198f3751504de5",
+            "targets": [
+              "TW Hya",
+              "RU Lup",
+              "BP Tau",
+              "GM Aur"
+            ]
+          }
+        ],
+        "materials": [
+          {
+            "id": "tw_definition",
+            "kind": "paper_excerpt",
+            "text": "The optical spectrum of TW Hya consists of photospheric emission combined with line and continuum emission produced by the accretion flow and shock. Accretion processes produce strong H and He emission lines, H recombination emission, and an H^{-} continuum, as described and modeled by Calvet & Gullbring [27]. The accretion continuum is blue while the photosphere of a young low-mass star is red, so the ratio of accretion to photospheric flux decreases to longer wavelengths [11, 89, 45, e.g.]. This ratio of accretion flux $F_{\\rm acc,\\lambda}$ to photospheric flux $F_{\\rm phot,\\lambda}$ at a wavelength $\\lambda$ is defined as the veiling, $r_{\\lambda}=F_{\\rm acc,\\lambda}/F_{\\rm phot,\\lambda}$ . Veiling is measured by comparing the depth of photospheric features in the accreting spectrum to the depth in the spectrum of a photospheric template [62, e.g.]. In §4.3 (see also Figure 6), a properly scaled accretion continuum will be calculated from our measurements of $r_{\\lambda}$ and a photospheric template.",
+            "provenance": {
+              "paper": "2308.14590v1",
+              "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+              "url": "https://arxiv.org/abs/2308.14590v1",
+              "artifact_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
+              "location": {
+                "block_id": "b000038",
+                "field": "text",
+                "original": {
+                  "html_id": "S4.p1.1",
+                  "ordinal": 24
+                },
+                "section_path": [
+                  "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+                  "IV Measuring the veiling of TW Hya"
+                ],
+                "start": 0,
+                "end": 1018
+              }
+            }
+          },
+          {
+            "id": "tw_median",
+            "kind": "paper_excerpt",
+            "text": "The combined approaches from the analysis above yield veiling measurements for 1169 spectra. The final veiling values for the 5000-5100 Å region range from 0.13–2.13 with a median of 0.67, after excluding observations obtained within 3 hrs of another observation.",
+            "provenance": {
+              "paper": "2308.14590v1",
+              "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+              "url": "https://arxiv.org/abs/2308.14590v1",
+              "artifact_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
+              "location": {
+                "block_id": "b000080",
+                "field": "text",
+                "original": {
+                  "html_id": "S4.SS3.p1.1",
+                  "ordinal": 50
+                },
+                "section_path": [
+                  "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+                  "IV Measuring the veiling of TW Hya",
+                  "IV.3 Summary of veiling measurements and the accretion spectrum"
+                ],
+                "start": 0,
+                "end": 263
+              }
+            }
+          },
+          {
+            "id": "tw_energy",
+            "kind": "paper_excerpt",
+            "text": "\\dot{M}_{\\rm acc}=(1-\\frac{R_{*}}{R_{\\rm in}})^{-1}\\frac{L_{\\rm acc}R_{*}}{GM_{*}}\\sim 1.25\\frac{L_{\\rm acc}R_{*}}{GM_{*}},",
+            "provenance": {
+              "paper": "2308.14590v1",
+              "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+              "url": "https://arxiv.org/abs/2308.14590v1",
+              "artifact_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
+              "location": {
+                "block_id": "b000088",
+                "field": "text",
+                "original": {
+                  "equation_ordinal": 1,
+                  "html_id": "S5.E1"
+                },
+                "section_path": [
+                  "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+                  "V Converting Veiling Measurements to Accretion Rate"
+                ],
+                "start": 0,
+                "end": 123
+              }
+            }
+          },
+          {
+            "id": "tw_rin",
+            "kind": "paper_excerpt",
+            "text": "where $R_{*}$ and $M_{*}$ are the stellar radius and mass. For convention and consistency with other estimates, we adopt R ${}_{\\rm in}\\sim 5~$ R_{∗} as the disk truncation radius [90, 94, e.g.]. The truncation radius of $\\sim 3.5$ R_{∗} meaured by Gravity Collaboration et al. [66] would increase the accretion rate by $12\\%$ .",
+            "provenance": {
+              "paper": "2308.14590v1",
+              "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+              "url": "https://arxiv.org/abs/2308.14590v1",
+              "artifact_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
+              "location": {
+                "block_id": "b000089",
+                "field": "text",
+                "original": {
+                  "html_id": "S5.p2.2",
+                  "ordinal": 57
+                },
+                "section_path": [
+                  "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+                  "V Converting Veiling Measurements to Accretion Rate"
+                ],
+                "start": 0,
+                "end": 328
+              }
+            }
+          },
+          {
+            "id": "tw_calibration",
+            "kind": "paper_excerpt",
+            "text": "L_{\\rm acc}=0.050\\times r_{\\rm lowres}=0.062\\times r_{\\rm highres}",
+            "provenance": {
+              "paper": "2308.14590v1",
+              "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+              "url": "https://arxiv.org/abs/2308.14590v1",
+              "artifact_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
+              "location": {
+                "block_id": "b000098",
+                "field": "text",
+                "original": {
+                  "equation_ordinal": 1,
+                  "html_id": "S5.E2"
+                },
+                "section_path": [
+                  "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+                  "V Converting Veiling Measurements to Accretion Rate",
+                  "V.1 Bolometric corrections for high resolution spectra"
+                ],
+                "start": 0,
+                "end": 66
+              }
+            }
+          },
+          {
+            "id": "tw_calibration_error",
+            "kind": "paper_excerpt",
+            "text": "with an uncertainty of $\\sim 10\\%$ that is consistent with typical uncertainties in flux calibration. The low-resolution calculation is obtained directly from average value on the right panel in Figure 8, while the conversion for high resolution (the right side of the equation) adjusts for the $\\sim 20\\%$ difference between the veiling measured from the high and low-resolution spectra (described above). This equation now allows us to convert our set of 1169 veiling measurements to an accretion luminosity.",
+            "provenance": {
+              "paper": "2308.14590v1",
+              "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+              "url": "https://arxiv.org/abs/2308.14590v1",
+              "artifact_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
+              "location": {
+                "block_id": "b000099",
+                "field": "text",
+                "original": {
+                  "html_id": "S5.SS1.p3.2",
+                  "ordinal": 64
+                },
+                "section_path": [
+                  "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+                  "V Converting Veiling Measurements to Accretion Rate",
+                  "V.1 Bolometric corrections for high resolution spectra"
+                ],
+                "start": 0,
+                "end": 510
+              }
+            }
+          },
+          {
+            "id": "tw_summary",
+            "kind": "paper_excerpt",
+            "text": "Accretion plays a central role in the physics that governs the evolution and dispersal of protoplanetary disks. The primary goal of this paper is to analyze the stability over time of the mass accretion rate onto TW Hya, the nearest accreting solar-mass young star. We measure veiling across the optical spectrum in 1169 archival high-resolution spectra of TW Hya, obtained from 1998–2022. The veiling is then converted to accretion rate using 26 flux-calibrated spectra that cover the Balmer jump. The accretion rate measured from the excess continuum has an average of $2.51\\times 10^{-9}$ M_{⊙} yr^{-1} and a Gaussian distribution with a FWHM of 0.22 dex. This accretion rate may be underestimated by a factor of up to 1.5 because of uncertainty in the bolometric correction and another factor of 1.7 because of excluding the fraction of accretion energy that escapes in lines, especially Ly $\\alpha$ . The accretion luminosities are well correlated with He line luminosities but poorly correlated with H $\\alpha$ and H $\\beta$ luminosity. The accretion rate is always flickering over hours but on longer timescales has been stable over 25 years. This level of variability is consistent with previous measurements for most, but not all, accreting young stars.",
+            "provenance": {
+              "paper": "2308.14590v1",
+              "title": "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+              "url": "https://arxiv.org/abs/2308.14590v1",
+              "artifact_sha256": "912d04fcb5d159063f3265877858809103af62019ceadd2227a174c09faa9c0c",
+              "location": {
+                "block_id": "b000003",
+                "field": "text",
+                "original": {
+                  "html_id": "abstract1.1",
+                  "ordinal": 1
+                },
+                "section_path": [
+                  "Twenty-Five Years of Accretion onto the Classical T Tauri Star TW Hya",
+                  "Abstract"
+                ],
+                "start": 0,
+                "end": 1262
+              }
+            }
+          },
+          {
+            "id": "uv_summary",
+            "kind": "paper_excerpt",
+            "text": "The Classical T Tauri Star (CTTS) stage is a critical phase of the star and planet formation process. In an effort to better understand the mass accretion processes, which can dictate future stellar evolution and planet formation, a multi-epoch, multi-wavelength photometric and spectroscopic monitoring campaign of four CTTSs (TW Hya, RU Lup, BP Tau, and GM Aur) was carried out in 2021 and 2022/2023 as part of the Outflows and Disks Around Young Stars: Synergies for the Exploration of ULLYSES Spectra (ODYSSEUS) program. Here we focus on the $HST$ UV spectra obtained by the $HST$ Director’s Discretionary Time UV Legacy Library of Young Stars as Essential Standards (ULLYSES) program. Using accretion shock modeling, we find that all targets exhibit accretion variability, varying from short increases in accretion rate by up to a factor of 3 within 48 hours, to longer decreases in accretion rate by a factor of 2.5 over the course of 1 year. This is despite the generally consistent accretion morphology within each target. Additionally, we test empirical relationships between accretion rate and UV luminosity and find stark differences, showing that these relationships should not be used to estimate the accretion rate for an individual target. Our work reinforces that future multi-epoch and simultaneous multi-wavelength studies are critical in our understanding of the accretion process in low-mass star formation.",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000003",
+                "field": "text",
+                "original": {
+                  "html_id": "abstract1.1",
+                  "ordinal": 1
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Abstract"
+                ],
+                "start": 0,
+                "end": 1427
+              }
+            }
+          },
+          {
+            "id": "op_summary",
+            "kind": "paper_excerpt",
+            "text": "Classical T Tauri Stars (CTTSs) are highly variable stars that possess gas- and dust-rich disks from which planets form. Much of their variability is driven by mass accretion from the surrounding disk, a process that is still not entirely understood. A multi-epoch optical spectral monitoring campaign of four CTTSs (TW Hya, RU Lup, BP Tau, and GM Aur) was conducted along with contemporaneous $HST$ UV spectra and ground-based photometry in an effort to determine accretion characteristics and gauge variability in this sample. Using an accretion flow model, we find that the magnetospheric truncation radius varies between 2.5–5 R_{⋆} across all of our observations. There is also significant variability in all emission lines studied, particularly H ${\\alpha}$ , H ${\\beta}$ , and H ${\\gamma}$ . Using previously established relationships between line luminosity and accretion, we find that, on average, most lines reproduce accretion rates consistent with accretion shock modeling of $HST$ spectra to within 0.5 dex. Looking at individual contemporaneous observations, however, these relationships are less accurate, suggesting that variability trends differ from the trends of the population and that these empirical relationships should be used with caution in studies of variability.",
+            "provenance": {
+              "paper": "2408.04465v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical Spectra",
+              "url": "https://arxiv.org/abs/2408.04465v1",
+              "artifact_sha256": "18ee2e0b1f9a0ffd35a408c7a306d56a79839d70dc638ba46b198f3751504de5",
+              "location": {
+                "block_id": "b000003",
+                "field": "text",
+                "original": {
+                  "html_id": "abstract1.1",
+                  "ordinal": 1
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical SpectraFacilities: HST (COS), CTIO:1.5m, VLT, TLS",
+                  "Abstract"
+                ],
+                "start": 0,
+                "end": 1290
+              }
+            }
+          },
+          {
+            "id": "op_calibration",
+            "kind": "paper_excerpt",
+            "text": "In order to properly compare line fluxes at different epochs and to utilize empirical relationships such as those from Alcalá et al. [2], we need flux-calibrated spectra. To this end, we flux calibrate our spectra by using contemporaneous photometry (see Paper II). For each observation, we find all photometry contemporaneous within 6 hours. Then, for each filter (X) we calculate an average photometric flux (F_{Phot,X}) where photometry obtained closer in time to the spectrum is weighted more, as $\\frac{1}{\\Delta t+0.1}$ , where $\\Delta t$ is the time difference (in days) between the spectrum and photometry point. Then for each F_{Phot,X}, we calculate a scaling factor $s_{X}=F_{Phot,X}/F_{Spec,X}$ and scale the entire spectrum by the average $s_{X}$ for all filters with at least one contemporaneous photometry point. In total, we are able to flux-calibrate 236 of 269 spectra. This includes the XSHOOTER spectra which have already been flux-calibrated, though perform additional calibration for consistency. It is important to note that the final line fluxes are sensitive to the assumed extinction, A_{V}, which here is assumed to be constant throughout all observations for each target.",
+            "provenance": {
+              "paper": "2408.04465v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical Spectra",
+              "url": "https://arxiv.org/abs/2408.04465v1",
+              "artifact_sha256": "18ee2e0b1f9a0ffd35a408c7a306d56a79839d70dc638ba46b198f3751504de5",
+              "location": {
+                "block_id": "b000026",
+                "field": "text",
+                "original": {
+                  "html_id": "S2.SS5.p1.1",
+                  "ordinal": 16
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical SpectraFacilities: HST (COS), CTIO:1.5m, VLT, TLS",
+                  "II Observations and Data Reduction",
+                  "II.5 Flux Calibration"
+                ],
+                "start": 0,
+                "end": 1199
+              }
+            }
+          },
+          {
+            "id": "op_population",
+            "kind": "paper_excerpt",
+            "text": "Alcalá et al. [2] simultaneously and self-consistently estimate the accretion luminosities and line luminosities of 92 YSOs and derive relationships between these parameters. For every line they study, they find strong correlations, suggesting a connection between optical line luminosity and accretion luminosity. We use these same relationships to estimate mean accretion luminosities in our sample. These results are shown in Figure 3.",
+            "provenance": {
+              "paper": "2408.04465v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical Spectra",
+              "url": "https://arxiv.org/abs/2408.04465v1",
+              "artifact_sha256": "18ee2e0b1f9a0ffd35a408c7a306d56a79839d70dc638ba46b198f3751504de5",
+              "location": {
+                "block_id": "b000043",
+                "field": "text",
+                "original": {
+                  "html_id": "S3.SS1.SSS2.p2.1",
+                  "ordinal": 26
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical SpectraFacilities: HST (COS), CTIO:1.5m, VLT, TLS",
+                  "III Analysis and Results",
+                  "III.1 Optical Lines",
+                  "III.1.2 Non-Balmer Lines"
+                ],
+                "start": 0,
+                "end": 438
+              }
+            }
+          },
+          {
+            "id": "op_prior",
+            "kind": "paper_excerpt",
+            "text": "The accretion rates derived here are also generally in line with previous studies. Using empirical relationships from Alcalá et al. [2], Gangi et al. [22] estimate the accretion rate of BP Tau at 0.56 $\\times$ 10^{-8} M_{⊙} yr^{-1} in January 2020. This is consistent with our estimates using those same relationships, which underestimate the accretion rate as compared to our shock modeling n BP Tau specifically. Gangi et al. [22] also find the accretion rate of GM Aur to be 0.51 $\\times$ 10^{-8} M_{⊙} yr^{-1}, which is at the higher end of our estimates using those empirical relationships, suggesting that GM Aur may have been in an enhanced accretion state during their observations. Armeni et al. [5] estimate the accretion rate of RU Lup also using the empirical relationships from Alcalá et al. [2] (though only using the He I_{5875} line), finding average rates between 7–40 $\\times$ 10^{-8} M_{⊙} yr^{-1}. These accretion rates are roughly consistent with, though slightly higher than, our findings using any method. Armeni et al. [5] also see that the accretion rate in RU Lup in 2022 is about half that of 2021.",
+            "provenance": {
+              "paper": "2408.04465v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical Spectra",
+              "url": "https://arxiv.org/abs/2408.04465v1",
+              "artifact_sha256": "18ee2e0b1f9a0ffd35a408c7a306d56a79839d70dc638ba46b198f3751504de5",
+              "location": {
+                "block_id": "b000092",
+                "field": "text",
+                "original": {
+                  "html_id": "S4.SS2.p6.1",
+                  "ordinal": 59
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical SpectraFacilities: HST (COS), CTIO:1.5m, VLT, TLS",
+                  "IV Discussion",
+                  "IV.2 Accretion Rates: Shock vs Flow"
+                ],
+                "start": 0,
+                "end": 1125
+              }
+            }
+          },
+          {
+            "id": "op_offsets",
+            "kind": "paper_excerpt",
+            "text": "The top panel of Figure 7 also shows a comparison of accretion rates calculated using the 11 emission lines from Section III and the empirical relationships of Alcalá et al. [2] to those calculated using the shock model (Paper I) and the flow model. The empirical relationships produce similar accretion rates as compared to the shock model in TW Hya and RU Lup: $\\sim$ 23.8% lower in TW Hya and 4.7% higher in RU Lup. Accretion rates in BP Tau and GM Aur and 71.9% and 56.1% lower using the Alcalá et al. [2] relationships. This further reinforces that while these empirical relationships can provide accurate accretion rates in some cases, they fail in others and should be used sparingly in studies of variability.",
+            "provenance": {
+              "paper": "2408.04465v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical Spectra",
+              "url": "https://arxiv.org/abs/2408.04465v1",
+              "artifact_sha256": "18ee2e0b1f9a0ffd35a408c7a306d56a79839d70dc638ba46b198f3751504de5",
+              "location": {
+                "block_id": "b000093",
+                "field": "text",
+                "original": {
+                  "html_id": "S4.SS2.p7.1",
+                  "ordinal": 60
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. III. Optical SpectraFacilities: HST (COS), CTIO:1.5m, VLT, TLS",
+                  "IV Discussion",
+                  "IV.2 Accretion Rates: Shock vs Flow"
+                ],
+                "start": 0,
+                "end": 717
+              }
+            }
+          },
+          {
+            "id": "ru_old_rate",
+            "kind": "paper_excerpt",
+            "text": "We estimate a mass accretion rate of $(5\\pm 2)\\times 10^{-8}$ $M_{\\odot}$ yr^{-1} using the optical-NUV accretion continuum.",
+            "provenance": {
+              "paper": "astro-ph/0504654v1",
+              "title": "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescence",
+              "url": "https://arxiv.org/abs/astro-ph/0504654v1",
+              "artifact_sha256": "019d98c3a5cf905df864363ecfb12971189c28bfb600328f4d1d9e638bce0297",
+              "location": {
+                "block_id": "b000003",
+                "field": "text",
+                "original": {
+                  "html_id": "abstract1.1",
+                  "ordinal": 1
+                },
+                "section_path": [
+                  "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescenceNote: submitted to AJ",
+                  "Abstract"
+                ],
+                "start": 411,
+                "end": 535
+              }
+            }
+          },
+          {
+            "id": "ru_old_distance",
+            "kind": "paper_excerpt",
+            "text": "$d=140$ pc",
+            "provenance": {
+              "paper": "astro-ph/0504654v1",
+              "title": "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescence",
+              "url": "https://arxiv.org/abs/astro-ph/0504654v1",
+              "artifact_sha256": "019d98c3a5cf905df864363ecfb12971189c28bfb600328f4d1d9e638bce0297",
+              "location": {
+                "block_id": "b000011",
+                "field": "text",
+                "original": {
+                  "html_id": "S2.p1.1",
+                  "ordinal": 6
+                },
+                "section_path": [
+                  "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescenceNote: submitted to AJ",
+                  "II Properties of RU Lupi"
+                ],
+                "start": 969,
+                "end": 979
+              }
+            }
+          },
+          {
+            "id": "ru_old_radius",
+            "kind": "paper_excerpt",
+            "text": "$R=1.64$ $R_{\\odot}$",
+            "provenance": {
+              "paper": "astro-ph/0504654v1",
+              "title": "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescence",
+              "url": "https://arxiv.org/abs/astro-ph/0504654v1",
+              "artifact_sha256": "019d98c3a5cf905df864363ecfb12971189c28bfb600328f4d1d9e638bce0297",
+              "location": {
+                "block_id": "b000011",
+                "field": "text",
+                "original": {
+                  "html_id": "S2.p1.1",
+                  "ordinal": 6
+                },
+                "section_path": [
+                  "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescenceNote: submitted to AJ",
+                  "II Properties of RU Lupi"
+                ],
+                "start": 1129,
+                "end": 1149
+              }
+            }
+          },
+          {
+            "id": "ru_color_extinction",
+            "kind": "paper_excerpt",
+            "text": "$A_{V}=1.28$ mag calculated by Hughes et al. [38] based on optical colors, which are contaminated by emission due to accretion.",
+            "provenance": {
+              "paper": "astro-ph/0504654v1",
+              "title": "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescence",
+              "url": "https://arxiv.org/abs/astro-ph/0504654v1",
+              "artifact_sha256": "019d98c3a5cf905df864363ecfb12971189c28bfb600328f4d1d9e638bce0297",
+              "location": {
+                "block_id": "b000043",
+                "field": "text",
+                "original": {
+                  "html_id": "S4.SS2.p5.1",
+                  "ordinal": 32
+                },
+                "section_path": [
+                  "The loopy UV line profiles of RU Lupi: accretion, outflows, and fluorescenceNote: submitted to AJ",
+                  "IV THE ISM IN OUR LINE OF SIGHT TO RU LUPI",
+                  "IV.2 Dust Extinction"
+                ],
+                "start": 458,
+                "end": 585
+              }
+            }
+          },
+          {
+            "id": "uv_parameter_notes",
+            "kind": "paper_excerpt",
+            "text": "Table 1: Target Parameters ^{†}^{†}footnotetext: a: Gaia Collaboration et al. [34], b: Ingleby et al. [60], c: Sicilia-Aguilar et al. [90], d: Manara et al. [70], e: Robinson & Espaillat [84] (from Manara et al. [70] with updated Gaia distances), f: [7], g: Sousa et al. [97], h: Stempels et al. [98], i: Herczeg et al. [49], j: [39], k: Vrba et al. [104], l: Percy & Palaniappan [79], m: Gullbring et al. [41], n: Johns-Krull et al. [63], o: Zhang et al. [110], p: Macías et al. [69], *: Updated with current Gaia distances",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000034",
+                "field": "caption",
+                "original": {
+                  "html_id": "S3.T1",
+                  "ordinal": 1
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "III Observations and Data Reduction"
+                ],
+                "start": 0,
+                "end": 524
+              }
+            }
+          },
+          {
+            "id": "uv_bp_notes",
+            "kind": "paper_excerpt",
+            "text": "Table 5: Shock model results for BP Tau and GM Aur.^{a}^{a}footnotetext: No contemporaneous photometry",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000238",
+                "field": "caption",
+                "original": {
+                  "html_id": "A3.T5",
+                  "ordinal": 5
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "start": 0,
+                "end": 102
+              }
+            }
+          },
+          {
+            "id": "tw_mass",
+            "kind": "paper_excerpt",
+            "text": "0.79^{d}^{d}footnotemark:",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000034",
+                "field": "cell",
+                "original": {
+                  "html_id": "S3.T1",
+                  "ordinal": 1
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "III Observations and Data Reduction"
+                ],
+                "row": 2,
+                "column": 5,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "TW Hya"
+                  }
+                ],
+                "row_label": "TW Hya",
+                "column_label": "M_{∗}",
+                "start": 0,
+                "end": 25
+              }
+            }
+          },
+          {
+            "id": "tw_radius",
+            "kind": "paper_excerpt",
+            "text": "0.93^{e}^{e}footnotemark:",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000034",
+                "field": "cell",
+                "original": {
+                  "html_id": "S3.T1",
+                  "ordinal": 1
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "III Observations and Data Reduction"
+                ],
+                "row": 2,
+                "column": 7,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "TW Hya"
+                  }
+                ],
+                "row_label": "TW Hya",
+                "column_label": "R_{∗}",
+                "start": 0,
+                "end": 25
+              }
+            }
+          },
+          {
+            "id": "ru_distance",
+            "kind": "paper_excerpt",
+            "text": "156.0 ${}^{+1.2}_{-1.1}$ ^{ a}^{ a}footnotemark:",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000034",
+                "field": "cell",
+                "original": {
+                  "html_id": "S3.T1",
+                  "ordinal": 1
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "III Observations and Data Reduction"
+                ],
+                "row": 4,
+                "column": 2,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "RU Lup"
+                  }
+                ],
+                "row_label": "RU Lup",
+                "column_label": "Distance",
+                "start": 0,
+                "end": 48
+              }
+            }
+          },
+          {
+            "id": "ru_radius",
+            "kind": "paper_excerpt",
+            "text": "1.83^{*i}^{*i}footnotemark:",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000034",
+                "field": "cell",
+                "original": {
+                  "html_id": "S3.T1",
+                  "ordinal": 1
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "III Observations and Data Reduction"
+                ],
+                "row": 4,
+                "column": 7,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "RU Lup"
+                  }
+                ],
+                "row_label": "RU Lup",
+                "column_label": "R_{∗}",
+                "start": 0,
+                "end": 27
+              }
+            }
+          },
+          {
+            "id": "ru_av",
+            "kind": "paper_excerpt",
+            "text": "0.07^{i}^{i}footnotemark:",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000034",
+                "field": "cell",
+                "original": {
+                  "html_id": "S3.T1",
+                  "ordinal": 1
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "III Observations and Data Reduction"
+                ],
+                "row": 4,
+                "column": 8,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "RU Lup"
+                  }
+                ],
+                "row_label": "RU Lup",
+                "column_label": "A_{V}",
+                "start": 0,
+                "end": 25
+              }
+            }
+          },
+          {
+            "id": "gm_distance",
+            "kind": "paper_excerpt",
+            "text": "155.0 ${}^{+1.4}_{-2.0}$ ^{ a}^{ a}footnotemark:",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000034",
+                "field": "cell",
+                "original": {
+                  "html_id": "S3.T1",
+                  "ordinal": 1
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "III Observations and Data Reduction"
+                ],
+                "row": 8,
+                "column": 2,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "GM Aur"
+                  }
+                ],
+                "row_label": "GM Aur",
+                "column_label": "Distance",
+                "start": 0,
+                "end": 48
+              }
+            }
+          },
+          {
+            "id": "shock_units",
+            "kind": "paper_excerpt",
+            "text": "[10^{-8} M_{⊙} yr^{-1} ]",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000237",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T4",
+                  "ordinal": 4
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 1,
+                "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": ""
+                  }
+                ],
+                "row_label": "",
+                "column_label": "$\\dot{M}$",
+                "start": 0,
+                "end": 24
+              }
+            }
+          },
+          {
+            "id": "tw_visit1_date",
+            "kind": "paper_excerpt",
+            "text": "59302.69",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000237",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T4",
+                  "ordinal": 4
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 2,
+                "column": 2,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "TW Hya"
+                  },
+                  {
+                    "column": 1,
+                    "label": "Visit",
+                    "value": "1.1"
+                  }
+                ],
+                "row_label": "TW Hya",
+                "column_label": "Date",
+                "start": 0,
+                "end": 8
+              }
+            }
+          },
+          {
+            "id": "tw_visit2_date",
+            "kind": "paper_excerpt",
+            "text": "59303.68",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000237",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T4",
+                  "ordinal": 4
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 3,
+                "column": 2,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "TW Hya"
+                  },
+                  {
+                    "column": 1,
+                    "label": "Visit",
+                    "value": "1.2"
+                  }
+                ],
+                "row_label": "TW Hya",
+                "column_label": "Date",
+                "start": 0,
+                "end": 8
+              }
+            }
+          },
+          {
+            "id": "tw_visit1_rate",
+            "kind": "paper_excerpt",
+            "text": "0.078 ${}^{+0.012}_{-0.007}$",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000237",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T4",
+                  "ordinal": 4
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 2,
+                "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "TW Hya"
+                  },
+                  {
+                    "column": 1,
+                    "label": "Visit",
+                    "value": "1.1"
+                  }
+                ],
+                "row_label": "TW Hya",
+                "column_label": "$\\dot{M}$",
+                "start": 0,
+                "end": 28
+              }
+            }
+          },
+          {
+            "id": "tw_visit2_rate",
+            "kind": "paper_excerpt",
+            "text": "0.25 ${}^{+0.04}_{-0.05}$",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000237",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T4",
+                  "ordinal": 4
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 3,
+                "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "TW Hya"
+                  },
+                  {
+                    "column": 1,
+                    "label": "Visit",
+                    "value": "1.2"
+                  }
+                ],
+                "row_label": "TW Hya",
+                "column_label": "$\\dot{M}$",
+                "start": 0,
+                "end": 25
+              }
+            }
+          },
+          {
+            "id": "bp_visit1_date",
+            "kind": "paper_excerpt",
+            "text": "59446.84",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000238",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T5",
+                  "ordinal": 5
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 2,
+                "column": 2,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "BP Tau"
+                  },
+                  {
+                    "column": 1,
+                    "label": "Visit",
+                    "value": "1.1"
+                  }
+                ],
+                "row_label": "BP Tau",
+                "column_label": "Date",
+                "start": 0,
+                "end": 8
+              }
+            }
+          },
+          {
+            "id": "bp_visit2_date",
+            "kind": "paper_excerpt",
+            "text": "59448.82^{a}",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000238",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T5",
+                  "ordinal": 5
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 3,
+                "column": 2,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "BP Tau"
+                  },
+                  {
+                    "column": 1,
+                    "label": "Visit",
+                    "value": "1.2"
+                  }
+                ],
+                "row_label": "BP Tau",
+                "column_label": "Date",
+                "start": 0,
+                "end": 12
+              }
+            }
+          },
+          {
+            "id": "bp_visit1_rate",
+            "kind": "paper_excerpt",
+            "text": "1.86 ${}^{+0.09}_{-0.08}$",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000238",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T5",
+                  "ordinal": 5
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 2,
+                "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "BP Tau"
+                  },
+                  {
+                    "column": 1,
+                    "label": "Visit",
+                    "value": "1.1"
+                  }
+                ],
+                "row_label": "BP Tau",
+                "column_label": "$\\dot{M}$",
+                "start": 0,
+                "end": 25
+              }
+            }
+          },
+          {
+            "id": "bp_visit2_rate",
+            "kind": "paper_excerpt",
+            "text": "2.1 ${}^{+0.2}_{-0.2}$",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000238",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T5",
+                  "ordinal": 5
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 3,
+                "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "BP Tau"
+                  },
+                  {
+                    "column": 1,
+                    "label": "Visit",
+                    "value": "1.2"
+                  }
+                ],
+                "row_label": "BP Tau",
+                "column_label": "$\\dot{M}$",
+                "start": 0,
+                "end": 22
+              }
+            }
+          },
+          {
+            "id": "bp_shock_units",
+            "kind": "paper_excerpt",
+            "text": "[10^{-8} M_{⊙} yr^{-1} ]",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000238",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T5",
+                  "ordinal": 5
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 1,
+                "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": ""
+                  }
+                ],
+                "row_label": "",
+                "column_label": "$\\dot{M}$",
+                "start": 0,
+                "end": 24
+              }
+            }
+          },
+          {
+            "id": "ru_e1_v1",
+            "kind": "paper_excerpt",
+            "text": "13.1 ${}^{+0.3}_{-0.3}$",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000237",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T4",
+                  "ordinal": 4
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 23,
+                "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "RU Lup"
+                  },
+                  {
+                    "column": 1,
+                    "label": "Visit",
+                    "value": "1.1"
+                  }
+                ],
+                "row_label": "RU Lup",
+                "column_label": "$\\dot{M}$",
+                "start": 0,
+                "end": 23
+              }
+            }
+          },
+          {
+            "id": "ru_e1_v2",
+            "kind": "paper_excerpt",
+            "text": "12.7 ${}^{+0.7}_{-0.9}$",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000237",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T4",
+                  "ordinal": 4
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 24,
+                "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "RU Lup"
+                  },
+                  {
+                    "column": 1,
+                    "label": "Visit",
+                    "value": "1.2"
+                  }
+                ],
+                "row_label": "RU Lup",
+                "column_label": "$\\dot{M}$",
+                "start": 0,
+                "end": 23
+              }
+            }
+          },
+          {
+            "id": "ru_e1_v3",
+            "kind": "paper_excerpt",
+            "text": "12.6 ${}^{+1.2}_{-0.6}$",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000237",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T4",
+                  "ordinal": 4
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 25,
+                "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "RU Lup"
+                  },
+                  {
+                    "column": 1,
+                    "label": "Visit",
+                    "value": "1.3"
+                  }
+                ],
+                "row_label": "RU Lup",
+                "column_label": "$\\dot{M}$",
+                "start": 0,
+                "end": 23
+              }
+            }
+          },
+          {
+            "id": "ru_e1_v4",
+            "kind": "paper_excerpt",
+            "text": "11.8 ${}^{+1.4}_{-0.6}$",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000237",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T4",
+                  "ordinal": 4
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 26,
+                "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "RU Lup"
+                  },
+                  {
+                    "column": 1,
+                    "label": "Visit",
+                    "value": "1.4"
+                  }
+                ],
+                "row_label": "RU Lup",
+                "column_label": "$\\dot{M}$",
+                "start": 0,
+                "end": 23
+              }
+            }
+          },
+          {
+            "id": "ru_e2_v1",
+            "kind": "paper_excerpt",
+            "text": "12.0 ${}^{+0.5}_{-0.5}$",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000237",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T4",
+                  "ordinal": 4
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 33,
+                "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "RU Lup"
+                  },
+                  {
+                    "column": 1,
+                    "label": "Visit",
+                    "value": "2.1"
+                  }
+                ],
+                "row_label": "RU Lup",
+                "column_label": "$\\dot{M}$",
+                "start": 0,
+                "end": 23
+              }
+            }
+          },
+          {
+            "id": "ru_e2_v2",
+            "kind": "paper_excerpt",
+            "text": "6.4 ${}^{+0.1}_{-0.1}$",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000237",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T4",
+                  "ordinal": 4
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 34,
+                "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "RU Lup"
+                  },
+                  {
+                    "column": 1,
+                    "label": "Visit",
+                    "value": "2.2"
+                  }
+                ],
+                "row_label": "RU Lup",
+                "column_label": "$\\dot{M}$",
+                "start": 0,
+                "end": 22
+              }
+            }
+          },
+          {
+            "id": "ru_e2_v3",
+            "kind": "paper_excerpt",
+            "text": "8.5 ${}^{+0.2}_{-0.2}$",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000237",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T4",
+                  "ordinal": 4
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 35,
+                "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "RU Lup"
+                  },
+                  {
+                    "column": 1,
+                    "label": "Visit",
+                    "value": "2.3"
+                  }
+                ],
+                "row_label": "RU Lup",
+                "column_label": "$\\dot{M}$",
+                "start": 0,
+                "end": 22
+              }
+            }
+          },
+          {
+            "id": "ru_e2_v4",
+            "kind": "paper_excerpt",
+            "text": "5.7 ${}^{+0.1}_{-0.1}$",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000237",
+                "field": "cell",
+                "original": {
+                  "html_id": "A3.T4",
+                  "ordinal": 4
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "Appendix C Shock Model Results"
+                ],
+                "row": 36,
+                "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "RU Lup"
+                  },
+                  {
+                    "column": 1,
+                    "label": "Visit",
+                    "value": "2.4"
+                  }
+                ],
+                "row_label": "RU Lup",
+                "column_label": "$\\dot{M}$",
+                "start": 0,
+                "end": 22
+              }
+            }
+          },
+          {
+            "id": "ru_epoch1",
+            "kind": "paper_excerpt",
+            "text": "59436.9-59447.3",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000035",
+                "field": "cell",
+                "original": {
+                  "html_id": "S3.T2",
+                  "ordinal": 2
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "III Observations and Data Reduction"
+                ],
+                "row": 4,
+                "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "RU Lup"
+                  }
+                ],
+                "row_label": "RU Lup",
+                "column_label": "MJD",
+                "start": 0,
+                "end": 15
+              }
+            }
+          },
+          {
+            "id": "ru_epoch2",
+            "kind": "paper_excerpt",
+            "text": "59801.3-59815.4",
+            "provenance": {
+              "paper": "2405.21038v1",
+              "title": "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV Spectra",
+              "url": "https://arxiv.org/abs/2405.21038v1",
+              "artifact_sha256": "23c30df26490149c388dc0a4acd5988f9d6e5a22953336c7649bc4c9d51fd262",
+              "location": {
+                "block_id": "b000035",
+                "field": "cell",
+                "original": {
+                  "html_id": "S3.T2",
+                  "ordinal": 2
+                },
+                "section_path": [
+                  "A Multi-wavelength, Multi-epoch Monitoring Campaign of Accretion Variability in T Tauri Stars from the ODYSSEUS Survey. I. HST FUV and NUV SpectraFacilities: $HST$ , LCOGT, $TESS$ , AAVSO, ZTF, ASAS-SN, Konkoly Observatory, CrAO",
+                  "III Observations and Data Reduction"
+                ],
+                "row": 5,
+                "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "RU Lup"
+                  }
+                ],
+                "row_label": "RU Lup",
+                "column_label": "MJD",
+                "start": 0,
+                "end": 15
+              }
+            }
+          },
+          {
+            "id": "gaia_tw",
+            "kind": "gaia_fields",
+            "fields": [
+              {
+                "column": "Plx_gdr3",
+                "unit": "mas",
+                "value": "16.628881208611332"
+              },
+              {
+                "column": "e_Plx_gdr3",
+                "unit": "mas",
+                "value": "0.015042874030768871"
+              },
+              {
+                "column": "RUWE_gdr3",
+                "unit": "1",
+                "value": "1.1752216815948486"
+              }
+            ],
+            "provenance": {
+              "target": "TW Hya",
+              "release": "dr3",
+              "source_id": "5401795662560500352",
+              "run_id": "938a20e3-2046-444a-9bcb-c63daed780f8",
+              "artifact_sha256": "3c6032da8486aac659df3928a5c8c3bdc688b0ba112c0d190f5a1549e99b7622"
+            }
+          },
+          {
+            "id": "gaia_gm",
+            "kind": "gaia_fields",
+            "fields": [
+              {
+                "column": "Plx_gdr3",
+                "unit": "mas",
+                "value": "6.324801957162403"
+              },
+              {
+                "column": "e_Plx_gdr3",
+                "unit": "mas",
+                "value": "0.04904243350028992"
+              },
+              {
+                "column": "RUWE_gdr3",
+                "unit": "1",
+                "value": "2.5263607501983643"
+              }
+            ],
+            "provenance": {
+              "target": "GM Aur",
+              "release": "dr3",
+              "source_id": "156907907082740480",
+              "run_id": "938a20e3-2046-444a-9bcb-c63daed780f8",
+              "artifact_sha256": "3c6032da8486aac659df3928a5c8c3bdc688b0ba112c0d190f5a1549e99b7622"
+            }
+          }
+        ],
+        "tasks": [
+          {
+            "id": "CTTS-C01",
+            "question": "为 TW Hya 组装一条可追溯的估计：把论文报告的高分辨率 veiling 中位数作为一个代表值，使用对应分辨率的标定（Lacc 单位为太阳光度）、ODYSSEUS I 的 M*、R* 和 Rin=5R*。假设连续谱只有光球与吸积两部分，且重力释放能量全部辐射。常数：Lsun=3.828e26 W，Rsun=6.957e8 m，Msun=1.98847e30 kg，G=6.67430e-11 SI，1 yr=31557600 s。分析这一拼接估计与长期平均值的关系。",
+            "category": "physical_inference",
+            "targets": [
+              "TW Hya"
+            ],
+            "material_ids": [
+              "tw_definition",
+              "tw_median",
+              "tw_calibration",
+              "tw_calibration_error",
+              "tw_energy",
+              "tw_mass",
+              "tw_radius",
+              "tw_summary"
+            ],
+            "reference": {
+              "kind": "structured",
+              "checkpoints": [
+                {
+                  "id": "continuum_fraction",
+                  "kind": "number",
+                  "answer": 0.4011976047904192,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "tw_definition",
+                    "tw_median"
+                  ]
+                },
+                {
+                  "id": "luminosity",
+                  "kind": "number",
+                  "answer": 0.04154,
+                  "unit": "Lsun",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "tw_median",
+                    "tw_calibration",
+                    "tw_calibration_error"
+                  ]
+                },
+                {
+                  "id": "accretion_rate",
+                  "kind": "number",
+                  "answer": 1.946643625678359e-09,
+                  "unit": "Msun/yr",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "tw_median",
+                    "tw_calibration",
+                    "tw_energy",
+                    "tw_mass",
+                    "tw_radius"
+                  ]
+                },
+                {
+                  "id": "interpretation",
+                  "kind": "choice",
+                  "answer": "中位代表值与长期均值及参数组合不同，不能据此判定矛盾",
+                  "unit": null,
+                  "required_evidence_ids": [
+                    "tw_median",
+                    "tw_summary",
+                    "tw_mass",
+                    "tw_radius"
+                  ]
+                }
+              ],
+              "worked_solution": [
+                "吸积占比为 r/(1+r)=0.4012；高分辨率分支给 Lacc=0.062×0.67=0.04154 Lsun。",
+                "采用题设常数及 M*=0.79 Msun、R*=0.93 Rsun、Rin=5R*，得到 1.9466e-09 Msun/yr。",
+                "这是跨论文参数拼接的代表值，不是对原论文全部历元重新拟合后的均值；原论文报告的长期均值为 2.51e-9 Msun/yr。"
+              ],
+              "required_evidence_ids": [
+                "tw_calibration",
+                "tw_calibration_error",
+                "tw_definition",
+                "tw_energy",
+                "tw_mass",
+                "tw_median",
+                "tw_radius",
+                "tw_summary"
+              ]
+            },
+            "split": "development",
+            "review_status": "pending",
+            "leakage_group": "odysseus_four_ctts",
+            "title": "从 veiling 到吸积率：标定分支与统计量",
+            "task_level": "integrated_case",
+            "response_fields": [
+              {
+                "id": "continuum_fraction",
+                "request": "代表值下，吸积连续谱占总连续谱的比例。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "luminosity",
+                "request": "选择正确标定分支，计算 Lacc。",
+                "kind": "number",
+                "unit": "Lsun"
+              },
+              {
+                "id": "accretion_rate",
+                "request": "按题设计算吸积率。",
+                "kind": "number",
+                "unit": "Msun/yr"
+              },
+              {
+                "id": "interpretation",
+                "request": "该值与论文长期平均值不相等，最稳妥的解释是什么？",
+                "kind": "choice",
+                "choices": [
+                  "必须完全相等，否则论文自相矛盾",
+                  "中位代表值与长期均值及参数组合不同，不能据此判定矛盾",
+                  "差额直接证明恒星发生长期衰减"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "CTTS-C02",
+            "question": "保持 Lacc、M*、R* 不变，分析 Rin 从 5R* 改变的影响。另做独立的上限情景：从 TW Hya 长期平均吸积率出发，同时乘上摘要提出的两个最大辐射修正因子，并假设两者可相乘；此情景仍固定 Rin=5R*。ODYSSEUS III 的半径范围是样本总体范围，不能作为 TW Hya 每个历元的直接测量。",
+            "category": "physical_inference",
+            "targets": [
+              "TW Hya"
+            ],
+            "material_ids": [
+              "tw_energy",
+              "tw_rin",
+              "tw_summary",
+              "op_summary"
+            ],
+            "reference": {
+              "kind": "structured",
+              "checkpoints": [
+                {
+                  "id": "radius_35",
+                  "kind": "number",
+                  "answer": 1.12,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "tw_energy",
+                    "tw_rin"
+                  ]
+                },
+                {
+                  "id": "radius_25",
+                  "kind": "number",
+                  "answer": 1.3333333333333333,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "tw_energy",
+                    "op_summary"
+                  ]
+                },
+                {
+                  "id": "radiation_bound",
+                  "kind": "number",
+                  "answer": 6.400499999999998e-09,
+                  "unit": "Msun/yr",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "tw_summary"
+                  ]
+                },
+                {
+                  "id": "claim",
+                  "kind": "choice",
+                  "answer": "参数和能量预算的条件修正，不是观测到的时间变化",
+                  "unit": null,
+                  "required_evidence_ids": [
+                    "tw_energy",
+                    "tw_summary",
+                    "op_summary"
+                  ]
+                }
+              ],
+              "worked_solution": [
+                "比较的是 (1−1/k)^−1：k=5 时为1.25，k=3.5 时为1.4，k=2.5 时为5/3；倍率分别1.12与4/3。",
+                "独立辐射情景为 2.51e-9×1.5×1.7=6.4005e-9 Msun/yr，不再叠加半径修正。",
+                "上限取值与可相乘是题设；这些不是新的观测，也不是后验误差条。"
+              ],
+              "required_evidence_ids": [
+                "op_summary",
+                "tw_energy",
+                "tw_rin",
+                "tw_summary"
+              ]
+            },
+            "split": "development",
+            "review_status": "pending",
+            "leakage_group": "odysseus_four_ctts",
+            "title": "截断半径与漏计辐射：把系统修正和变化分开",
+            "task_level": "integrated_case",
+            "response_fields": [
+              {
+                "id": "radius_35",
+                "request": "Rin=3.5R* 相对于 5R* 的吸积率倍率。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "radius_25",
+                "request": "把样本半径下限 2.5R* 作为假设值时，相对于 5R* 的倍率。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "radiation_bound",
+                "request": "题设辐射上限情景下的吸积率。",
+                "kind": "number",
+                "unit": "Msun/yr"
+              },
+              {
+                "id": "claim",
+                "request": "这些计算支持哪种表述？",
+                "kind": "choice",
+                "choices": [
+                  "证明 TW Hya 吸积率随时间增加了同样倍数",
+                  "参数和能量预算的条件修正，不是观测到的时间变化",
+                  "证明所有 CTTS 均应采用同一修正"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "CTTS-C03",
+            "question": "比较 ODYSSEUS I 的 TW Hya visit 1.1 与 1.2。先使用表中吸积率中心值与 MJD，再把印出的非对称区间仅作为上下界比较（不假定它们是独立高斯误差，也不据此给出 p 值）。结合 25 年研究判断是否矛盾。",
+            "category": "cross_paper_comparison",
+            "targets": [
+              "TW Hya"
+            ],
+            "material_ids": [
+              "tw_visit1_date",
+              "tw_visit2_date",
+              "tw_visit1_rate",
+              "tw_visit2_rate",
+              "shock_units",
+              "tw_summary",
+              "uv_summary"
+            ],
+            "reference": {
+              "kind": "structured",
+              "checkpoints": [
+                {
+                  "id": "elapsed",
+                  "kind": "number",
+                  "answer": 23.759999999951106,
+                  "unit": "hour",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "tw_visit1_date",
+                    "tw_visit2_date"
+                  ]
+                },
+                {
+                  "id": "ratio",
+                  "kind": "number",
+                  "answer": 3.2051282051282053,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "tw_visit1_rate",
+                    "tw_visit2_rate",
+                    "shock_units"
+                  ]
+                },
+                {
+                  "id": "intervals",
+                  "kind": "choice",
+                  "answer": "不相交，后一次下界高于前一次上界",
+                  "unit": null,
+                  "required_evidence_ids": [
+                    "tw_visit1_rate",
+                    "tw_visit2_rate"
+                  ]
+                },
+                {
+                  "id": "scope",
+                  "kind": "choice",
+                  "answer": "短时增强与长期统计稳定可以并存，还需考虑诊断方法不同",
+                  "unit": null,
+                  "required_evidence_ids": [
+                    "tw_summary",
+                    "uv_summary",
+                    "tw_visit1_rate",
+                    "tw_visit2_rate"
+                  ]
+                }
+              ],
+              "worked_solution": [
+                "时间间隔0.99天，即23.76小时；中心值倍率0.25/0.078≈3.205。",
+                "前一次区间[0.071,0.090]，后一次[0.20,0.29]，单位都是1e-8 Msun/yr；不重叠不是已计算的显著性。",
+                "长期研究也报告小时尺度闪变；长时统计稳定不要求所有历元相等，且两篇分别使用连续谱与激波模型。"
+              ],
+              "required_evidence_ids": [
+                "shock_units",
+                "tw_summary",
+                "tw_visit1_date",
+                "tw_visit1_rate",
+                "tw_visit2_date",
+                "tw_visit2_rate",
+                "uv_summary"
+              ]
+            },
+            "split": "development",
+            "review_status": "pending",
+            "leakage_group": "odysseus_four_ctts",
+            "title": "TW Hya 的日内增强是否推翻长期稳定",
+            "task_level": "integrated_case",
+            "response_fields": [
+              {
+                "id": "elapsed",
+                "request": "两次观测的时间间隔。",
+                "kind": "number",
+                "unit": "hour"
+              },
+              {
+                "id": "ratio",
+                "request": "visit 1.2 / visit 1.1 的吸积率倍率。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "intervals",
+                "request": "表中两段上下界是否相交？",
+                "kind": "choice",
+                "choices": [
+                  "相交",
+                  "不相交，后一次下界高于前一次上界",
+                  "仅凭中心值即可计算显著性"
+                ]
+              },
+              {
+                "id": "scope",
+                "request": "如何解释与长期研究的关系？",
+                "kind": "choice",
+                "choices": [
+                  "长期稳定排除了任何日内变化",
+                  "短时增强与长期统计稳定可以并存，还需考虑诊断方法不同",
+                  "两次观测足以确立25年上升趋势"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "CTTS-C04",
+            "question": "TW Hya 摘要中的 Gaussian 分布按 log10(吸积率) 理解。将其 FWHM 转为标准差；Gaia 距离仅做 d=1000/视差 的演示估计（忽略零点与先验），用一阶误差传播。另假设吸积率只通过 Lacc∝d² 依赖距离，保持 M*、R*、消光与诊断不变。比较误差来源，不把采样散布当成均值标准误。",
+            "category": "uncertainty_analysis",
+            "targets": [
+              "TW Hya"
+            ],
+            "material_ids": [
+              "tw_summary",
+              "gaia_tw",
+              "tw_energy",
+              "uv_summary"
+            ],
+            "reference": {
+              "kind": "structured",
+              "checkpoints": [
+                {
+                  "id": "log_sigma",
+                  "kind": "number",
+                  "answer": 0.0934253980316821,
+                  "unit": "dex",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "tw_summary"
+                  ]
+                },
+                {
+                  "id": "multiplicative_sigma",
+                  "kind": "number",
+                  "answer": 1.240010601050638,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "tw_summary"
+                  ]
+                },
+                {
+                  "id": "distance_error",
+                  "kind": "number",
+                  "answer": 0.1809246676556792,
+                  "unit": "percent",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "gaia_tw",
+                    "tw_energy"
+                  ]
+                },
+                {
+                  "id": "uncertainty_scope",
+                  "kind": "choice",
+                  "answer": "不能，还需采样相关性、诊断系统误差及均值估计方法",
+                  "unit": null,
+                  "required_evidence_ids": [
+                    "tw_summary",
+                    "uv_summary"
+                  ]
+                }
+              ],
+              "worked_solution": [
+                "σlog=0.22/2.35482≈0.093425 dex，上侧倍率10^σ≈1.24001。",
+                "在题设单一距离依赖下，σMdot/Mdot≈2σπ/π≈0.1809%；这是形式传播，不含 Gaia 零点等系统项。",
+                "观测分布宽度描述变化；连续谱与激波诊断、时间相关采样等限制了它向均值误差的直接转换。"
+              ],
+              "required_evidence_ids": [
+                "gaia_tw",
+                "tw_energy",
+                "tw_summary",
+                "uv_summary"
+              ]
+            },
+            "split": "development",
+            "review_status": "pending",
+            "leakage_group": "odysseus_four_ctts",
+            "title": "散布、均值误差与 Gaia 距离误差",
+            "task_level": "integrated_case",
+            "response_fields": [
+              {
+                "id": "log_sigma",
+                "request": "log10 吸积率分布的标准差。",
+                "kind": "number",
+                "unit": "dex"
+              },
+              {
+                "id": "multiplicative_sigma",
+                "request": "相对中心值的上侧 1σ 倍率。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "distance_error",
+                "request": "只由该 Gaia 视差形式误差传播的吸积率相对误差（百分数）。",
+                "kind": "number",
+                "unit": "percent"
+              },
+              {
+                "id": "uncertainty_scope",
+                "request": "能否把分布标准差直接当长期平均吸积率的不确定度？",
+                "kind": "choice",
+                "choices": [
+                  "能，二者定义相同",
+                  "不能，还需采样相关性、诊断系统误差及均值估计方法",
+                  "能，把标准差任意除以观测年数即可"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "CTTS-C05",
+            "question": "把 RU Lup 2005 年结果与 ODYSSEUS I visit 1.1 比较。以两篇采用的距离为输入，先只修正旧值的 d² 项，再额外将 R* 更新为新表值。两步均固定质量、消光与 Rin/R*，假设原始通量和诊断可保持不变；这只是参数归一化，不是重做光谱拟合。最后讨论能否据此断言长期本征变化。",
+            "category": "cross_paper_comparison",
+            "targets": [
+              "RU Lup"
+            ],
+            "material_ids": [
+              "ru_old_rate",
+              "ru_old_distance",
+              "ru_old_radius",
+              "ru_distance",
+              "ru_radius",
+              "uv_parameter_notes",
+              "tw_energy",
+              "ru_e1_v1",
+              "shock_units",
+              "uv_summary",
+              "ru_epoch1"
+            ],
+            "reference": {
+              "kind": "structured",
+              "checkpoints": [
+                {
+                  "id": "distance_only",
+                  "kind": "number",
+                  "answer": 6.208163265306123e-08,
+                  "unit": "Msun/yr",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "ru_old_rate",
+                    "ru_old_distance",
+                    "ru_distance",
+                    "tw_energy"
+                  ]
+                },
+                {
+                  "id": "radius_updated",
+                  "kind": "number",
+                  "answer": 6.927401692384272e-08,
+                  "unit": "Msun/yr",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "ru_old_rate",
+                    "ru_old_distance",
+                    "ru_distance",
+                    "ru_old_radius",
+                    "ru_radius",
+                    "tw_energy"
+                  ]
+                },
+                {
+                  "id": "remaining_ratio",
+                  "kind": "number",
+                  "answer": 1.8910409099564203,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "ru_old_rate",
+                    "ru_old_distance",
+                    "ru_distance",
+                    "ru_old_radius",
+                    "ru_radius",
+                    "tw_energy",
+                    "ru_e1_v1",
+                    "shock_units"
+                  ]
+                },
+                {
+                  "id": "attribution",
+                  "kind": "choice",
+                  "answer": "不同时间和诊断的条件比较，尚不能唯一归因于长期本征变化",
+                  "unit": null,
+                  "required_evidence_ids": [
+                    "ru_old_rate",
+                    "uv_summary",
+                    "ru_epoch1",
+                    "uv_parameter_notes"
+                  ]
+                }
+              ],
+              "worked_solution": [
+                "距离比156/140，平方约1.24163；旧中心值更新为6.2082e-8 Msun/yr。",
+                "再乘1.83/1.64，得到6.9274e-8 Msun/yr；与13.1e-8的比约1.891。",
+                "半径更新在表注中标为使用当前 Gaia 距离。旧值还有±2e-8误差，两次诊断与采样不同，不能仅凭中心值比断言长期物理演化。"
+              ],
+              "required_evidence_ids": [
+                "ru_distance",
+                "ru_e1_v1",
+                "ru_epoch1",
+                "ru_old_distance",
+                "ru_old_radius",
+                "ru_old_rate",
+                "ru_radius",
+                "shock_units",
+                "tw_energy",
+                "uv_parameter_notes",
+                "uv_summary"
+              ]
+            },
+            "split": "development",
+            "review_status": "pending",
+            "leakage_group": "odysseus_four_ctts",
+            "title": "RU Lup 新旧吸积率：距离与半径更新后再比较",
+            "task_level": "integrated_case",
+            "response_fields": [
+              {
+                "id": "distance_only",
+                "request": "只更新距离后的旧吸积率中心值。",
+                "kind": "number",
+                "unit": "Msun/yr"
+              },
+              {
+                "id": "radius_updated",
+                "request": "再更新半径后的旧吸积率中心值。",
+                "kind": "number",
+                "unit": "Msun/yr"
+              },
+              {
+                "id": "remaining_ratio",
+                "request": "新 visit 1.1 值 / 更新距离和半径后的旧值。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "attribution",
+                "request": "剩余差异应如何解释？",
+                "kind": "choice",
+                "choices": [
+                  "已证明全部差异来自距离",
+                  "不同时间和诊断的条件比较，尚不能唯一归因于长期本征变化",
+                  "可以把旧论文误差忽略并当成训练真值"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "CTTS-C06",
+            "question": "用 Gaia DR3 视差的直接倒数演示 GM Aur 的距离更新，忽略零点、先验和系统误差；形式误差用一阶传播。固定 M*、R*、消光与 Rin/R*，只让推导吸积率随 d² 变化。把更新倍率与光学论文报告的平均线标定/激波差异比较；该平均差异本身并不是一次同时观测的成对测量。",
+            "category": "catalog_literature_integration",
+            "targets": [
+              "GM Aur"
+            ],
+            "material_ids": [
+              "gaia_gm",
+              "gm_distance",
+              "op_offsets",
+              "tw_energy",
+              "uv_parameter_notes"
+            ],
+            "reference": {
+              "kind": "structured",
+              "checkpoints": [
+                {
+                  "id": "distance",
+                  "kind": "number",
+                  "answer": 158.10771732821908,
+                  "unit": "pc",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "gaia_gm"
+                  ]
+                },
+                {
+                  "id": "distance_sigma",
+                  "kind": "number",
+                  "answer": 1.2259652184320118,
+                  "unit": "pc",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "gaia_gm"
+                  ]
+                },
+                {
+                  "id": "update_factor",
+                  "kind": "number",
+                  "answer": 1.0405015724761717,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "gaia_gm",
+                    "gm_distance",
+                    "tw_energy"
+                  ]
+                },
+                {
+                  "id": "required_factor",
+                  "kind": "number",
+                  "answer": 2.2779043280182236,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "op_offsets"
+                  ]
+                },
+                {
+                  "id": "verdict",
+                  "kind": "choice",
+                  "answer": "不足，更新幅度远小于诊断差异，且该倒数距离只是一项近似检查",
+                  "unit": null,
+                  "required_evidence_ids": [
+                    "gaia_gm",
+                    "gm_distance",
+                    "op_offsets"
+                  ]
+                }
+              ],
+              "worked_solution": [
+                "d=1000/π≈158.10772 pc，σd=1000σπ/π²≈1.226 pc。",
+                "相对155 pc的平方倍率约1.0405；线标定平均值是激波的0.439倍，拉齐需要2.2779倍。",
+                "约4%的参数修正不能解释这项均值差异。RUWE与系统误差仍须保留，不能把倒数距离当成已校正的后验距离。"
+              ],
+              "required_evidence_ids": [
+                "gaia_gm",
+                "gm_distance",
+                "op_offsets",
+                "tw_energy"
+              ]
+            },
+            "split": "development",
+            "review_status": "pending",
+            "leakage_group": "odysseus_four_ctts",
+            "title": "GM Aur：距离更新足以解释诊断差异吗",
+            "task_level": "integrated_case",
+            "response_fields": [
+              {
+                "id": "distance",
+                "request": "Gaia 视差直接倒数距离。",
+                "kind": "number",
+                "unit": "pc"
+              },
+              {
+                "id": "distance_sigma",
+                "request": "一阶传播的距离形式误差。",
+                "kind": "number",
+                "unit": "pc"
+              },
+              {
+                "id": "update_factor",
+                "request": "相对 ODYSSEUS I 采用距离的 d² 倍率。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "required_factor",
+                "request": "使报告的 GM Aur 线标定平均值达到激波平均值所需的倍率。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "verdict",
+                "request": "是否足以用这个距离更新单独解释报告的差异？",
+                "kind": "choice",
+                "choices": [
+                  "足够，任何距离变化都能解释差异",
+                  "不足，更新幅度远小于诊断差异，且该倒数距离只是一项近似检查",
+                  "应删除高 RUWE 的天体再宣称一致"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "CTTS-C07",
+            "question": "整理 BP Tau 的结果卡片：ODYSSEUS III 引用的 Gangi 2020 年结果、ODYSSEUS I visit 1.1 的激波结果，以及光学/激波的平均差异。区分“被引用的数值”“本次诊断间均值比”和“单次观测比”，避免把它们合成一条无条件变化曲线。",
+            "category": "cross_paper_comparison",
+            "targets": [
+              "BP Tau"
+            ],
+            "material_ids": [
+              "op_prior",
+              "op_offsets",
+              "op_population",
+              "bp_visit1_rate",
+              "bp_visit1_date",
+              "bp_shock_units",
+              "uv_summary"
+            ],
+            "reference": {
+              "kind": "structured",
+              "checkpoints": [
+                {
+                  "id": "origin",
+                  "kind": "choice",
+                  "answer": "被引用的 Gangi 等人在2020年1月的线标定估计",
+                  "unit": null,
+                  "required_evidence_ids": [
+                    "op_prior"
+                  ]
+                },
+                {
+                  "id": "mean_ratio",
+                  "kind": "number",
+                  "answer": 0.281,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "op_offsets"
+                  ]
+                },
+                {
+                  "id": "epoch_ratio",
+                  "kind": "number",
+                  "answer": 3.321428571428571,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "bp_visit1_rate",
+                    "bp_shock_units",
+                    "op_prior"
+                  ]
+                },
+                {
+                  "id": "cause",
+                  "kind": "choice",
+                  "answer": "不能，历元和诊断同时改变，需要同诊断或同期交叉校准",
+                  "unit": null,
+                  "required_evidence_ids": [
+                    "op_prior",
+                    "bp_visit1_date",
+                    "uv_summary",
+                    "op_population"
+                  ]
+                }
+              ],
+              "worked_solution": [
+                "0.56e-8是光学论文引用的前人2020年1月结果，不能标成ODYSSEUS本次原始测量。",
+                "线标定平均值/激波平均值=0.281；另一个不同量是1.86/0.56≈3.321的非同期中心值比。",
+                "二者不能混同；需要控制历元与诊断，才能把变化归因于天体。"
+              ],
+              "required_evidence_ids": [
+                "bp_shock_units",
+                "bp_visit1_date",
+                "bp_visit1_rate",
+                "op_offsets",
+                "op_population",
+                "op_prior",
+                "uv_summary"
+              ]
+            },
+            "split": "development",
+            "review_status": "pending",
+            "leakage_group": "odysseus_four_ctts",
+            "title": "BP Tau：前人结果、不同诊断和不同历元",
+            "task_level": "integrated_case",
+            "response_fields": [
+              {
+                "id": "origin",
+                "request": "0.56×10^-8 Msun/yr 的来源是什么？",
+                "kind": "choice",
+                "choices": [
+                  "ODYSSEUS I visit 1.1 激波拟合",
+                  "被引用的 Gangi 等人在2020年1月的线标定估计",
+                  "当前 Gaia 直接测得的吸积率"
+                ]
+              },
+              {
+                "id": "mean_ratio",
+                "request": "光学论文所报 BP Tau 线标定均值 / 激波均值。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "epoch_ratio",
+                "request": "visit 1.1 激波中心值 / 被引用的2020年1月中心值。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "cause",
+                "request": "上述单次观测比可以唯一归因于真实时间变化吗？",
+                "kind": "choice",
+                "choices": [
+                  "可以，因为天体名称相同",
+                  "不能，历元和诊断同时改变，需要同诊断或同期交叉校准",
+                  "可以，均值差异就是所有历元的固定校正"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "CTTS-C08",
+            "question": "做一个明确的敏感性实验：比较 ODYSSEUS I 采用的 RU Lup Av 与2005年论文提到的 Hughes 光学颜色估计。仅为本题，设某诊断波长 Aλ/Av=2.5，固定同一观测通量、距离、M*和R*，使用 F去消光=F观测×10^(0.4 Aλ)，并假设吸积率与该通量线性。不要把这个波长系数或缩放视为论文新的测量。",
+            "category": "uncertainty_analysis",
+            "targets": [
+              "RU Lup"
+            ],
+            "material_ids": [
+              "ru_av",
+              "uv_parameter_notes",
+              "ru_color_extinction",
+              "op_calibration",
+              "tw_energy"
+            ],
+            "reference": {
+              "kind": "structured",
+              "checkpoints": [
+                {
+                  "id": "delta_av",
+                  "kind": "number",
+                  "answer": 1.21,
+                  "unit": "mag",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "ru_av",
+                    "ru_color_extinction"
+                  ]
+                },
+                {
+                  "id": "flux_ratio",
+                  "kind": "number",
+                  "answer": 16.218100973589298,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "ru_av",
+                    "ru_color_extinction"
+                  ]
+                },
+                {
+                  "id": "origin",
+                  "kind": "choice",
+                  "answer": "Hughes 的前人颜色估计，2005年论文指出其受吸积污染",
+                  "unit": null,
+                  "required_evidence_ids": [
+                    "ru_color_extinction"
+                  ]
+                },
+                {
+                  "id": "meaning",
+                  "kind": "choice",
+                  "answer": "说明题设下对消光选择敏感，不能证明天体实际增加了该倍数",
+                  "unit": null,
+                  "required_evidence_ids": [
+                    "ru_av",
+                    "ru_color_extinction",
+                    "op_calibration"
+                  ]
+                }
+              ],
+              "worked_solution": [
+                "ΔAv=1.21 mag，题设Aλ差为3.025 mag，通量倍率10^1.21≈16.218。",
+                "该倍率只在固定通量和线性诊断假设下传播到吸积率；实际线关系斜率、波长和消光定律不能省略。",
+                "Hughes值是被引前人颜色估计；原论文说明吸积污染。光学论文还固定各天体Av随时间不变，这同样是建模假设。"
+              ],
+              "required_evidence_ids": [
+                "op_calibration",
+                "ru_av",
+                "ru_color_extinction"
+              ]
+            },
+            "split": "development",
+            "review_status": "pending",
+            "leakage_group": "odysseus_four_ctts",
+            "title": "RU Lup：消光选择如何改变吸积推断",
+            "task_level": "integrated_case",
+            "response_fields": [
+              {
+                "id": "delta_av",
+                "request": "Hughes 值减去 ODYSSEUS 采用值。",
+                "kind": "number",
+                "unit": "mag"
+              },
+              {
+                "id": "flux_ratio",
+                "request": "采用较大 Av 相对于较小 Av 的去消光通量倍率。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "origin",
+                "request": "应如何标注 Av=1.28 的结果归属？",
+                "kind": "choice",
+                "choices": [
+                  "2005年论文以 Lyα 吸收重新测出的值",
+                  "Hughes 的前人颜色估计，2005年论文指出其受吸积污染",
+                  "ODYSSEUS I 所有历元的新测量"
+                ]
+              },
+              {
+                "id": "meaning",
+                "request": "这个倍率说明什么？",
+                "kind": "choice",
+                "choices": [
+                  "证明两次真实吸积事件相差该倍数",
+                  "说明题设下对消光选择敏感，不能证明天体实际增加了该倍数",
+                  "证明应统一采用较大消光"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "CTTS-C09",
+            "question": "按 ODYSSEUS III 方法处理一个明确标注为教学模拟的单滤光片例子：相对光谱时刻，三点光度间隔的绝对值为0、3、8小时，通量分别10、20、100，同单位任意通量；光谱合成通量为5。这些数不是论文真实观测。按论文窗口筛选并加权，再讨论此类标定能否保证快速变化目标的精度。",
+            "category": "observing_strategy",
+            "targets": [
+              "TW Hya",
+              "RU Lup",
+              "BP Tau",
+              "GM Aur"
+            ],
+            "material_ids": [
+              "op_calibration",
+              "uv_summary",
+              "op_summary"
+            ],
+            "reference": {
+              "kind": "structured",
+              "checkpoints": [
+                {
+                  "id": "weighted_flux",
+                  "kind": "number",
+                  "answer": 13.076923076923077,
+                  "unit": "arbitrary_flux",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "op_calibration"
+                  ]
+                },
+                {
+                  "id": "scale",
+                  "kind": "number",
+                  "answer": 2.6153846153846154,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "op_calibration"
+                  ]
+                },
+                {
+                  "id": "coverage",
+                  "kind": "number",
+                  "answer": 87.73234200743494,
+                  "unit": "percent",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "op_calibration"
+                  ]
+                },
+                {
+                  "id": "limitation",
+                  "kind": "choice",
+                  "answer": "窗口不保证真正同时，未标定部分也不能自动当作随机缺失",
+                  "unit": null,
+                  "required_evidence_ids": [
+                    "op_calibration",
+                    "uv_summary",
+                    "op_summary"
+                  ]
+                }
+              ],
+              "worked_solution": [
+                "8小时点在6小时窗口外，不能因通量大而纳入。3小时=0.125天，权重为10和1/0.225。",
+                "加权通量约13.076923，缩放因子约2.615385；成功比例236/269≈87.732%。",
+                "模拟例子检查方法执行，不能当新增观测语料。短时变化、时间错配和缺失机制仍需检查。"
+              ],
+              "required_evidence_ids": [
+                "op_calibration",
+                "op_summary",
+                "uv_summary"
+              ]
+            },
+            "split": "development",
+            "review_status": "pending",
+            "leakage_group": "odysseus_four_ctts",
+            "title": "复现光度标定：时间窗口、权重与覆盖率",
+            "task_level": "integrated_case",
+            "response_fields": [
+              {
+                "id": "weighted_flux",
+                "request": "窗口内光度点的加权平均通量。",
+                "kind": "number",
+                "unit": "arbitrary_flux"
+              },
+              {
+                "id": "scale",
+                "request": "单滤光片光谱缩放因子。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "coverage",
+                "request": "论文成功光度标定的光谱占比（百分数）。",
+                "kind": "number",
+                "unit": "percent"
+              },
+              {
+                "id": "limitation",
+                "request": "对时间错配与样本缺失的解释应是？",
+                "kind": "choice",
+                "choices": [
+                  "6小时内必然无变化，未标定谱可自动补成平均值",
+                  "窗口不保证真正同时，未标定部分也不能自动当作随机缺失",
+                  "只要平均关系成立，每次观测都达到同样精度"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "CTTS-C10",
+            "question": "比较 ODYSSEUS I 的 BP Tau visit 1.1、1.2，并读取日期上标对应表注。使用中心值与印出的上下界，不把区间重叠转成显著性检验。结合光学论文的光度标定方法，判断训练样本应该保留什么质量信息。",
+            "category": "data_quality",
+            "targets": [
+              "BP Tau"
+            ],
+            "material_ids": [
+              "bp_visit1_date",
+              "bp_visit2_date",
+              "bp_visit1_rate",
+              "bp_visit2_rate",
+              "bp_shock_units",
+              "uv_bp_notes",
+              "op_calibration"
+            ],
+            "reference": {
+              "kind": "structured",
+              "checkpoints": [
+                {
+                  "id": "elapsed",
+                  "kind": "number",
+                  "answer": 1.9800000000032014,
+                  "unit": "day",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "bp_visit1_date",
+                    "bp_visit2_date"
+                  ]
+                },
+                {
+                  "id": "ratio",
+                  "kind": "number",
+                  "answer": 1.129032258064516,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "bp_visit1_rate",
+                    "bp_visit2_rate",
+                    "bp_shock_units"
+                  ]
+                },
+                {
+                  "id": "flag",
+                  "kind": "choice",
+                  "answer": "缺少同期光度",
+                  "unit": null,
+                  "required_evidence_ids": [
+                    "bp_visit2_date",
+                    "uv_bp_notes"
+                  ]
+                },
+                {
+                  "id": "quality",
+                  "kind": "choice",
+                  "answer": "区间重叠且有同期光度缺口，应保留脚注与标定限制",
+                  "unit": null,
+                  "required_evidence_ids": [
+                    "bp_visit1_rate",
+                    "bp_visit2_rate",
+                    "uv_bp_notes",
+                    "op_calibration"
+                  ]
+                }
+              ],
+              "worked_solution": [
+                "Δt=1.98天，中心比2.1/1.86≈1.129。两区间[1.78,1.95]与[1.9,2.3]重叠，单位1e-8 Msun/yr。",
+                "日期上标a指缺少同期光度；不能把这条记录静默删除，也不能把模型误差条当成全部标定误差。",
+                "区间重叠不等于已经证明“无变化”，本题也没有计算显著性。"
+              ],
+              "required_evidence_ids": [
+                "bp_shock_units",
+                "bp_visit1_date",
+                "bp_visit1_rate",
+                "bp_visit2_date",
+                "bp_visit2_rate",
+                "op_calibration",
+                "uv_bp_notes"
+              ]
+            },
+            "split": "development",
+            "review_status": "pending",
+            "leakage_group": "odysseus_four_ctts",
+            "title": "BP Tau 表格脚注：精度不只看误差条",
+            "task_level": "integrated_case",
+            "response_fields": [
+              {
+                "id": "elapsed",
+                "request": "两个历元的时间差。",
+                "kind": "number",
+                "unit": "day"
+              },
+              {
+                "id": "ratio",
+                "request": "visit 1.2 / visit 1.1 吸积率中心值比。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "flag",
+                "request": "visit 1.2 的日期上标 a 表示什么？",
+                "kind": "choice",
+                "choices": [
+                  "缺少同期光度",
+                  "已经通过人工复核",
+                  "Gaia源编号有误"
+                ]
+              },
+              {
+                "id": "quality",
+                "request": "如何解释变化与质量？",
+                "kind": "choice",
+                "choices": [
+                  "比值大于1就足以证明显著增强",
+                  "区间重叠且有同期光度缺口，应保留脚注与标定限制",
+                  "直接删除带脚注历元且不保留记录"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "CTTS-C11",
+            "question": "只分析 ODYSSEUS I 两轮观测各自最前4个 visit 的吸积率中心值。对每轮这4点取等权算术均值，不对误差加权，不把缺少同期光度的历元静默剔除。再比较第2轮内部最大/最小值，判断能否直接称为两年的年平均变化。",
+            "category": "time_and_sampling",
+            "targets": [
+              "RU Lup"
+            ],
+            "material_ids": [
+              "ru_e1_v1",
+              "ru_e1_v2",
+              "ru_e1_v3",
+              "ru_e1_v4",
+              "ru_e2_v1",
+              "ru_e2_v2",
+              "ru_e2_v3",
+              "ru_e2_v4",
+              "shock_units",
+              "ru_epoch1",
+              "ru_epoch2",
+              "op_prior",
+              "uv_summary"
+            ],
+            "reference": {
+              "kind": "structured",
+              "checkpoints": [
+                {
+                  "id": "mean_epoch1",
+                  "kind": "number",
+                  "answer": 1.255e-07,
+                  "unit": "Msun/yr",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "ru_e1_v1",
+                    "ru_e1_v2",
+                    "ru_e1_v3",
+                    "ru_e1_v4",
+                    "shock_units"
+                  ]
+                },
+                {
+                  "id": "mean_epoch2",
+                  "kind": "number",
+                  "answer": 8.150000000000001e-08,
+                  "unit": "Msun/yr",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "ru_e2_v1",
+                    "ru_e2_v2",
+                    "ru_e2_v3",
+                    "ru_e2_v4",
+                    "shock_units"
+                  ]
+                },
+                {
+                  "id": "mean_ratio",
+                  "kind": "number",
+                  "answer": 1.539877300613497,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "ru_e1_v1",
+                    "ru_e1_v2",
+                    "ru_e1_v3",
+                    "ru_e1_v4",
+                    "ru_e2_v1",
+                    "ru_e2_v2",
+                    "ru_e2_v3",
+                    "ru_e2_v4"
+                  ]
+                },
+                {
+                  "id": "epoch2_range",
+                  "kind": "number",
+                  "answer": 2.1052631578947367,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "ru_e2_v1",
+                    "ru_e2_v2",
+                    "ru_e2_v3",
+                    "ru_e2_v4"
+                  ]
+                },
+                {
+                  "id": "representativeness",
+                  "kind": "choice",
+                  "answer": "不能，短窗口子样本与全年、不同诊断的统计量不相同",
+                  "unit": null,
+                  "required_evidence_ids": [
+                    "ru_epoch1",
+                    "ru_epoch2",
+                    "op_prior",
+                    "uv_summary"
+                  ]
+                }
+              ],
+              "worked_solution": [
+                "两个4点均值分别为12.55e-8与8.15e-8 Msun/yr，比值约1.53988；第二轮4点内幅度约2.10526。",
+                "这是显式选出的各轮最前4点，不是全文所有历元，也不是时间加权或误差加权平均。",
+                "两轮观测窗口各自只覆盖约十余天，既不能代表完整年份，也不能不加区分地检验另一诊断的年度比较。"
+              ],
+              "required_evidence_ids": [
+                "op_prior",
+                "ru_e1_v1",
+                "ru_e1_v2",
+                "ru_e1_v3",
+                "ru_e1_v4",
+                "ru_e2_v1",
+                "ru_e2_v2",
+                "ru_e2_v3",
+                "ru_e2_v4",
+                "ru_epoch1",
+                "ru_epoch2",
+                "shock_units",
+                "uv_summary"
+              ]
+            },
+            "split": "development",
+            "review_status": "pending",
+            "leakage_group": "odysseus_four_ctts",
+            "title": "RU Lup 采样选择：四次观测能否代表一年",
+            "task_level": "integrated_case",
+            "response_fields": [
+              {
+                "id": "mean_epoch1",
+                "request": "第一轮所选4点的均值。",
+                "kind": "number",
+                "unit": "Msun/yr"
+              },
+              {
+                "id": "mean_epoch2",
+                "request": "第二轮所选4点的均值。",
+                "kind": "number",
+                "unit": "Msun/yr"
+              },
+              {
+                "id": "mean_ratio",
+                "request": "第一轮所选均值 / 第二轮所选均值。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "epoch2_range",
+                "request": "第二轮所选4点中最大值 / 最小值。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "representativeness",
+                "request": "能否把这个均值比当作年平均变化，并直接检验前人的年度说法？",
+                "kind": "choice",
+                "choices": [
+                  "可以，四点已经覆盖全年",
+                  "不能，短窗口子样本与全年、不同诊断的统计量不相同",
+                  "可以，把最大值当年平均即可"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "CTTS-C12",
+            "question": "用 ODYSSEUS III 报告的线标定相对激波平均差异，构造“激波平均值/线标定平均值”的乘法修正。检验把 RU Lup 修正套到 BP Tau 的后果，并结合两篇 ODYSSEUS 的适用范围讨论。这些是平均关系，不是逐历元配对回归，也不是跨独立样本验证。",
+            "category": "calibration_transfer",
+            "targets": [
+              "TW Hya",
+              "RU Lup",
+              "BP Tau",
+              "GM Aur"
+            ],
+            "material_ids": [
+              "op_offsets",
+              "op_population",
+              "op_summary",
+              "uv_summary"
+            ],
+            "reference": {
+              "kind": "structured",
+              "checkpoints": [
+                {
+                  "id": "tw_correction",
+                  "kind": "number",
+                  "answer": 1.3123359580052494,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "op_offsets"
+                  ]
+                },
+                {
+                  "id": "ru_correction",
+                  "kind": "number",
+                  "answer": 0.9551098376313276,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "op_offsets"
+                  ]
+                },
+                {
+                  "id": "bp_correction",
+                  "kind": "number",
+                  "answer": 3.558718861209964,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "op_offsets"
+                  ]
+                },
+                {
+                  "id": "transferred_ratio",
+                  "kind": "number",
+                  "answer": 0.2683858643744031,
+                  "unit": "1",
+                  "rtol": 0.002,
+                  "atol": 0,
+                  "required_evidence_ids": [
+                    "op_offsets"
+                  ]
+                },
+                {
+                  "id": "transfer",
+                  "kind": "choice",
+                  "answer": "均值修正依赖目标，不能保证跨星或逐历元可迁移",
+                  "unit": null,
+                  "required_evidence_ids": [
+                    "op_offsets",
+                    "op_population",
+                    "op_summary",
+                    "uv_summary"
+                  ]
+                }
+              ],
+              "worked_solution": [
+                "TW、RU、BP的修正依次约1.31234、0.95511、3.55872；“低x%”的补偿不是简单加x%。",
+                "转用RU修正后BP只达到其激波均值的0.281/1.047≈0.26839。",
+                "群体标定、目标均值以及逐历元变化是不同问题；同一组4星的比较不能声称独立泛化或模型训练收益。"
+              ],
+              "required_evidence_ids": [
+                "op_offsets",
+                "op_population",
+                "op_summary",
+                "uv_summary"
+              ]
+            },
+            "split": "development",
+            "review_status": "pending",
+            "leakage_group": "odysseus_four_ctts",
+            "title": "四颗星能否共用一个线标定修正",
+            "task_level": "integrated_case",
+            "response_fields": [
+              {
+                "id": "tw_correction",
+                "request": "TW Hya 的均值修正因子。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "ru_correction",
+                "request": "RU Lup 的均值修正因子。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "bp_correction",
+                "request": "BP Tau 的均值修正因子。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "transferred_ratio",
+                "request": "BP Tau 线均值乘上 RU Lup 修正后，相对 BP Tau 激波均值的比。",
+                "kind": "number",
+                "unit": "1"
+              },
+              {
+                "id": "transfer",
+                "request": "如何评价跨星转用和逐历元使用？",
+                "kind": "choice",
+                "choices": [
+                  "同为CTTS就保证通用",
+                  "均值修正依赖目标，不能保证跨星或逐历元可迁移",
+                  "群体相关性越高就必然能预测每颗星的时间变化"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
         "suite_id": "ctts_herczeg_v1",
-        "bundle_sha256": "5d3968b99db7db6bff48602963d5ad8c7866b7a24389b028e9a48fd6a5291147",
-        "created_at": "2026-11-11T03:58:23.363363+00:00",
+        "bundle_sha256": "f2d9e1f6e8058b7bbad6b4ce51d53ef11b1dec75f3a534be203910c253d7d42f",
+        "created_at": "2026-11-11T11:18:37.839631+00:00",
         "split": "development",
         "review_status": "pending",
         "targets": [
@@ -630,6 +4378,13 @@
                 ],
                 "row": 2,
                 "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "TW Hya"
+                  }
+                ],
                 "row_label": "TW Hya",
                 "column_label": "MJD",
                 "start": 0,
@@ -659,6 +4414,13 @@
                 ],
                 "row": 4,
                 "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "RU Lup"
+                  }
+                ],
                 "row_label": "RU Lup",
                 "column_label": "MJD",
                 "start": 0,
@@ -688,6 +4450,13 @@
                 ],
                 "row": 6,
                 "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "BP Tau"
+                  }
+                ],
                 "row_label": "BP Tau",
                 "column_label": "MJD",
                 "start": 0,
@@ -717,6 +4486,13 @@
                 ],
                 "row": 8,
                 "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "GM Aur"
+                  }
+                ],
                 "row_label": "GM Aur",
                 "column_label": "MJD",
                 "start": 0,
@@ -746,6 +4522,13 @@
                 ],
                 "row": 8,
                 "column": 4,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "GM Aur"
+                  }
+                ],
                 "row_label": "GM Aur",
                 "column_label": "# of",
                 "start": 0,
@@ -775,6 +4558,13 @@
                 ],
                 "row": 9,
                 "column": 4,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "GM Aur"
+                  }
+                ],
                 "row_label": "GM Aur",
                 "column_label": "# of",
                 "start": 0,
@@ -854,6 +4644,13 @@
                 ],
                 "row": 4,
                 "column": 8,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "RU Lup"
+                  }
+                ],
                 "row_label": "RU Lup",
                 "column_label": "A_{V}",
                 "start": 0,
@@ -1134,6 +4931,13 @@
                 ],
                 "row": 9,
                 "column": 3,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "GM Aur"
+                  }
+                ],
                 "row_label": "GM Aur",
                 "column_label": "MJD",
                 "start": 0,
@@ -1163,6 +4967,13 @@
                 ],
                 "row": 9,
                 "column": 2,
+                "row_context": [
+                  {
+                    "column": 0,
+                    "label": "Object",
+                    "value": "GM Aur"
+                  }
+                ],
                 "row_label": "GM Aur",
                 "column_label": "Date (UT)",
                 "start": 0,
