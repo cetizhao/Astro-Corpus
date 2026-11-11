@@ -7,7 +7,8 @@ import csv
 from pathlib import Path
 
 from astro_pipeline.research_tasks import (
-    compile_bundle, export_prompts, read_json, reference_predictions, score, write_json,
+    compile_bundle, evaluation_conditions, export_evaluation_package, export_prompts,
+    prediction_template, read_json, reference_predictions, score, write_json,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -64,23 +65,28 @@ def pinned_manifest(root: Path) -> Path:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--spec", type=Path, default=SPEC)
-    parser.add_argument("--output", type=Path, default=OUT)
+    parser.add_argument("--suite", choices=["basic", "cases"], default="basic")
+    parser.add_argument("--spec", type=Path)
+    parser.add_argument("--output", type=Path)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("acquire", help="Network: fetch only the four explicit targets/papers")
     prep = sub.add_parser("prepare", help="Offline: compile pending tasks from immutable runs")
     prep.add_argument("--source-manifest", type=Path)
     prep.add_argument("--paper-manifest", type=Path)
-    exp = sub.add_parser("export", help="Offline: produce A/B/C model prompts and response templates")
-    exp.add_argument("--condition", choices=["A", "B", "C", "all"], default="all")
+    exp = sub.add_parser("export", help="Offline: produce model prompts and response templates")
+    exp.add_argument("--condition", choices=["A", "B", "C", "D", "all"], default="all")
+    sub.add_parser("package", help="Offline: portable prompts, response templates and Python scorer ZIP")
     sub.add_parser("self-check", help="Offline: check reference scoring; NOT a model evaluation")
     public = sub.add_parser("export-observatory", help="Export the selected stars/tasks as a public Pages example")
     public.add_argument("--source-manifest", type=Path)
+    public.add_argument("--include-bundle", type=Path, action="append", default=[], help="Include another suite with the same source snapshot")
     public.add_argument("--destination", type=Path, default=ROOT / "examples/observatory/research.json")
     grading = sub.add_parser("score", help="Offline: score responses from an external model run")
     grading.add_argument("predictions", type=Path)
     grading.add_argument("--report", type=Path)
     args = parser.parse_args()
+    args.spec = args.spec or (SPEC.with_name("cases.json") if args.suite == "cases" else SPEC)
+    args.output = args.output or (OUT.with_name("ctts_herczeg_cases_v2") if args.suite == "cases" else OUT)
     output = args.output
     if args.command == "acquire":
         acquire(read_json(args.spec), output)
@@ -93,26 +99,28 @@ def main() -> None:
     else:
         bundle = read_json(output / "bundle.json")
         if args.command == "export-observatory":
-            from astro_pipeline.viz.research import public_research_snapshot
+            from astro_pipeline.viz.research import public_research_snapshot, merge_public_research
             manifest = args.source_manifest or SOURCE / "runs" / bundle["source_snapshot"]["run_id"] / "manifest.json"
-            write_json(args.destination, public_research_snapshot(bundle, manifest))
+            snapshots = [public_research_snapshot(b, manifest) for b in [bundle, *[read_json(p) for p in args.include_bundle]]]
+            write_json(args.destination, merge_public_research(snapshots))
             print(f"Exported selected public examples to {args.destination}; build/publish Pages to update the site.")
         elif args.command == "export":
-            for condition in "ABC" if args.condition == "all" else args.condition:
+            for condition in evaluation_conditions(bundle) if args.condition == "all" else args.condition:
                 write_json(output / f"prompts-{condition}.json", export_prompts(bundle, condition))
-                write_json(output / f"predictions-{condition}.template.json", {
-                    "schema_version": "research-predictions-1", "bundle_sha256": bundle["bundle_sha256"],
-                    "condition": condition, "run_kind": "model_inference", "model": None,
-                    "settings": {"temperature": None, "max_output_tokens": None, "seed": None},
-                    "responses": [],
-                })
+                write_json(output / f"predictions-{condition}.template.json", prediction_template(bundle, condition))
             print(f"Exported prompts and empty response templates to {output}; no model calls made.")
+        elif args.command == "package":
+            print(export_evaluation_package(bundle, output))
         elif args.command == "self-check":
-            predictions = reference_predictions(bundle)
-            report = score(bundle, predictions)
-            write_json(output / "reference-self-check.json", predictions)
-            write_json(output / "reference-self-check-score.json", report)
-            print(f"Reference self-check only: {report['metrics']}; NOT model accuracy.")
+            for condition in evaluation_conditions(bundle):
+                predictions = reference_predictions(bundle, condition)
+                report = score(bundle, predictions)
+                write_json(output / f"reference-self-check-{condition}.json", predictions)
+                write_json(output / f"reference-self-check-score-{condition}.json", report)
+                if condition == "C":
+                    write_json(output / "reference-self-check.json", predictions)
+                    write_json(output / "reference-self-check-score.json", report)
+                print(f"{condition} reference self-check only: {report['metrics']}; NOT model accuracy.")
         else:
             report = score(bundle, read_json(args.predictions))
             path = args.report or output / f"score-{report['condition']}.json"

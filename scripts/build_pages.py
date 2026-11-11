@@ -27,7 +27,7 @@ def build(output: Path) -> None:
         data['research_tasks'] = extra['research_tasks']
         data['exported_at'] = extra['exported_at']
         data['default_source'] = extra['sources'][0]['key']
-        data['meta']['revision'] += '-' + extra['research_tasks']['suites'][0]['bundle_sha256'][:12]
+        data['meta']['revision'] += '-' + '-'.join(s['bundle_sha256'][:12] for s in extra['research_tasks']['suites'])
     data['meta']['total_sources'] = len(data['sources'])
     data['meta']['exported_at'] = data['exported_at']
     (output / 'demo.json').write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')

@@ -74,6 +74,9 @@ def _paper_material(selector: dict, document: dict, pin: dict) -> dict:
         for guard in selector.get("row_guards", []):
             if block["cells"][row][guard["column"]]["text"] != guard["equals"]:
                 raise ValueError("Table row identity changed")
+        location["row_context"] = [{"column": g["column"],
+                                    "label": block["cells"][0][g["column"]]["text"],
+                                    "value": g["equals"]} for g in selector.get("row_guards", [])]
         location["row_label"] = block["cells"][row][0]["text"]
         location["column_label"] = block["cells"][0][column]["text"]
     elif field in {"text", "caption"}:
@@ -91,6 +94,30 @@ def _paper_material(selector: dict, document: dict, pin: dict) -> dict:
             "provenance": {"paper": pin["versioned_id"], "title": pin["title"],
                            "url": pin["url"], "artifact_sha256": pin["artifact_sha256"],
                            "location": location}}
+
+
+def _validate_reference(ref: dict, choices: list, available: set) -> None:
+    if not set(ref["required_evidence_ids"]) <= available:
+        raise ValueError("Reference evidence is unavailable to the task")
+    if ref["kind"] == "number":
+        if not _number(ref["answer"]) or not all(_number(ref[k]) and ref[k] >= 0 for k in ("atol", "rtol")):
+            raise ValueError("Invalid numeric reference")
+        if not ref.get("unit"):
+            raise ValueError("Numeric references require a unit")
+    elif ref["kind"] != "choice" or ref["answer"] not in choices:
+        raise ValueError("Invalid categorical reference")
+
+
+def _available(task: dict, condition: str) -> list[str]:
+    withheld = task.get("ablation", {}).get("withhold_material_ids", []) if condition == "D" else []
+    return [mid for mid in task["material_ids"] if mid not in withheld]
+
+
+def _references(task: dict, condition: str) -> list[dict]:
+    ref = task["reference"]
+    checks = ref["checkpoints"] if ref["kind"] == "structured" else [ref]
+    overrides = task.get("ablation", {}).get("reference_overrides", {}) if condition == "D" else {}
+    return [{**check, **overrides.get(check.get("id"), {})} for check in checks]
 
 
 def compile_bundle(spec: dict, source_manifest: Path | str,
@@ -192,13 +219,22 @@ def compile_bundle(spec: dict, source_manifest: Path | str,
         if not set(task["material_ids"]) <= material_index.keys():
             raise ValueError("Task references absent material")
         ref = task["reference"]
-        if not set(ref["required_evidence_ids"]) <= set(task["material_ids"]):
-            raise ValueError("Reference evidence is unavailable to the task")
-        if ref["kind"] == "number":
-            if not _number(ref["answer"]) or ref["atol"] < 0 or ref["rtol"] < 0:
-                raise ValueError("Invalid numeric reference")
-        elif ref["kind"] != "choice" or ref["answer"] not in task["choices"]:
-            raise ValueError("Invalid categorical reference")
+        if ref["kind"] == "structured":
+            fields = _unique(task["response_fields"], "id")
+            checks = _unique(ref["checkpoints"], "id")
+            if not checks or checks.keys() != fields.keys():
+                raise ValueError("Each response field must have one reference checkpoint")
+            for key, check in checks.items():
+                _validate_reference(check, fields[key].get("choices", []), set(task["material_ids"]))
+            ablation = task["ablation"]
+            withheld = set(ablation["withhold_material_ids"])
+            overrides = ablation["reference_overrides"]
+            if not withheld or not withheld < set(task["material_ids"]) or not overrides or not overrides.keys() <= checks.keys():
+                raise ValueError("Invalid evidence ablation")
+            for check in _references(task, "D"):
+                _validate_reference(check, [*fields[check["id"]].get("choices", []), "insufficient_information"], set(_available(task, "D")))
+        else:
+            _validate_reference(ref, task.get("choices", []), set(task["material_ids"]))
         for other in tasks[:i]:
             if task["leakage_group"] != other["leakage_group"]:
                 shared_targets = set(task["targets"]) & set(other["targets"])
@@ -206,7 +242,7 @@ def compile_bundle(spec: dict, source_manifest: Path | str,
                 if shared_targets or shared_papers:
                     raise ValueError("Shared objects/papers cannot have distinct leakage groups")
     bundle = {
-        "schema_version": "research-task-1", "suite_id": spec["suite_id"],
+        "schema_version": "research-task-2" if any(t["reference"]["kind"] == "structured" for t in tasks) else "research-task-1", "suite_id": spec["suite_id"],
         "created_at": datetime.now(timezone.utc).isoformat(),
         "split": "development", "review_status": "pending", "scientifically_verified": False,
         "selection": spec["selection"],
@@ -239,8 +275,8 @@ def _plain(value: Any, prefix: str = "") -> list[str]:
 def export_prompts(bundle: dict, condition: str) -> dict:
     """A has no material; B/C contain the exact same selected evidence facts."""
     verify_bundle(bundle)
-    if condition not in {"A", "B", "C"}:
-        raise ValueError("Condition must be A, B or C")
+    if condition not in set(evaluation_conditions(bundle)):
+        raise ValueError("Unsupported evaluation condition for this bundle")
     materials = _unique(bundle["materials"], "id")
     instructions = (
         "回答天文学研究问题。仅使用本题材料和题目明确给出的假设；没有材料时可用已有知识，"
@@ -248,6 +284,10 @@ def export_prompts(bundle: dict, condition: str) -> dict:
         "数值 answer 使用 JSON 数字，选择题使用指定选项原样字符串；"
         "非数值题 unit 为 null，数值题使用题目指定的单位。evidence_ids 为支持回答的材料 id 列表；"
         "未提供材料时用空列表。可另附简短 explanation，不要求输出内部思维过程。"
+        "若题目有 response_fields，则改用 {task_id, checkpoints:[{id, answer, unit, evidence_ids}]}，"
+        "逐项回答这些字段，每项单独引用材料。若不能由现有材料和明确假设确定某项，"
+        "该项 answer 填 insufficient_information、unit 填 null。材料缺失时不能用记忆补全该项数据；"
+        "完全未提供材料的条件可使用已有知识。"
     )
     prompts = []
     for task in bundle["tasks"]:
@@ -255,9 +295,11 @@ def export_prompts(bundle: dict, condition: str) -> dict:
         query = {"task_id": task["id"], "question": task["question"]}
         if "choices" in task:
             query["choices"] = task["choices"]
+        if "response_fields" in task:
+            query["response_fields"] = task["response_fields"]
         text = json.dumps(query, ensure_ascii=False, indent=2)
         if condition != "A":
-            facts = [materials[mid] for mid in task["material_ids"]]
+            facts = [materials[mid] for mid in _available(task, condition)]
             rendered = "\n\n".join("\n".join(_plain(m)) for m in facts) if condition == "B" else json.dumps(facts, ensure_ascii=False, indent=2)
             text += "\n\n材料：\n" + rendered
         messages = [{"role": "system", "content": instructions}, {"role": "user", "content": text}]
@@ -267,6 +309,75 @@ def export_prompts(bundle: dict, condition: str) -> dict:
             "condition": condition, "prompts": prompts}
 
 
+def evaluation_conditions(bundle: dict) -> str:
+    return "ABCD" if all(t.get("ablation") for t in bundle["tasks"]) else "ABC"
+
+
+def prediction_template(bundle: dict, condition: str) -> dict:
+    responses = []
+    for task in bundle["tasks"]:
+        empty = {"answer": None, "unit": None, "evidence_ids": []}
+        responses.append({"task_id": task["id"], **({"checkpoints": [
+            {"id": f["id"], **empty} for f in task["response_fields"]
+        ]} if "response_fields" in task else empty)})
+    return {"schema_version": "research-predictions-1", "bundle_sha256": bundle["bundle_sha256"],
+            "condition": condition, "run_kind": "model_inference", "model": None,
+            "settings": {"temperature": None, "max_output_tokens": None, "seed": None},
+            "responses": responses}
+
+
+def export_evaluation_package(bundle: dict, output: Path) -> Path:
+    """Create a portable, standard-library-only package; never contact a model."""
+    import zipfile
+    verify_bundle(bundle)
+    directory = output / "evaluation"
+    files = []
+    def save(name: str, value: dict):
+        path = directory / name
+        write_json(path, value)
+        files.append(path)
+    save("references/bundle.json", bundle)
+    for condition in evaluation_conditions(bundle):
+        save(f"inputs/prompts-{condition}.json", export_prompts(bundle, condition))
+        save(f"responses/predictions-{condition}.template.json", prediction_template(bundle, condition))
+    for name, content in {
+        "scoring.py": Path(__file__).read_text(encoding="utf-8"),
+        "grade.py": 'from pathlib import Path\nimport sys\nfrom scoring import read_json, score, write_json\n'
+                    'root = Path(__file__).resolve().parent\n'
+                    'report = score(read_json(root / "references/bundle.json"), read_json(sys.argv[1]))\n'
+                    'write_json(sys.argv[2], report)\nprint(report["metrics"])\n',
+        "README.md": (
+            "# CTTS 离线评测包\n\n"
+            f"{len(bundle['tasks'])} 个待复核开发任务；包 SHA-256：{bundle['bundle_sha256']}。\n\n"
+            "本包没有调用模型，也不含真实模型成绩。使用 Python 3.10 或更高版本即可离线评分。\n\n"
+            "1. 只把 inputs/prompts-*.json 中每题的 messages 发送给你选定的模型；每题、每个条件新建上下文。"
+            "网页和 references 含参考解答，不发送给模型。A 无材料；B 为逐字段文本；C 为相同材料的 JSON；"
+            "D（若提供）移除关键材料，检查缺证据时的回答。\n"
+            "2. 保存真实原始输出、模型版本、温度、输出预算、token 用量和解析错误。将实际回答填进对应 responses 模板，"
+            "填写 model 与 settings，另存为 predictions-C.json 等；不要用参考解答代填。\n"
+            "3. 对综合案例，每项 checkpoints 必须包含 id、answer、unit、evidence_ids；"
+            "无法由材料确定的项填 answer=\"insufficient_information\"、unit=null。数值单位见题目。\n"
+            "4. 运行 `python grade.py predictions-C.json score-C.json`。漏答不得从分母删去。"
+            "报告同时给出检查点通过率与整题通过率；材料 ID 匹配不验证自然语言解释。\n\n"
+            "先比较 C 与 A 的证据使用差异、C 与 B 的呈现形式差异，再逐项比较 C/D 是否在证据缺失时恰当弃答。"
+            "四星共享观测计划，属于同一开发组；题目和检查点都不是独立测试样本。"
+            "这些对照不能证明后训练收益，需另设独立天体/论文测试集并实际训练作前后对照。\n"
+        ),
+    }.items():
+        path = directory / name
+        path.write_text(content, encoding="utf-8")
+        files.append(path)
+    save("manifest.json", {"schema_version": "research-evaluation-package-1",
+         "suite_id": bundle["suite_id"], "bundle_sha256": bundle["bundle_sha256"],
+         "conditions": list(evaluation_conditions(bundle)), "model_calls": 0,
+         "files": {p.relative_to(directory).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}})
+    archive = output / "evaluation-package.zip"
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zipped:
+        for path in files:
+            zipped.write(path, path.relative_to(directory).as_posix())
+    return archive
+
+
 def _number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
@@ -274,13 +385,32 @@ def _number(value: Any) -> bool:
 def reference_predictions(bundle: dict, condition: str = "C") -> dict:
     """Fixture for protocol checks only; never label this a model evaluation."""
     verify_bundle(bundle)
+    responses = []
+    for task in bundle["tasks"]:
+        values = [{**({"id": ref["id"]} if "id" in ref else {}), "answer": ref["answer"],
+                   "unit": ref.get("unit"), "evidence_ids": ref["required_evidence_ids"] if condition != "A" else []}
+                  for ref in _references(task, condition)]
+        responses.append({"task_id": task["id"], **({"checkpoints": values} if task["reference"]["kind"] == "structured" else values[0])})
     return {"schema_version": "research-predictions-1", "bundle_sha256": bundle["bundle_sha256"],
             "condition": condition, "run_kind": "reference_self_check", "model": None,
-            "settings": {}, "responses": [
-                {"task_id": task["id"], "answer": task["reference"]["answer"],
-                 "unit": task["reference"].get("unit"),
-                 "evidence_ids": task["reference"]["required_evidence_ids"] if condition != "A" else []}
-                for task in bundle["tasks"]]}
+            "settings": {}, "responses": responses}
+
+
+def _score_value(ref: dict, p: dict, available: list[str], condition: str) -> dict:
+    answer = p.get("answer")
+    if ref["kind"] == "number":
+        correct = _number(answer) and math.isclose(answer, ref["answer"], rel_tol=ref["rtol"], abs_tol=ref["atol"])
+        unit = isinstance(p.get("unit"), str) and p["unit"].strip() in [ref["unit"], *ref.get("unit_aliases", [])]
+    else:
+        correct = isinstance(answer, str) and answer.strip() == ref["answer"]
+        unit = bool(p) and p.get("unit") is None
+    citations = p.get("evidence_ids")
+    valid = isinstance(citations, list) and all(isinstance(c, str) for c in citations)
+    evidence = None if condition == "A" else bool(valid and set(citations) <= set(available)
+                                                   and set(ref["required_evidence_ids"]) <= set(citations))
+    return {"answered": bool(p), "answer_correct": correct, "unit_correct": unit,
+            "reference_evidence_match": evidence,
+            "automated_pass": bool(correct and unit and evidence is not False)}
 
 
 def score(bundle: dict, predictions: dict) -> dict:
@@ -288,7 +418,7 @@ def score(bundle: dict, predictions: dict) -> dict:
     if predictions.get("bundle_sha256") != bundle["bundle_sha256"]:
         raise ValueError("Predictions refer to a different bundle")
     condition = predictions["condition"]
-    if condition not in {"A", "B", "C"}:
+    if condition not in set(evaluation_conditions(bundle)):
         raise ValueError("Unknown evaluation condition")
     run_kind = predictions["run_kind"]
     if run_kind not in {"model_inference", "reference_self_check"}:
@@ -302,28 +432,27 @@ def score(bundle: dict, predictions: dict) -> dict:
     for task in bundle["tasks"]:
         p = responses.get(task["id"], {})
         ref = task["reference"]
-        answer = p.get("answer")
-        if ref["kind"] == "number":
-            correct = _number(answer) and math.isclose(answer, ref["answer"], rel_tol=ref["rtol"], abs_tol=ref["atol"])
-            unit = isinstance(p.get("unit"), str) and p["unit"].strip() in [ref["unit"], *ref.get("unit_aliases", [])]
+        if ref["kind"] == "structured":
+            values = _unique(p.get("checkpoints", []), "id")
+            if values.keys() - {c["id"] for c in ref["checkpoints"]}:
+                raise ValueError("Predictions contain unknown checkpoint IDs")
+            checks = [{"id": c["id"], **_score_value(c, values.get(c["id"], {}), _available(task, condition), condition)}
+                      for c in _references(task, condition)]
+            outcome = {k: all(c[k] for c in checks) for k in ("answer_correct", "unit_correct", "automated_pass")}
+            outcome.update(answered=bool(p), reference_evidence_match=None if condition == "A" else all(c["reference_evidence_match"] for c in checks),
+                           checkpoints=checks, checkpoint_pass_rate=sum(c["automated_pass"] for c in checks) / len(checks))
         else:
-            correct = isinstance(answer, str) and answer.strip() == ref["answer"]
-            unit = bool(p) and p.get("unit") is None
-        citations = p.get("evidence_ids")
-        valid_citations = isinstance(citations, list) and all(isinstance(c, str) for c in citations)
-        evidence = None if condition == "A" else bool(
-            valid_citations and set(citations) <= set(task["material_ids"])
-            and set(ref["required_evidence_ids"]) <= set(citations))
-        results.append({"task_id": task["id"], "category": task["category"],
-                        "answered": bool(p), "answer_correct": correct, "unit_correct": unit,
-                        "reference_evidence_match": evidence,
-                        "automated_pass": bool(correct and unit and (evidence is not False))})
+            outcome = _score_value(ref, p, _available(task, condition), condition)
+        results.append({"task_id": task["id"], "category": task["category"], **outcome})
     def metrics(rows: list[dict]) -> dict:
         n = len(rows)
+        checks = [c for r in rows for c in r.get("checkpoints", [r])]
         return {"n": n, "answered": sum(r["answered"] for r in rows),
                 "answer_and_unit_accuracy": sum(r["answer_correct"] and r["unit_correct"] for r in rows) / n,
                 "reference_evidence_match_rate": None if condition == "A" else sum(r["reference_evidence_match"] for r in rows) / n,
-                "automated_pass_rate": sum(r["automated_pass"] for r in rows) / n}
+                "automated_pass_rate": sum(r["automated_pass"] for r in rows) / n,
+                "checkpoint_count": len(checks),
+                "checkpoint_pass_rate": sum(c["automated_pass"] for c in checks) / len(checks)}
     if not results:
         raise ValueError("Cannot score an empty suite")
     return {"schema_version": "research-score-1", "bundle_sha256": bundle["bundle_sha256"],

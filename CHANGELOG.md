@@ -7,6 +7,13 @@ All notable changes to this project are documented here. Versions follow
 
 ### Added
 
+- Twelve integrated CTTS development cases with 51 separately scored checkpoints,
+  cross-paper and Gaia/literature comparisons, explicit assumptions, uncertainty
+  interpretation and per-checkpoint evidence. Adds matched A/B/C prompts,
+  evidence-withholding D prompts with condition-specific references, and a
+  portable Python-only evaluation ZIP. No model API calls or model scores.
+  Both observatories retain the 16 basic tasks and expose the 12 new cases,
+  with task-level filtering and collapsed checkpoint solutions.
 - Integrated research-task browsing in the local and GitHub Pages observatories,
   with release-qualified source selection, task filters, pinned evidence and
   collapsed pending reference solutions. The public demo now contains 12 stars

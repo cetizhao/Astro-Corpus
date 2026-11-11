@@ -20,6 +20,10 @@
 .r-answer-value { color: var(--blue); font-weight: 650; overflow-wrap: anywhere; }
 .r-answer ol { font-size: 13px; padding-left: 20px; }
 .r-answer li { margin: 6px 0; }
+.r-scenario, .r-fields { font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; }
+.r-fields ol { padding-left: 20px; }
+.r-fields li { margin: 10px 0; }
+.r-checkpoints { border-left: 2px solid var(--blue); margin-left: 3px; }
 .r-hash { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--secondary); font-size: 11px; }
 .r-warning { white-space: pre-wrap; color: var(--critical); }
 @media (max-width: 850px) { .r-grid { grid-template-columns: minmax(0, 1fr); } }
