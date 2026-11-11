@@ -8,6 +8,8 @@
   <script defer src="/assets/echarts.min.js"></script>
   <link rel="stylesheet" href="/assets/evidence.css">
   <script defer src="/assets/evidence.js"></script>
+  <link rel="stylesheet" href="/assets/research.css">
+  <script defer src="/assets/research.js"></script>
   <script defer src="/assets/library.js"></script>
 </head>
 <body>
@@ -28,6 +30,7 @@
     <nav class="section-nav" aria-label="观测台内容">
       <a href="#observations">观测与光谱</a>
       <a href="#paper-section">文献与证据</a>
+      <a href="#research-section">科研任务</a>
       <a href="#activity">采集与来源</a>
     </nav>
 
@@ -94,6 +97,12 @@
       <div class="card-heading"><div><p class="eyebrow">PAPERS & EVIDENCE</p><h2 id="paper-heading" tabindex="-1">文献与证据</h2></div><a href="#observations" class="section-return">返回观测与光谱 ↑</a></div>
       <p id="evidence-source" class="source-identity">从天球图或源目录选择天体，在这里查看它的论文与研究结果。</p>
       <div id="source-papers" class="paper-list"><p class="empty">选择天体后显示论文关系、成员判断和原文证据。</p></div>
+    </section>
+
+    <section id="research-section" class="card research-card" aria-labelledby="research-heading">
+      <div class="card-heading"><div><p class="eyebrow">RESEARCH TASKS</p><h2 id="research-heading" tabindex="-1">科研任务</h2></div><a href="#observations" class="section-return">返回观测与光谱 ↑</a></div>
+      <p class="caption">从观测与论文出发，检查测量读取、结果归属和数值推理。参考解答保留待复核状态。</p>
+      <div id="research-tasks"><p class="empty">正在读取科研任务…</p></div>
     </section>
 
     <section id="activity" class="card activity-card">

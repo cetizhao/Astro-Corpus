@@ -7,6 +7,11 @@ All notable changes to this project are documented here. Versions follow
 
 ### Added
 
+- Integrated research-task browsing in the local and GitHub Pages observatories,
+  with release-qualified source selection, task filters, pinned evidence and
+  collapsed pending reference solutions. The public demo now contains 12 stars
+  and all 16 CTTS development tasks; an explicit snapshot exporter updates the
+  selected examples without publishing the local database or full papers.
 - CTTS research-task development pilot: four literature-selected Gaia DR3
   targets, four pinned arXiv papers, 16 pending tasks, exact evidence selectors,
   worked reference solutions, matched-material A/B/C prompt export and offline

@@ -55,6 +55,8 @@ def _parser() -> argparse.ArgumentParser:
     )
     serve_parser.add_argument("--port", type=int, default=8765)
     serve_parser.add_argument("--poll-seconds", type=float, default=5.0)
+    serve_parser.add_argument("--research-dir", type=Path,
+                              help="prepared research-task directory (default: configured data/research_tasks)")
 
     import_parser = commands.add_parser(
         "import", help="plan or explicitly apply a non-destructive legacy import"
@@ -140,6 +142,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = paper_corpus_status(args.label, output_dir=args.output_dir,
                                          run_id=args.run_id, store=store)
         elif args.command == "serve":
+            from astro_pipeline.config import PipelineConfig
             from astro_pipeline.viz.library_viewer import serve_library_viewer
 
             print(f"Serving read-only library viewer at http://{args.host}:{args.port}/")
@@ -149,6 +152,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     host=args.host,
                     port=args.port,
                     poll_seconds=args.poll_seconds,
+                    research_dir=args.research_dir or PipelineConfig.load().output.base_dir / "research_tasks",
                 )
             except KeyboardInterrupt:
                 pass

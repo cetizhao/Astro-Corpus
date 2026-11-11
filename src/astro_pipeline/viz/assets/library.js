@@ -8,6 +8,7 @@
     loadingToken: 0, lastSync: null,
   };
   const charts = { sky: null, spectrum: null };
+  let research, researchReady = Promise.resolve();
   const labels = {
     ready: ["✓ 已登记", "good"], unavailable: ["— 档案库无产品", ""],
     not_downloaded: ["↓ 未下载", ""], pending: ["◷ 获取中", "warning"],
@@ -295,7 +296,7 @@
           renderTable(page);
           await loadSky(filter, state.revision, token);
           state.lastSync = new Date();
-          $("last-sync").textContent = window.AstroDemo ? "固定公开示例 · 2026-11-11" : `最近同步 ${state.lastSync.toLocaleString()}`;
+          $("last-sync").textContent = window.AstroDemo ? `固定公开示例 · ${(state.meta.exported_at || "").slice(0, 10)}` : `最近同步 ${state.lastSync.toLocaleString()}`;
           if (state.selected) await selectSource(state.selected.release, state.selected.source_id, true);
           if (!state.sky.length && Number(page.total) > 0) notice("当前源没有可绘制的坐标；仍可从目录查看其基本信息和产品状态。");
           else notice();
@@ -379,6 +380,10 @@
   async function loadEvidence(data, token) {
     const selected = state.selected;
     const records = [];
+    await researchReady;
+    if (token !== state.detailToken) return;
+    const bibliography = [...(data.active_bibliography?.papers || data.papers || []),
+      ...(research?.bibliographyFor(selected.release, selected.source_id) || [])];
     try {
       let offset = 0, result;
       do {
@@ -387,7 +392,7 @@
       } while (result.page.has_more && token === state.detailToken);
       if (token !== state.detailToken) return;
       window.AstroEvidence.mount($("source-papers"), {
-        records, bibliography: data.active_bibliography?.papers || data.papers || [],
+        records, bibliography,
         loadContext: async (version, block) => {
           let result, offset = 0; const units = [];
           do {
@@ -400,7 +405,7 @@
     } catch (error) {
       if (token !== state.detailToken) return;
       // Keep the independent bibliography readable when evidence cannot be loaded.
-      window.AstroEvidence.mount($("source-papers"), { bibliography: data.active_bibliography?.papers || data.papers || [] });
+      window.AstroEvidence.mount($("source-papers"), { bibliography });
       $("source-papers").prepend(text("p", `证据读取失败：${error.message}`, "caption"));
     }
   }
@@ -408,6 +413,7 @@
   function clearDetail(message) {
     ++state.spectrumToken;
     state.detail = null;
+    research?.setSource(null);
     state.spectrum = null;
     for (const id of ["source-title", "source-identity", "source-badges", "source-properties", "source-provenance", "source-papers", "spectrum-provenance", "spectrum-note", "spectrum-table-head", "spectrum-table-body"]) $(id).replaceChildren();
     for (const id of ["provenance-section", "spectrum-chart", "spectrum-table-section"]) $(id).hidden = true;
@@ -429,6 +435,7 @@
       $("source-identity").textContent = `${release} · ${sourceId}`;
     }
     state.selected = { key, release, source_id: String(sourceId) };
+    research?.setSource(state.selected);
     renderSky();
     for (const row of $("source-rows").querySelectorAll("tr[data-key]")) {
       row.classList.toggle("selected", row.dataset.key === key);
@@ -551,6 +558,18 @@
     renderSpectrum();
   }
   function start() {
+    research = window.AstroResearch.mount($("research-tasks"), {
+      load: () => api("/api/v1/research-tasks"), selectSource,
+      loadContext: async (version, block) => {
+        const units = []; let result, offset = 0;
+        do {
+          result = await api(`/api/v1/paper/${encodeURIComponent(version)}/context`, { block_id: block, offset, limit: 100 });
+          units.push(...result.units); offset += result.page?.returned || 0;
+        } while (result.page?.has_more);
+        return { ...result, units };
+      },
+    });
+    researchReady = research.reload();
     let theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     try { theme = localStorage.getItem("astro-library-theme") || theme; } catch (_) {}
     applyTheme(theme);
@@ -558,7 +577,7 @@
     for (const id of ["release", "dataset", "scope", "spectrum-filter", "evidence-filter", "page-size"]) $(id).addEventListener("change", changeFilters);
     let searchTimer;
     $("search").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(changeFilters, 350); });
-    $("refresh").addEventListener("click", () => refreshView(true));
+    $("refresh").addEventListener("click", () => { researchReady = research.reload(); refreshView(true); });
     $("theme").addEventListener("click", () => applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
     $("fit-sky").addEventListener("click", () => renderSky(true));
     $("show-source-evidence").addEventListener("click", () => {

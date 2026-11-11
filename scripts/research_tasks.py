@@ -74,6 +74,9 @@ def main() -> None:
     exp = sub.add_parser("export", help="Offline: produce A/B/C model prompts and response templates")
     exp.add_argument("--condition", choices=["A", "B", "C", "all"], default="all")
     sub.add_parser("self-check", help="Offline: check reference scoring; NOT a model evaluation")
+    public = sub.add_parser("export-observatory", help="Export the selected stars/tasks as a public Pages example")
+    public.add_argument("--source-manifest", type=Path)
+    public.add_argument("--destination", type=Path, default=ROOT / "examples/observatory/research.json")
     grading = sub.add_parser("score", help="Offline: score responses from an external model run")
     grading.add_argument("predictions", type=Path)
     grading.add_argument("--report", type=Path)
@@ -89,7 +92,12 @@ def main() -> None:
         print(f"Prepared {len(bundle['tasks'])} pending development tasks: {output / 'bundle.json'}")
     else:
         bundle = read_json(output / "bundle.json")
-        if args.command == "export":
+        if args.command == "export-observatory":
+            from astro_pipeline.viz.research import public_research_snapshot
+            manifest = args.source_manifest or SOURCE / "runs" / bundle["source_snapshot"]["run_id"] / "manifest.json"
+            write_json(args.destination, public_research_snapshot(bundle, manifest))
+            print(f"Exported selected public examples to {args.destination}; build/publish Pages to update the site.")
+        elif args.command == "export":
             for condition in "ABC" if args.condition == "all" else args.condition:
                 write_json(output / f"prompts-{condition}.json", export_prompts(bundle, condition))
                 write_json(output / f"predictions-{condition}.template.json", {

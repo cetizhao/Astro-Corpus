@@ -110,7 +110,7 @@
         const paper = group.paper, card = el("article", "", "e-paper");
         const url = paper.arxiv_id ? `https://arxiv.org/abs/${encodeURIComponent(paper.arxiv_id)}` : paper.doi ? `https://doi.org/${encodeURIComponent(paper.doi)}` : `https://ui.adsabs.harvard.edu/abs/${encodeURIComponent(paper.bibcode || "")}`;
         const heading = el("h3"); heading.append(external(paper.title || paper.bibcode || paper.versioned_id, url)); card.append(heading);
-        card.append(el("p", `${paper.year || (paper.arxiv_year ? `${paper.arxiv_year} arXiv` : "年份未知")} · ${paper.arxiv_id || paper.bibcode || ""}${group.bibliographic ? " · 文献目录关联" : ""}`, "e-meta"));
+        card.append(el("p", `${paper.year || (paper.arxiv_year ? `${paper.arxiv_year} arXiv` : "年份未知")} · ${paper.arxiv_id || paper.bibcode || ""}${group.bibliographic ? paper.association_origin === "research_task" ? " · 科研任务选文" : " · 文献目录关联" : ""}`, "e-meta"));
         if (!group.records.length) card.append(el("p", "尚未进行关系标注；文献目录关联本身不说明研究角色。", "e-meta"));
         visible.forEach((record, index) => {
           const a = record.annotation, history = el("details", "", "e-record"); history.open = index === 0;

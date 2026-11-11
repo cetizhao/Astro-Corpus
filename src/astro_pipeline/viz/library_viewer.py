@@ -41,7 +41,7 @@ _ASSET_PATHS = {
         "text/javascript; charset=utf-8",
     ),
 }
-for _asset in ("evidence.js", "evidence.css"):
+for _asset in ("evidence.js", "evidence.css", "research.js", "research.css"):
     _ASSET_PATHS[f"/assets/{_asset}"] = (
         Path(__file__).with_name("assets") / _asset,
         "text/javascript; charset=utf-8" if _asset.endswith(".js") else "text/css; charset=utf-8",
@@ -60,6 +60,7 @@ class LibraryViewerServer(ThreadingHTTPServer):
         store: LibraryStore | None,
         *,
         poll_seconds: float = 5.0,
+        research_dir: Path | None = None,
     ) -> None:
         host, port = server_address
         if host != _LOOPBACK_HOST:
@@ -72,6 +73,9 @@ class LibraryViewerServer(ThreadingHTTPServer):
         self.store = store
         self.overview = LibraryOverview(store)
         self.poll_seconds = poll_seconds
+        self.research_dir = Path(research_dir) if research_dir is not None else (
+            store.root.parent / "research_tasks" if store is not None else None
+        )
         super().__init__((host, int(port)), LibraryViewerHandler)
 
     def server_close(self) -> None:
@@ -325,6 +329,12 @@ class LibraryViewerHandler(BaseHTTPRequestHandler):
                 payload["poll_seconds"] = self.server.poll_seconds
                 self._send_json(HTTPStatus.OK, payload, send_body=send_body)
                 return
+            if path == "/api/v1/research-tasks":
+                from astro_pipeline.viz.research import research_snapshot
+
+                self._query_values(target.query, set())
+                self._send_json(HTTPStatus.OK, research_snapshot(self.server.research_dir), send_body=send_body)
+                return
             if path in {"/api/v1/sources", "/api/v1/sky"}:
                 values = self._query_values(
                     target.query,
@@ -496,6 +506,7 @@ def create_library_viewer_server(
     host: str = _LOOPBACK_HOST,
     port: int = 8765,
     poll_seconds: float = 5.0,
+    research_dir: Path | None = None,
 ) -> LibraryViewerServer:
     """Create, but do not start, the loopback viewer server."""
 
@@ -503,6 +514,7 @@ def create_library_viewer_server(
         (host, int(port)),
         store,
         poll_seconds=poll_seconds,
+        research_dir=research_dir,
     )
 
 
@@ -512,6 +524,7 @@ def serve_library_viewer(
     host: str = _LOOPBACK_HOST,
     port: int = 8765,
     poll_seconds: float = 5.0,
+    research_dir: Path | None = None,
 ) -> None:
     """Serve until interrupted; constructing or serving never initializes SQLite."""
 
@@ -520,6 +533,7 @@ def serve_library_viewer(
         host=host,
         port=port,
         poll_seconds=poll_seconds,
+        research_dir=research_dir,
     )
     try:
         server.serve_forever(poll_interval=min(0.5, poll_seconds))

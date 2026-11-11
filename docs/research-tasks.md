@@ -98,6 +98,34 @@ uv run --locked python scripts/research_tasks.py self-check
 Git 中只保存选择规则、题目定义、代码和文档。原文许可记录随数据保留；
 RU Lup 2005 版本未取得明确许可信息，当前也没有把论文全文作为公共训练集发布。
 
+## 在全库观测台查看与同步
+
+本机和在线版使用同一套“科研任务”界面。顶部导航进入后，可按天体和任务类型筛选；
+选择观测台中的天体也会筛选关联任务。展开“材料与证据”可查看 Gaia 字段或论文摘录，
+点击“查看原文位置”显示固定版本高亮；参考解答与推导默认折叠。论文区也会显示任务选文，
+这种关联明确标为“科研任务选文”，不会被算作已完成的关系标注。
+
+本机版通过 `scripts/library.py serve` 读取已生成的 `data/research_tasks/*/bundle.json`。
+任务目录可用 `serve --research-dir <目录>` 指定。重新生成任务后点击“立即同步”即可更新；
+它不自动采集、执行模型请求或修改数据库。
+
+[在线观测台](https://cetizhao.github.io/Astro-Corpus/) 使用公开示例快照，包含 12 颗星与全部 16 道任务。
+本机能查看已下载的完整论文上下文；在线只带选定摘录，完整论文通过外链查看。
+网页不会直接连接本地库，因此本地增加数据不会立即改变线上内容。更新流程为：
+
+```bash
+uv run --locked python scripts/research_tasks.py prepare
+uv run --locked python scripts/research_tasks.py export-observatory
+python scripts/build_pages.py
+```
+
+`export-observatory` 只读取任务包绑定的源快照，导出所选 4 颗 CTTS、16 道任务及证据摘录，
+写入 `examples/observatory/research.json`。构建程序将它与已有 TWA 示例合并；生成页面位于
+`dist/pages/`。检查后提交示例文件及相关改动、推送到 `main`，GitHub Actions 就会自动发布。
+本地数据库、凭据、完整论文及其他天体不会随此导出公开。
+
+观测台是人工浏览界面。评测模型时仍使用下面的 A/B/C 提示词文件，避免把页面中的参考解答一起发给模型。
+
 ## A/B/C 怎样检验价值
 
 | 条件 | 输入 | 可回答的问题 |

@@ -7,6 +7,7 @@
     async request(path, p = {}) {
       const d = await snapshot, revision = d.meta.revision;
       if (path === '/api/v1/meta') return d.meta;
+      if (path === '/api/v1/research-tasks') return d.research_tasks || {suites:[],warnings:[]};
       if (path === '/api/v1/sources' || path === '/api/v1/sky') {
         const rows = d.sources.filter(s => (!p.release || s.release === p.release)
           && (!p.corpus_id || s.datasets.some(v => v.corpus_id === p.corpus_id))
