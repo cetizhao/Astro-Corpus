@@ -7,6 +7,11 @@ All notable changes to this project are documented here. Versions follow
 
 ### Added
 
+- CTTS research-task development pilot: four literature-selected Gaia DR3
+  targets, four pinned arXiv papers, 16 pending tasks, exact evidence selectors,
+  worked reference solutions, matched-material A/B/C prompt export and offline
+  scoring. Includes acquisition/compilation CLI and contract tests; reference
+  self-checks are explicitly separated from real model evaluations.
 - GitHub Pages observatory demo with eight curated Gaia DR3 sources and a
   TWA 31 paper/evidence example. The static site shares the local
   viewer and builds without a database, credentials or pipeline dependencies.
