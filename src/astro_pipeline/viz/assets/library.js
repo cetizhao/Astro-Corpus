@@ -62,6 +62,7 @@
     return result;
   }
   async function api(path, params = {}) {
+    if (window.AstroDemo) return window.AstroDemo.request(path, params);
     const query = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
       if (value !== null && value !== undefined && value !== "") query.set(key, String(value));
@@ -94,7 +95,7 @@
     const rows = $("runs");
     rows.replaceChildren();
     const runs = [...(meta.runs || [])].sort((left, right) => Number(right.started_at || 0) - Number(left.started_at || 0));
-    if (!runs.length) rows.append(text("p", "尚无采集运行；旧数据导入会保留其来源标记。", "empty"));
+    if (!runs.length) rows.append(text("p", window.AstroDemo ? "本页未发布完整运行日志。各天体的样本名称与原始行号保留在详情中的“样本与字段来源”。" : "尚无采集运行；旧数据导入会保留其来源标记。", "empty"));
     for (const run of runs.slice(0, 18)) {
       const info = object(run.metadata || run.metadata_json);
       const card = text("article", "", "run-card");
@@ -294,7 +295,7 @@
           renderTable(page);
           await loadSky(filter, state.revision, token);
           state.lastSync = new Date();
-          $("last-sync").textContent = `最近同步 ${state.lastSync.toLocaleString()}`;
+          $("last-sync").textContent = window.AstroDemo ? "固定公开示例 · 2026-11-11" : `最近同步 ${state.lastSync.toLocaleString()}`;
           if (state.selected) await selectSource(state.selected.release, state.selected.source_id, true);
           if (!state.sky.length && Number(page.total) > 0) notice("当前源没有可绘制的坐标；仍可从目录查看其基本信息和产品状态。");
           else notice();
@@ -569,8 +570,14 @@
     $("spectrum-product").addEventListener("change", loadSpectrum);
     $("spectrum-scope").addEventListener("change", loadSpectrum);
     window.addEventListener("resize", () => { charts.sky?.resize(); renderSky(); if (!$("spectrum-chart").hidden) charts.spectrum?.resize(); });
-    refreshView(true);
-    setInterval(() => { if (!document.hidden) refreshView(); }, 5000);
+    refreshView(true).then(async () => {
+      if (window.AstroDemo) {
+        const demo = await window.AstroDemo.ready;
+        const [release, id] = demo.default_source.split(":");
+        await selectSource(release, id);
+      }
+    });
+    if (!window.AstroDemo) setInterval(() => { if (!document.hidden) refreshView(); }, 5000);
   }
   window.AstroLibraryView = { hammer, refresh: () => refreshView(true), selectSource, state };
   document.addEventListener("DOMContentLoaded", start);

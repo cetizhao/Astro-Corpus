@@ -1,0 +1,1358 @@
+{
+  "exported_at": "2026-11-11",
+  "sources": [
+    {
+      "key": "dr3:3466327989885650176",
+      "release": "dr3",
+      "source_id": "3466327989885650176",
+      "name": "TWA 31",
+      "catalog_names": [
+        {
+          "name": "TWA 31",
+          "field": "Name",
+          "origin": "input_row",
+          "run_id": "8224f3ee-050b-4654-b8bc-6fab97728948",
+          "corpus_id": "17269560-e8b7-585d-9d70-993245b033c0",
+          "label": "twa_luhman2023",
+          "input_row_id": "42"
+        }
+      ],
+      "annotation_count": 1,
+      "annotation_paper_count": 1,
+      "position": {
+        "ra_deg": 181.79512204983686,
+        "dec_deg": -32.51503187016763,
+        "frame": "ICRS",
+        "epoch": 2016.0,
+        "epoch_status": "release_reference_epoch",
+        "valid": true
+      },
+      "astrometry": {
+        "parallax_mas": 12.242991709589957,
+        "pmra_masyr": -46.67041046114447,
+        "pmdec_masyr": -22.429436737463384,
+        "radial_velocity_kms": null,
+        "g_mag": 16.426298141479492,
+        "bp_mag": 17.76953125,
+        "rp_mag": 15.17263126373291,
+        "ruwe": 1.083882212638855
+      },
+      "datasets": [
+        {
+          "corpus_id": "17269560-e8b7-585d-9d70-993245b033c0",
+          "label": "twa_luhman2023",
+          "provenance_status": "verified",
+          "run_id": "8224f3ee-050b-4654-b8bc-6fab97728948",
+          "request_id": "a1692945de7869c120dd5959e6a102e9fbc964b5714f2fb47b370e20e288eb82",
+          "status": "completed",
+          "snapshot_state": "current",
+          "started_at": 1793622465.612086,
+          "finished_at": 1793622810.0021718,
+          "has_error": false,
+          "n_member_rows": 1
+        }
+      ],
+      "working_datasets": [],
+      "provenance_status": "verified",
+      "spectrum_status": "unavailable"
+    },
+    {
+      "key": "dr3:3459372646830687104",
+      "release": "dr3",
+      "source_id": "3459372646830687104",
+      "name": "TWA 27A",
+      "catalog_names": [
+        {
+          "name": "TWA 27A",
+          "field": "Name",
+          "origin": "input_row",
+          "run_id": "8224f3ee-050b-4654-b8bc-6fab97728948",
+          "corpus_id": "17269560-e8b7-585d-9d70-993245b033c0",
+          "label": "twa_luhman2023",
+          "input_row_id": "44"
+        }
+      ],
+      "annotation_count": 0,
+      "annotation_paper_count": 0,
+      "position": {
+        "ra_deg": 181.88907901538659,
+        "dec_deg": -39.54844318931345,
+        "frame": "ICRS",
+        "epoch": 2016.0,
+        "epoch_status": "release_reference_epoch",
+        "valid": true
+      },
+      "astrometry": {
+        "parallax_mas": 15.462390770449133,
+        "pmra_masyr": -64.04036680666574,
+        "pmdec_masyr": -23.678390773963514,
+        "radial_velocity_kms": null,
+        "g_mag": 17.388071060180664,
+        "bp_mag": 20.14224624633789,
+        "rp_mag": 15.87130355834961,
+        "ruwe": 1.0682010650634766
+      },
+      "datasets": [
+        {
+          "corpus_id": "17269560-e8b7-585d-9d70-993245b033c0",
+          "label": "twa_luhman2023",
+          "provenance_status": "verified",
+          "run_id": "8224f3ee-050b-4654-b8bc-6fab97728948",
+          "request_id": "a1692945de7869c120dd5959e6a102e9fbc964b5714f2fb47b370e20e288eb82",
+          "status": "completed",
+          "snapshot_state": "current",
+          "started_at": 1793622465.612086,
+          "finished_at": 1793622810.0021718,
+          "has_error": false,
+          "n_member_rows": 1
+        }
+      ],
+      "working_datasets": [],
+      "provenance_status": "verified",
+      "spectrum_status": "not_downloaded"
+    },
+    {
+      "key": "dr3:3459492631038236416",
+      "release": "dr3",
+      "source_id": "3459492631038236416",
+      "name": "TWA 40",
+      "catalog_names": [
+        {
+          "name": "TWA 40",
+          "field": "Name",
+          "origin": "input_row",
+          "run_id": "8224f3ee-050b-4654-b8bc-6fab97728948",
+          "corpus_id": "17269560-e8b7-585d-9d70-993245b033c0",
+          "label": "twa_luhman2023",
+          "input_row_id": "45"
+        }
+      ],
+      "annotation_count": 0,
+      "annotation_paper_count": 0,
+      "position": {
+        "ra_deg": 181.95110817396568,
+        "dec_deg": -39.00135447855753,
+        "frame": "ICRS",
+        "epoch": 2016.0,
+        "epoch_status": "release_reference_epoch",
+        "valid": true
+      },
+      "astrometry": {
+        "parallax_mas": 15.234125640943267,
+        "pmra_masyr": -63.57739270898482,
+        "pmdec_masyr": -24.470885441789154,
+        "radial_velocity_kms": null,
+        "g_mag": 20.567073822021484,
+        "bp_mag": 21.691091537475586,
+        "rp_mag": 18.986709594726562,
+        "ruwe": 1.0552972555160522
+      },
+      "datasets": [
+        {
+          "corpus_id": "17269560-e8b7-585d-9d70-993245b033c0",
+          "label": "twa_luhman2023",
+          "provenance_status": "verified",
+          "run_id": "8224f3ee-050b-4654-b8bc-6fab97728948",
+          "request_id": "a1692945de7869c120dd5959e6a102e9fbc964b5714f2fb47b370e20e288eb82",
+          "status": "completed",
+          "snapshot_state": "current",
+          "started_at": 1793622465.612086,
+          "finished_at": 1793622810.0021718,
+          "has_error": false,
+          "n_member_rows": 1
+        }
+      ],
+      "working_datasets": [],
+      "provenance_status": "verified",
+      "spectrum_status": "unavailable"
+    },
+    {
+      "key": "dr3:3459725624422311424",
+      "release": "dr3",
+      "source_id": "3459725624422311424",
+      "name": "TWA 38",
+      "catalog_names": [
+        {
+          "name": "TWA 38",
+          "field": "Name",
+          "origin": "input_row",
+          "run_id": "8224f3ee-050b-4654-b8bc-6fab97728948",
+          "corpus_id": "17269560-e8b7-585d-9d70-993245b033c0",
+          "label": "twa_luhman2023",
+          "input_row_id": "41"
+        }
+      ],
+      "annotation_count": 0,
+      "annotation_paper_count": 0,
+      "position": {
+        "ra_deg": 180.99576463712057,
+        "dec_deg": -38.361283179345044,
+        "frame": "ICRS",
+        "epoch": 2016.0,
+        "epoch_status": "release_reference_epoch",
+        "valid": true
+      },
+      "astrometry": {
+        "parallax_mas": 12.172342661012323,
+        "pmra_masyr": -50.238946972090176,
+        "pmdec_masyr": -18.6679860800767,
+        "radial_velocity_kms": null,
+        "g_mag": 18.093534469604492,
+        "bp_mag": 21.069894790649414,
+        "rp_mag": 16.540760040283203,
+        "ruwe": 0.9389157891273499
+      },
+      "datasets": [
+        {
+          "corpus_id": "17269560-e8b7-585d-9d70-993245b033c0",
+          "label": "twa_luhman2023",
+          "provenance_status": "verified",
+          "run_id": "8224f3ee-050b-4654-b8bc-6fab97728948",
+          "request_id": "a1692945de7869c120dd5959e6a102e9fbc964b5714f2fb47b370e20e288eb82",
+          "status": "completed",
+          "snapshot_state": "current",
+          "started_at": 1793622465.612086,
+          "finished_at": 1793622810.0021718,
+          "has_error": false,
+          "n_member_rows": 1
+        }
+      ],
+      "working_datasets": [],
+      "provenance_status": "verified",
+      "spectrum_status": "not_downloaded"
+    },
+    {
+      "key": "dr3:3463395519358168064",
+      "release": "dr3",
+      "source_id": "3463395519358168064",
+      "name": "TWA 9B,CD-36 7429B",
+      "catalog_names": [
+        {
+          "name": "TWA 9B,CD-36 7429B",
+          "field": "Name",
+          "origin": "input_row",
+          "run_id": "8224f3ee-050b-4654-b8bc-6fab97728948",
+          "corpus_id": "17269560-e8b7-585d-9d70-993245b033c0",
+          "label": "twa_luhman2023",
+          "input_row_id": "34"
+        }
+      ],
+      "annotation_count": 0,
+      "annotation_paper_count": 0,
+      "position": {
+        "ra_deg": 177.0985755547717,
+        "dec_deg": -37.48021516505471,
+        "frame": "ICRS",
+        "epoch": 2016.0,
+        "epoch_status": "release_reference_epoch",
+        "valid": true
+      },
+      "astrometry": {
+        "parallax_mas": 13.135712420820894,
+        "pmra_masyr": -57.040212980414836,
+        "pmdec_masyr": -15.886114982077492,
+        "radial_velocity_kms": 12.491867065429688,
+        "g_mag": 12.85583782196045,
+        "bp_mag": 14.2999906539917,
+        "rp_mag": 11.666631698608398,
+        "ruwe": 1.3404186964035034
+      },
+      "datasets": [
+        {
+          "corpus_id": "17269560-e8b7-585d-9d70-993245b033c0",
+          "label": "twa_luhman2023",
+          "provenance_status": "verified",
+          "run_id": "8224f3ee-050b-4654-b8bc-6fab97728948",
+          "request_id": "a1692945de7869c120dd5959e6a102e9fbc964b5714f2fb47b370e20e288eb82",
+          "status": "completed",
+          "snapshot_state": "current",
+          "started_at": 1793622465.612086,
+          "finished_at": 1793622810.0021718,
+          "has_error": false,
+          "n_member_rows": 1
+        }
+      ],
+      "working_datasets": [],
+      "provenance_status": "verified",
+      "spectrum_status": "unavailable"
+    },
+    {
+      "key": "dr3:3463395523652894336",
+      "release": "dr3",
+      "source_id": "3463395523652894336",
+      "name": "TWA 9A,CD-36 7429A",
+      "catalog_names": [
+        {
+          "name": "TWA 9A,CD-36 7429A",
+          "field": "Name",
+          "origin": "input_row",
+          "run_id": "8224f3ee-050b-4654-b8bc-6fab97728948",
+          "corpus_id": "17269560-e8b7-585d-9d70-993245b033c0",
+          "label": "twa_luhman2023",
+          "input_row_id": "35"
+        }
+      ],
+      "annotation_count": 0,
+      "annotation_paper_count": 0,
+      "position": {
+        "ra_deg": 177.10063121123602,
+        "dec_deg": -37.48039098518339,
+        "frame": "ICRS",
+        "epoch": 2016.0,
+        "epoch_status": "release_reference_epoch",
+        "valid": true
+      },
+      "astrometry": {
+        "parallax_mas": 13.073949458590631,
+        "pmra_masyr": -53.00749046892321,
+        "pmdec_masyr": -18.329675238676273,
+        "radial_velocity_kms": null,
+        "g_mag": 10.58499813079834,
+        "bp_mag": 11.35037612915039,
+        "rp_mag": 9.728705406188965,
+        "ruwe": 1.0425314903259277
+      },
+      "datasets": [
+        {
+          "corpus_id": "17269560-e8b7-585d-9d70-993245b033c0",
+          "label": "twa_luhman2023",
+          "provenance_status": "verified",
+          "run_id": "8224f3ee-050b-4654-b8bc-6fab97728948",
+          "request_id": "a1692945de7869c120dd5959e6a102e9fbc964b5714f2fb47b370e20e288eb82",
+          "status": "completed",
+          "snapshot_state": "current",
+          "started_at": 1793622465.612086,
+          "finished_at": 1793622810.0021718,
+          "has_error": false,
+          "n_member_rows": 1
+        }
+      ],
+      "working_datasets": [],
+      "provenance_status": "verified",
+      "spectrum_status": "not_downloaded"
+    },
+    {
+      "key": "dr3:3465944500845668224",
+      "release": "dr3",
+      "source_id": "3465944500845668224",
+      "name": "TWA 35",
+      "catalog_names": [
+        {
+          "name": "TWA 35",
+          "field": "Name",
+          "origin": "input_row",
+          "run_id": "8224f3ee-050b-4654-b8bc-6fab97728948",
+          "corpus_id": "17269560-e8b7-585d-9d70-993245b033c0",
+          "label": "twa_luhman2023",
+          "input_row_id": "39"
+        }
+      ],
+      "annotation_count": 0,
+      "annotation_paper_count": 0,
+      "position": {
+        "ra_deg": 180.1142822387767,
+        "dec_deg": -34.093755525560375,
+        "frame": "ICRS",
+        "epoch": 2016.0,
+        "epoch_status": "release_reference_epoch",
+        "valid": true
+      },
+      "astrometry": {
+        "parallax_mas": 14.13216472070967,
+        "pmra_masyr": -58.138550487790006,
+        "pmdec_masyr": -21.015113592399583,
+        "radial_velocity_kms": 3.7191758155822754,
+        "g_mag": 12.822669982910156,
+        "bp_mag": 14.62690258026123,
+        "rp_mag": 11.53715991973877,
+        "ruwe": 2.895676851272583
+      },
+      "datasets": [
+        {
+          "corpus_id": "17269560-e8b7-585d-9d70-993245b033c0",
+          "label": "twa_luhman2023",
+          "provenance_status": "verified",
+          "run_id": "8224f3ee-050b-4654-b8bc-6fab97728948",
+          "request_id": "a1692945de7869c120dd5959e6a102e9fbc964b5714f2fb47b370e20e288eb82",
+          "status": "completed",
+          "snapshot_state": "current",
+          "started_at": 1793622465.612086,
+          "finished_at": 1793622810.0021718,
+          "has_error": false,
+          "n_member_rows": 1
+        }
+      ],
+      "working_datasets": [],
+      "provenance_status": "verified",
+      "spectrum_status": "not_downloaded"
+    },
+    {
+      "key": "dr3:3465989374664029184",
+      "release": "dr3",
+      "source_id": "3465989374664029184",
+      "name": "TWA 36",
+      "catalog_names": [
+        {
+          "name": "TWA 36",
+          "field": "Name",
+          "origin": "input_row",
+          "run_id": "8224f3ee-050b-4654-b8bc-6fab97728948",
+          "corpus_id": "17269560-e8b7-585d-9d70-993245b033c0",
+          "label": "twa_luhman2023",
+          "input_row_id": "40"
+        }
+      ],
+      "annotation_count": 0,
+      "annotation_paper_count": 0,
+      "position": {
+        "ra_deg": 180.65794581549477,
+        "dec_deg": -33.47795422659684,
+        "frame": "ICRS",
+        "epoch": 2016.0,
+        "epoch_status": "release_reference_epoch",
+        "valid": true
+      },
+      "astrometry": {
+        "parallax_mas": 15.980818322137917,
+        "pmra_masyr": -66.23833910981573,
+        "pmdec_masyr": -23.387749086913626,
+        "radial_velocity_kms": 6.027655601501465,
+        "g_mag": 14.001280784606934,
+        "bp_mag": 15.943998336791992,
+        "rp_mag": 12.68880844116211,
+        "ruwe": 1.192886471748352
+      },
+      "datasets": [
+        {
+          "corpus_id": "17269560-e8b7-585d-9d70-993245b033c0",
+          "label": "twa_luhman2023",
+          "provenance_status": "verified",
+          "run_id": "8224f3ee-050b-4654-b8bc-6fab97728948",
+          "request_id": "a1692945de7869c120dd5959e6a102e9fbc964b5714f2fb47b370e20e288eb82",
+          "status": "completed",
+          "snapshot_state": "current",
+          "started_at": 1793622465.612086,
+          "finished_at": 1793622810.0021718,
+          "has_error": false,
+          "n_member_rows": 1
+        }
+      ],
+      "working_datasets": [],
+      "provenance_status": "verified",
+      "spectrum_status": "not_downloaded"
+    }
+  ],
+  "spectra": {
+    "dr3:3466327989885650176": {
+      "XP_SAMPLED": {
+        "status": "not_downloaded",
+        "release": "dr3",
+        "source_id": "3466327989885650176",
+        "product_type": "XP_SAMPLED",
+        "scope": "global",
+        "version_id": null,
+        "artifact_sha256": null,
+        "parser_version": "gaia-dr3-xp-sampled-v1",
+        "wavelength_unit": "nm",
+        "flux_unit": "W m-2 nm-1",
+        "series": [],
+        "provenance": {
+          "selection": "active",
+          "item_key": null,
+          "corpus_id": null,
+          "run_id": null
+        },
+        "warning": null
+      },
+      "XP_CONTINUOUS": {
+        "status": "not_downloaded",
+        "release": "dr3",
+        "source_id": "3466327989885650176",
+        "product_type": "XP_CONTINUOUS",
+        "scope": "global",
+        "version_id": null,
+        "artifact_sha256": null,
+        "parser_version": "gaia-dr3-xp-continuous-v1",
+        "wavelength_unit": "nm",
+        "flux_unit": "W m-2 nm-1",
+        "series": [],
+        "provenance": {
+          "selection": "active",
+          "item_key": null,
+          "corpus_id": null,
+          "run_id": null
+        },
+        "warning": null
+      }
+    },
+    "dr3:3459372646830687104": {
+      "XP_SAMPLED": {
+        "status": "not_downloaded",
+        "release": "dr3",
+        "source_id": "3459372646830687104",
+        "product_type": "XP_SAMPLED",
+        "scope": "global",
+        "version_id": null,
+        "artifact_sha256": null,
+        "parser_version": "gaia-dr3-xp-sampled-v1",
+        "wavelength_unit": "nm",
+        "flux_unit": "W m-2 nm-1",
+        "series": [],
+        "provenance": {
+          "selection": "active",
+          "item_key": null,
+          "corpus_id": null,
+          "run_id": null
+        },
+        "warning": null
+      },
+      "XP_CONTINUOUS": {
+        "status": "not_downloaded",
+        "release": "dr3",
+        "source_id": "3459372646830687104",
+        "product_type": "XP_CONTINUOUS",
+        "scope": "global",
+        "version_id": null,
+        "artifact_sha256": null,
+        "parser_version": "gaia-dr3-xp-continuous-v1",
+        "wavelength_unit": "nm",
+        "flux_unit": "W m-2 nm-1",
+        "series": [],
+        "provenance": {
+          "selection": "active",
+          "item_key": null,
+          "corpus_id": null,
+          "run_id": null
+        },
+        "warning": null
+      }
+    },
+    "dr3:3459492631038236416": {
+      "XP_SAMPLED": {
+        "status": "not_downloaded",
+        "release": "dr3",
+        "source_id": "3459492631038236416",
+        "product_type": "XP_SAMPLED",
+        "scope": "global",
+        "version_id": null,
+        "artifact_sha256": null,
+        "parser_version": "gaia-dr3-xp-sampled-v1",
+        "wavelength_unit": "nm",
+        "flux_unit": "W m-2 nm-1",
+        "series": [],
+        "provenance": {
+          "selection": "active",
+          "item_key": null,
+          "corpus_id": null,
+          "run_id": null
+        },
+        "warning": null
+      },
+      "XP_CONTINUOUS": {
+        "status": "not_downloaded",
+        "release": "dr3",
+        "source_id": "3459492631038236416",
+        "product_type": "XP_CONTINUOUS",
+        "scope": "global",
+        "version_id": null,
+        "artifact_sha256": null,
+        "parser_version": "gaia-dr3-xp-continuous-v1",
+        "wavelength_unit": "nm",
+        "flux_unit": "W m-2 nm-1",
+        "series": [],
+        "provenance": {
+          "selection": "active",
+          "item_key": null,
+          "corpus_id": null,
+          "run_id": null
+        },
+        "warning": null
+      }
+    },
+    "dr3:3459725624422311424": {
+      "XP_SAMPLED": {
+        "status": "not_downloaded",
+        "release": "dr3",
+        "source_id": "3459725624422311424",
+        "product_type": "XP_SAMPLED",
+        "scope": "global",
+        "version_id": null,
+        "artifact_sha256": null,
+        "parser_version": "gaia-dr3-xp-sampled-v1",
+        "wavelength_unit": "nm",
+        "flux_unit": "W m-2 nm-1",
+        "series": [],
+        "provenance": {
+          "selection": "active",
+          "item_key": null,
+          "corpus_id": null,
+          "run_id": null
+        },
+        "warning": null
+      },
+      "XP_CONTINUOUS": {
+        "status": "not_downloaded",
+        "release": "dr3",
+        "source_id": "3459725624422311424",
+        "product_type": "XP_CONTINUOUS",
+        "scope": "global",
+        "version_id": null,
+        "artifact_sha256": null,
+        "parser_version": "gaia-dr3-xp-continuous-v1",
+        "wavelength_unit": "nm",
+        "flux_unit": "W m-2 nm-1",
+        "series": [],
+        "provenance": {
+          "selection": "active",
+          "item_key": null,
+          "corpus_id": null,
+          "run_id": null
+        },
+        "warning": null
+      }
+    },
+    "dr3:3463395519358168064": {
+      "XP_SAMPLED": {
+        "status": "not_downloaded",
+        "release": "dr3",
+        "source_id": "3463395519358168064",
+        "product_type": "XP_SAMPLED",
+        "scope": "global",
+        "version_id": null,
+        "artifact_sha256": null,
+        "parser_version": "gaia-dr3-xp-sampled-v1",
+        "wavelength_unit": "nm",
+        "flux_unit": "W m-2 nm-1",
+        "series": [],
+        "provenance": {
+          "selection": "active",
+          "item_key": null,
+          "corpus_id": null,
+          "run_id": null
+        },
+        "warning": null
+      },
+      "XP_CONTINUOUS": {
+        "status": "not_downloaded",
+        "release": "dr3",
+        "source_id": "3463395519358168064",
+        "product_type": "XP_CONTINUOUS",
+        "scope": "global",
+        "version_id": null,
+        "artifact_sha256": null,
+        "parser_version": "gaia-dr3-xp-continuous-v1",
+        "wavelength_unit": "nm",
+        "flux_unit": "W m-2 nm-1",
+        "series": [],
+        "provenance": {
+          "selection": "active",
+          "item_key": null,
+          "corpus_id": null,
+          "run_id": null
+        },
+        "warning": null
+      }
+    },
+    "dr3:3463395523652894336": {
+      "XP_SAMPLED": {
+        "status": "not_downloaded",
+        "release": "dr3",
+        "source_id": "3463395523652894336",
+        "product_type": "XP_SAMPLED",
+        "scope": "global",
+        "version_id": null,
+        "artifact_sha256": null,
+        "parser_version": "gaia-dr3-xp-sampled-v1",
+        "wavelength_unit": "nm",
+        "flux_unit": "W m-2 nm-1",
+        "series": [],
+        "provenance": {
+          "selection": "active",
+          "item_key": null,
+          "corpus_id": null,
+          "run_id": null
+        },
+        "warning": null
+      },
+      "XP_CONTINUOUS": {
+        "status": "not_downloaded",
+        "release": "dr3",
+        "source_id": "3463395523652894336",
+        "product_type": "XP_CONTINUOUS",
+        "scope": "global",
+        "version_id": null,
+        "artifact_sha256": null,
+        "parser_version": "gaia-dr3-xp-continuous-v1",
+        "wavelength_unit": "nm",
+        "flux_unit": "W m-2 nm-1",
+        "series": [],
+        "provenance": {
+          "selection": "active",
+          "item_key": null,
+          "corpus_id": null,
+          "run_id": null
+        },
+        "warning": null
+      }
+    },
+    "dr3:3465944500845668224": {
+      "XP_SAMPLED": {
+        "status": "not_downloaded",
+        "release": "dr3",
+        "source_id": "3465944500845668224",
+        "product_type": "XP_SAMPLED",
+        "scope": "global",
+        "version_id": null,
+        "artifact_sha256": null,
+        "parser_version": "gaia-dr3-xp-sampled-v1",
+        "wavelength_unit": "nm",
+        "flux_unit": "W m-2 nm-1",
+        "series": [],
+        "provenance": {
+          "selection": "active",
+          "item_key": null,
+          "corpus_id": null,
+          "run_id": null
+        },
+        "warning": null
+      },
+      "XP_CONTINUOUS": {
+        "status": "not_downloaded",
+        "release": "dr3",
+        "source_id": "3465944500845668224",
+        "product_type": "XP_CONTINUOUS",
+        "scope": "global",
+        "version_id": null,
+        "artifact_sha256": null,
+        "parser_version": "gaia-dr3-xp-continuous-v1",
+        "wavelength_unit": "nm",
+        "flux_unit": "W m-2 nm-1",
+        "series": [],
+        "provenance": {
+          "selection": "active",
+          "item_key": null,
+          "corpus_id": null,
+          "run_id": null
+        },
+        "warning": null
+      }
+    },
+    "dr3:3465989374664029184": {
+      "XP_SAMPLED": {
+        "status": "not_downloaded",
+        "release": "dr3",
+        "source_id": "3465989374664029184",
+        "product_type": "XP_SAMPLED",
+        "scope": "global",
+        "version_id": null,
+        "artifact_sha256": null,
+        "parser_version": "gaia-dr3-xp-sampled-v1",
+        "wavelength_unit": "nm",
+        "flux_unit": "W m-2 nm-1",
+        "series": [],
+        "provenance": {
+          "selection": "active",
+          "item_key": null,
+          "corpus_id": null,
+          "run_id": null
+        },
+        "warning": null
+      },
+      "XP_CONTINUOUS": {
+        "status": "not_downloaded",
+        "release": "dr3",
+        "source_id": "3465989374664029184",
+        "product_type": "XP_CONTINUOUS",
+        "scope": "global",
+        "version_id": null,
+        "artifact_sha256": null,
+        "parser_version": "gaia-dr3-xp-continuous-v1",
+        "wavelength_unit": "nm",
+        "flux_unit": "W m-2 nm-1",
+        "series": [],
+        "provenance": {
+          "selection": "active",
+          "item_key": null,
+          "corpus_id": null,
+          "run_id": null
+        },
+        "warning": null
+      }
+    }
+  },
+  "evidence": {
+    "dr3:3466327989885650176": [
+      {
+        "annotation_id": "6ca61784-e130-479f-8cb9-faf5a98e6008",
+        "batch_id": "twa-membership-1909.06699v1-object-paper-2",
+        "ordinal": 5,
+        "annotation": {
+          "assessment": "evidence_found",
+          "identity_basis": "VizieR J/AJ/165/269/table2, published Gaia DR3 row 42, original Name='TWA 31'; corpus run 8224f3ee-050b-4654-b8bc-6fab97728948. Paper table b000042 name column and header; only spacing/prefix/parenthetical formatting normalized.",
+          "identity_evidence": [
+            {
+              "block_id": "b000020",
+              "block_type": "table",
+              "column": 0,
+              "end": 6,
+              "field": "table_cell",
+              "locator": {
+                "html_id": "S2.T1",
+                "ordinal": 1
+              },
+              "quote": "TWA 31",
+              "row": 17,
+              "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+              "source_url": "https://arxiv.org/html/1909.06699v1#S2.T1",
+              "start": 0,
+              "validation": "exact_slice_verified"
+            }
+          ],
+          "identity_status": "resolved",
+          "inspected_block_ids": [
+            "b000042",
+            "b000020",
+            "b000022"
+          ],
+          "matched_aliases": [
+            {
+              "name": "TWA 31",
+              "provenance": "VizieR J/AJ/165/269/table2, published Gaia DR3 row 42, original Name='TWA 31'; corpus run 8224f3ee-050b-4654-b8bc-6fab97728948. Paper table b000042 name column and header; only spacing/prefix/parenthetical formatting normalized."
+            }
+          ],
+          "note": "公开演示仅展示所引短句与相关单元格；完整语境请打开原文位置。机器辅助标注尚未人工复核。",
+          "ontology_version": "object-paper-2",
+          "paper_name": "TWA 31",
+          "relations": [
+            {
+              "evidence": [
+                {
+                  "block_id": "b000042",
+                  "block_type": "table",
+                  "column": 0,
+                  "end": 6,
+                  "field": "table_cell",
+                  "locator": {
+                    "html_id": "S3.T2",
+                    "ordinal": 2
+                  },
+                  "quote": "TWA 31",
+                  "row": 8,
+                  "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+                  "source_url": "https://arxiv.org/html/1909.06699v1#S3.T2",
+                  "start": 0,
+                  "validation": "exact_slice_verified"
+                },
+                {
+                  "block_id": "b000042",
+                  "block_type": "table",
+                  "column": 0,
+                  "end": 4,
+                  "field": "table_cell",
+                  "locator": {
+                    "html_id": "S3.T2",
+                    "ordinal": 2
+                  },
+                  "quote": "Name",
+                  "row": 0,
+                  "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+                  "source_url": "https://arxiv.org/html/1909.06699v1#S3.T2",
+                  "start": 0,
+                  "validation": "exact_slice_verified"
+                }
+              ],
+              "role": "mentioned",
+              "statement": "论文在该表的对象名称列明确列出此对象。"
+            },
+            {
+              "evidence": [
+                {
+                  "block_id": "b000042",
+                  "block_type": "table",
+                  "column": 0,
+                  "end": 6,
+                  "field": "table_cell",
+                  "locator": {
+                    "html_id": "S3.T2",
+                    "ordinal": 2
+                  },
+                  "quote": "TWA 31",
+                  "row": 8,
+                  "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+                  "source_url": "https://arxiv.org/html/1909.06699v1#S3.T2",
+                  "start": 0,
+                  "validation": "exact_slice_verified"
+                }
+              ],
+              "role": "in_sample",
+              "statement": "该对象属于本文此项分析的工作样本；这不单独确认星协成员身份。"
+            },
+            {
+              "evidence": [
+                {
+                  "block_id": "b000042",
+                  "block_type": "table",
+                  "column": 0,
+                  "end": 6,
+                  "field": "table_cell",
+                  "locator": {
+                    "html_id": "S3.T2",
+                    "ordinal": 2
+                  },
+                  "quote": "TWA 31",
+                  "row": 8,
+                  "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+                  "source_url": "https://arxiv.org/html/1909.06699v1#S3.T2",
+                  "start": 0,
+                  "validation": "exact_slice_verified"
+                }
+              ],
+              "role": "analysed",
+              "statement": "作者对该对象开展此项分析：使用 ROTFIT 对 X-shooter 光谱拟合得到的径向速度；TWA 30A 只选 P087 窄缝这一原始观测行。"
+            },
+            {
+              "evidence": [
+                {
+                  "block_id": "b000042",
+                  "block_type": "table",
+                  "column": 0,
+                  "end": 6,
+                  "field": "table_cell",
+                  "locator": {
+                    "html_id": "S3.T2",
+                    "ordinal": 2
+                  },
+                  "quote": "TWA 31",
+                  "row": 8,
+                  "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+                  "source_url": "https://arxiv.org/html/1909.06699v1#S3.T2",
+                  "start": 0,
+                  "validation": "exact_slice_verified"
+                },
+                {
+                  "block_id": "b000042",
+                  "block_type": "table",
+                  "column": 0,
+                  "end": 4,
+                  "field": "table_cell",
+                  "locator": {
+                    "html_id": "S3.T2",
+                    "ordinal": 2
+                  },
+                  "quote": "Name",
+                  "row": 0,
+                  "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+                  "source_url": "https://arxiv.org/html/1909.06699v1#S3.T2",
+                  "start": 0,
+                  "validation": "exact_slice_verified"
+                },
+                {
+                  "block_id": "b000042",
+                  "block_type": "table",
+                  "column": 14,
+                  "end": 2,
+                  "field": "table_cell",
+                  "locator": {
+                    "html_id": "S3.T2",
+                    "ordinal": 2
+                  },
+                  "quote": "RV",
+                  "row": 0,
+                  "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+                  "source_url": "https://arxiv.org/html/1909.06699v1#S3.T2",
+                  "start": 0,
+                  "validation": "exact_slice_verified"
+                },
+                {
+                  "block_id": "b000042",
+                  "block_type": "table",
+                  "column": 14,
+                  "end": 1,
+                  "field": "table_cell",
+                  "locator": {
+                    "html_id": "S3.T2",
+                    "ordinal": 2
+                  },
+                  "quote": "7",
+                  "row": 8,
+                  "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+                  "source_url": "https://arxiv.org/html/1909.06699v1#S3.T2",
+                  "start": 0,
+                  "validation": "exact_slice_verified"
+                }
+              ],
+              "role": "reports_result",
+              "statement": "作者报告该对象的使用 ROTFIT 对 X-shooter 光谱拟合得到的径向速度；TWA 30A 只选 P087 窄缝这一原始观测行；具体原始数值或分类见所引单元格。"
+            },
+            {
+              "evidence": [
+                {
+                  "block_id": "b000020",
+                  "block_type": "table",
+                  "column": 0,
+                  "end": 6,
+                  "field": "table_cell",
+                  "locator": {
+                    "html_id": "S2.T1",
+                    "ordinal": 1
+                  },
+                  "quote": "TWA 31",
+                  "row": 17,
+                  "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+                  "source_url": "https://arxiv.org/html/1909.06699v1#S2.T1",
+                  "start": 0,
+                  "validation": "exact_slice_verified"
+                },
+                {
+                  "block_id": "b000020",
+                  "block_type": "table",
+                  "column": 3,
+                  "end": 1,
+                  "field": "table_cell",
+                  "locator": {
+                    "html_id": "S2.T1",
+                    "ordinal": 1
+                  },
+                  "quote": "4",
+                  "row": 17,
+                  "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+                  "source_url": "https://arxiv.org/html/1909.06699v1#S2.T1",
+                  "start": 0,
+                  "validation": "exact_slice_verified"
+                }
+              ],
+              "role": "cites_prior_result",
+              "statement": "表1成员资格代码明确采用 Gagné et al. (2017) 的分类。"
+            }
+          ],
+          "results": [
+            {
+              "association": "TWA",
+              "attribution": "Gagné et al. (2017)，由 Venuti et al. (2019) 表1引用",
+              "evidence": [
+                {
+                  "block_id": "b000020",
+                  "block_type": "table",
+                  "column": 0,
+                  "end": 6,
+                  "field": "table_cell",
+                  "locator": {
+                    "html_id": "S2.T1",
+                    "ordinal": 1
+                  },
+                  "quote": "TWA 31",
+                  "row": 17,
+                  "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+                  "source_url": "https://arxiv.org/html/1909.06699v1#S2.T1",
+                  "start": 0,
+                  "validation": "exact_slice_verified"
+                },
+                {
+                  "block_id": "b000020",
+                  "block_type": "table",
+                  "column": 3,
+                  "end": 1,
+                  "field": "table_cell",
+                  "locator": {
+                    "html_id": "S2.T1",
+                    "ordinal": 1
+                  },
+                  "quote": "4",
+                  "row": 17,
+                  "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+                  "source_url": "https://arxiv.org/html/1909.06699v1#S2.T1",
+                  "start": 0,
+                  "validation": "exact_slice_verified"
+                }
+              ],
+              "kind": "membership",
+              "method": "采用前人成员资格分类；表注说明1为 bona fide member，4为 likely contaminant",
+              "origin": "prior_work",
+              "population": null,
+              "qualification": "标签4表示可能为其他星协污染源，保留其不确定性；这不是2019年论文新作出的成员判断。",
+              "reported_label": "4",
+              "status": "uncertain"
+            },
+            {
+              "association": "TWA",
+              "attribution": "Venuti et al. (2019), 第2节本文新运动学分析",
+              "evidence": [
+                {
+                  "block_id": "b000022",
+                  "block_type": "paragraph",
+                  "end": 930,
+                  "field": "text",
+                  "locator": {
+                    "html_id": "S2.SS1.p3.1",
+                    "ordinal": 15
+                  },
+                  "quote": "TWA 31 falls among the confirmed TWA members",
+                  "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+                  "source_url": "https://arxiv.org/html/1909.06699v1#S2.SS1.p3.1",
+                  "start": 886,
+                  "validation": "exact_slice_verified"
+                }
+              ],
+              "kind": "membership",
+              "method": "使用 Gaia DR2 天体测量与径向速度重新计算空间速度",
+              "origin": "current_analysis",
+              "population": null,
+              "qualification": "新运动学支持TWA关联，但作者为保持与前人低成员概率分类的一致性，仍将TWA31单列，不纳入主要11星统计样本。",
+              "reported_label": "TWA 31 falls among the confirmed TWA members",
+              "status": "candidate"
+            }
+          ],
+          "subject_scope": "source",
+          "target": {
+            "aliases": [
+              {
+                "name": "TWA 31",
+                "provenance": "VizieR J/AJ/165/269/table2, published Gaia DR3 row 42, original Name='TWA 31'; corpus run 8224f3ee-050b-4654-b8bc-6fab97728948. Paper table b000042 name column and header; only spacing/prefix/parenthetical formatting normalized."
+              }
+            ],
+            "release": "dr3",
+            "source_id": "3466327989885650176"
+          }
+        },
+        "paper": {
+          "paper_version_id": "c3091ae9-afbe-4320-9cc4-462fbf27dbd2",
+          "document_sha256": "b9b3841985882cebdad2eff53a357deffb1ef9bbf28eb97be1354fac0fdde970",
+          "title": "X-shooter spectroscopy of young stars with disks. The TW Hydrae association as a probe of the final stages of disk accretion",
+          "doi": "10.1051/0004-6361/201935745",
+          "year": null,
+          "arxiv_year": 2019,
+          "arxiv_id": "1909.06699",
+          "versioned_id": "1909.06699v1",
+          "parser_version": "0.1.0:9cc64120640509ec"
+        },
+        "extractor": {
+          "name": "Astro-Corpus",
+          "version": "demo",
+          "prompt_version": "object-paper-2"
+        },
+        "created_at": 1793623512.333179,
+        "review_status": "pending",
+        "identity_verified": false,
+        "evidence_validation": "exact_slices_verified_when_recorded",
+        "artifact_integrity": "not_rechecked"
+      }
+    ]
+  },
+  "contexts": {
+    "c3091ae9-afbe-4320-9cc4-462fbf27dbd2:b000020": {
+      "available": true,
+      "paper": {
+        "paper_version_id": "c3091ae9-afbe-4320-9cc4-462fbf27dbd2",
+        "document_sha256": "b9b3841985882cebdad2eff53a357deffb1ef9bbf28eb97be1354fac0fdde970",
+        "title": "X-shooter spectroscopy of young stars with disks. The TW Hydrae association as a probe of the final stages of disk accretion",
+        "doi": "10.1051/0004-6361/201935745",
+        "year": null,
+        "arxiv_year": 2019,
+        "arxiv_id": "1909.06699",
+        "versioned_id": "1909.06699v1",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000020",
+          "block_type": "table",
+          "column": 0,
+          "end": 6,
+          "field": "table_cell",
+          "locator": {
+            "html_id": "S2.T1",
+            "ordinal": 1
+          },
+          "quote": "TWA 31",
+          "row": 17,
+          "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+          "source_url": "https://arxiv.org/html/1909.06699v1#S2.T1",
+          "start": 0,
+          "validation": "exact_slice_verified",
+          "text": "TWA 31",
+          "cell_structure": {
+            "header": false
+          }
+        },
+        {
+          "block_id": "b000020",
+          "block_type": "table",
+          "column": 3,
+          "end": 1,
+          "field": "table_cell",
+          "locator": {
+            "html_id": "S2.T1",
+            "ordinal": 1
+          },
+          "quote": "4",
+          "row": 17,
+          "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+          "source_url": "https://arxiv.org/html/1909.06699v1#S2.T1",
+          "start": 0,
+          "validation": "exact_slice_verified",
+          "text": "4",
+          "cell_structure": {
+            "header": false
+          }
+        }
+      ]
+    },
+    "c3091ae9-afbe-4320-9cc4-462fbf27dbd2:b000022": {
+      "available": true,
+      "paper": {
+        "paper_version_id": "c3091ae9-afbe-4320-9cc4-462fbf27dbd2",
+        "document_sha256": "b9b3841985882cebdad2eff53a357deffb1ef9bbf28eb97be1354fac0fdde970",
+        "title": "X-shooter spectroscopy of young stars with disks. The TW Hydrae association as a probe of the final stages of disk accretion",
+        "doi": "10.1051/0004-6361/201935745",
+        "year": null,
+        "arxiv_year": 2019,
+        "arxiv_id": "1909.06699",
+        "versioned_id": "1909.06699v1",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000022",
+          "block_type": "paragraph",
+          "end": 930,
+          "field": "text",
+          "locator": {
+            "html_id": "S2.SS1.p3.1",
+            "ordinal": 15
+          },
+          "quote": "TWA 31 falls among the confirmed TWA members",
+          "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+          "source_url": "https://arxiv.org/html/1909.06699v1#S2.SS1.p3.1",
+          "start": 886,
+          "validation": "exact_slice_verified",
+          "text": "TWA 31 falls among the confirmed TWA members"
+        }
+      ]
+    },
+    "c3091ae9-afbe-4320-9cc4-462fbf27dbd2:b000042": {
+      "available": true,
+      "paper": {
+        "paper_version_id": "c3091ae9-afbe-4320-9cc4-462fbf27dbd2",
+        "document_sha256": "b9b3841985882cebdad2eff53a357deffb1ef9bbf28eb97be1354fac0fdde970",
+        "title": "X-shooter spectroscopy of young stars with disks. The TW Hydrae association as a probe of the final stages of disk accretion",
+        "doi": "10.1051/0004-6361/201935745",
+        "year": null,
+        "arxiv_year": 2019,
+        "arxiv_id": "1909.06699",
+        "versioned_id": "1909.06699v1",
+        "parser_version": "0.1.0:9cc64120640509ec"
+      },
+      "units": [
+        {
+          "block_id": "b000042",
+          "block_type": "table",
+          "column": 0,
+          "end": 6,
+          "field": "table_cell",
+          "locator": {
+            "html_id": "S3.T2",
+            "ordinal": 2
+          },
+          "quote": "TWA 31",
+          "row": 8,
+          "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+          "source_url": "https://arxiv.org/html/1909.06699v1#S3.T2",
+          "start": 0,
+          "validation": "exact_slice_verified",
+          "text": "TWA 31",
+          "cell_structure": {
+            "header": false
+          }
+        },
+        {
+          "block_id": "b000042",
+          "block_type": "table",
+          "column": 0,
+          "end": 4,
+          "field": "table_cell",
+          "locator": {
+            "html_id": "S3.T2",
+            "ordinal": 2
+          },
+          "quote": "Name",
+          "row": 0,
+          "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+          "source_url": "https://arxiv.org/html/1909.06699v1#S3.T2",
+          "start": 0,
+          "validation": "exact_slice_verified",
+          "text": "Name",
+          "cell_structure": {
+            "header": false
+          }
+        },
+        {
+          "block_id": "b000042",
+          "block_type": "table",
+          "column": 14,
+          "end": 2,
+          "field": "table_cell",
+          "locator": {
+            "html_id": "S3.T2",
+            "ordinal": 2
+          },
+          "quote": "RV",
+          "row": 0,
+          "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+          "source_url": "https://arxiv.org/html/1909.06699v1#S3.T2",
+          "start": 0,
+          "validation": "exact_slice_verified",
+          "text": "RV",
+          "cell_structure": {
+            "header": false
+          }
+        },
+        {
+          "block_id": "b000042",
+          "block_type": "table",
+          "column": 14,
+          "end": 1,
+          "field": "table_cell",
+          "locator": {
+            "html_id": "S3.T2",
+            "ordinal": 2
+          },
+          "quote": "7",
+          "row": 8,
+          "source_sha256": "301c2c77774ae474a6d24754eb939468b2c1ca7ca4795578b07174cf65e12908",
+          "source_url": "https://arxiv.org/html/1909.06699v1#S3.T2",
+          "start": 0,
+          "validation": "exact_slice_verified",
+          "text": "7",
+          "cell_structure": {
+            "header": false
+          }
+        }
+      ]
+    }
+  },
+  "default_source": "dr3:3466327989885650176",
+  "meta": {
+    "exists": true,
+    "revision": "public-demo-2026-11-11",
+    "total_sources": 8,
+    "releases": [
+      "dr3"
+    ],
+    "runs": [],
+    "datasets": [
+      {
+        "corpus_id": "17269560-e8b7-585d-9d70-993245b033c0",
+        "label": "twa_luhman2023",
+        "provenance_status": "verified",
+        "run_id": "8224f3ee-050b-4654-b8bc-6fab97728948",
+        "request_id": "a1692945de7869c120dd5959e6a102e9fbc964b5714f2fb47b370e20e288eb82",
+        "status": "completed",
+        "snapshot_state": "current",
+        "started_at": 1793622465.612086,
+        "finished_at": 1793622810.0021718,
+        "has_error": false,
+        "n_member_rows": 1
+      }
+    ]
+  }
+}

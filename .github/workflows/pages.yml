@@ -1,0 +1,41 @@
+name: Publish observatory demo
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/pages.yml'
+      - 'scripts/build_pages.py'
+      - 'examples/observatory/**'
+      - 'src/astro_pipeline/viz/assets/**'
+      - 'src/astro_pipeline/viz/vendor/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/configure-pages@v5
+      - name: Build static example (no database or credentials)
+        run: python scripts/build_pages.py
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist/pages
+      - uses: actions/deploy-pages@v4
+        id: deployment
