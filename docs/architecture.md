@@ -29,7 +29,14 @@ An external agent selects MCP tools; it is not a model embedded in the pipeline.
 Read-only queries do not require a build first. Their caller interfaces are named
 in the query box.
 
-![Figure 1. Implemented entry points, independent builders, separate storage responsibilities and local readers.](diagrams/system-overview.svg)
+The evidence layer reads pinned paper context, accepts external annotations and
+validates exact text locations before appending immutable batches. The local
+observatory reads these records alongside source parameters and optional spectra.
+The public GitHub Pages demo reuses the viewer with a curated static JSON snapshot;
+it has no backend, database connection or acquisition endpoints. Its builder
+(`scripts/build_pages.py`) reads only committed example data and viewer assets.
+
+![Figure 1. Independent builders, shared storage, object–paper evidence and local/static viewing.](diagrams/system-overview.svg)
 
 The SQLite index holds identities, metadata, versions and progress. Immutable
 objects hold file bytes; run directories hold sample tables, provenance and exact
@@ -66,8 +73,8 @@ config:
     padding: 18
 ---
 flowchart TB
-    accTitle: Astro-Corpus 系统入口、构建路径与本地访问
-    accDescr: AI agent 通过 MCP 或使用者通过 CLI 和 Python 调用两条独立的构建路径，结果分别保存到 SQLite 索引、不可变文件和运行快照。查询与查看器只读本地已有数据，不触发远程下载。
+    accTitle: Astro-Corpus 观测、论文、证据与展示
+    accDescr: 两条构建路径将观测和论文写入共享库。外部 agent 通过三个 MCP 接口读取固定版本上下文、保存带原文位置的关系与结果并查询标注。只读观测台连接星图、光谱和文献证据，GitHub Pages 展示显式选取的静态示例。
     subgraph entry["01 · 调用入口"]
         direction LR
         agent["外部 AI agent<br/>通过 MCP 选择工具"]:::entry
@@ -87,16 +94,25 @@ flowchart TB
         runs["运行快照与兼容视图<br/>原表、匹配、固定制品引用<br/>manifest 与可选静态 HTML"]:::storage
         db ~~~ objects ~~~ runs
     end
-    subgraph access["04 · 读取已有数据"]
+    subgraph evidence["04 · 天体—论文关系与原文证据"]
         direction LR
-        query["CLI / Python / MCP 查询<br/>不存在的库不自动创建"]:::reader
-        viewer["本机只读查看器<br/>按需读取已有光谱"]:::reader
-        query ~~~ viewer
+        context["MCP 读取固定版本上下文<br/>外部 agent 提交关系与结果"]:::paper
+        annotations["校验原文位置与引文<br/>不可变批次 · 标注待复核<br/>区分本文分析与前人结果"]:::paper
+        context --> annotations
+    end
+    subgraph access["05 · 查询与展示"]
+        direction LR
+        query["CLI / Python / MCP<br/>查询数据、关系与标注历史"]:::reader
+        viewer["本机全库观测台<br/>星图 · 光谱 · 文献与证据高亮"]:::reader
+        demo["GitHub Pages 公开示例<br/>复用界面 · 固定静态 JSON"]:::reader
+        query ~~~ viewer ~~~ demo
     end
 
     entry -->|显式请求构建| builders
     builders -->|保存索引、文件与快照| local
-    local -->|只读访问本地数据| access
+    local -->|读取上下文与保存标注| evidence
+    evidence -->|共享库中的证据记录| access
+    local -->|只读数据 / 显式选取公开示例| access
 
     classDef entry fill:#edf3fc,stroke:#a7bfdf,color:#23476b,stroke-width:1.4px,rx:10,ry:10
     classDef sample fill:#e9f5f1,stroke:#83b8a7,color:#1b5547,stroke-width:1.4px,rx:10,ry:10

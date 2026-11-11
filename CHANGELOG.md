@@ -7,6 +7,11 @@ All notable changes to this project are documented here. Versions follow
 
 ### Added
 
+- GitHub Pages observatory demo with eight curated Gaia DR3 sources and a
+  TWA 31 paper/evidence example. The static site shares the local
+  viewer and builds without a database, credentials or pipeline dependencies.
+- Updated system overview covering object–paper annotation, immutable evidence
+  batches and both local and public static viewing.
 - Whole-library navigation and a full-width literature/evidence section linked
   to the selected source, alongside its observations and spectra. Standalone
   evidence exports remain optional fixed snapshots for sharing.

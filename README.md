@@ -14,6 +14,11 @@
 先了解原理可读 [技术概览](docs/technical-overview.md)；
 安装和客户端接入见 [使用指南](docs/integration-guide.md)，版本历史见 [CHANGELOG](CHANGELOG.md)。
 
+**[打开全库观测台在线示例 →](https://cetizhao.github.io/Astro-Corpus/)**
+无需安装，展示 8 个 Gaia DR3 天体的固定数据快照。搜索 `TWA`，或直接查看默认选中的
+`TWA 31`，浏览天体参数、论文关系与原文证据短摘录。本次示例未包含 XP 光谱文件。
+示例仅包含少量公开数据，文献标注保留待复核状态，完整原文通过论文链接访问。
+
 ## 已实现的能力
 
 - **Gaia DR3 星表**：按名称、坐标范围或用户星表获取天测与测光数据。
@@ -31,11 +36,14 @@ LAMOST / SDSS 适配仍保留，不是当前开发主线。
 
 ## 系统总览
 
-![图 1：当前实现的入口、构建路径、本地存储和只读访问关系](docs/diagrams/system-overview.svg)
+![图 1：观测与论文构建、共享库、天体—论文证据和本地及在线展示](docs/diagrams/system-overview.svg)
 
 图 1 区分两条独立的构建路径：星表样本及其可选产品、显式选择的论文全文。
 AI agent 在管线外部选择工具；Python 代码负责实际获取、解析和保存。
-查看器只读本地已有数据，页面操作不会触发远程下载。
+关系标注读取固定版本的论文上下文，保存多标签关系、区分本文分析与前人工作的结果，
+并校验原文位置后写入不可变批次。机器辅助标注仍需人工复核。
+本机观测台只读共享库中的星图、光谱和文献证据；GitHub Pages 版复用相同界面，
+读取独立选取的静态示例 JSON。页面操作不会触发远程数据下载。
 
 图的 [Mermaid 源文件](docs/diagrams/system-overview.mmd) 可直接修改。
 样本选择、全文读取的细节图及重新生成方式见 [架构说明](docs/architecture.md)。
@@ -43,7 +51,7 @@ AI agent 在管线外部选择工具；Python 代码负责实际获取、解析�
 ## 快速开始
 
 需要 Python **3.11+** 和 [uv](https://docs.astral.sh/uv/)。
-以下示例从 `main` 安装当前功能；私有仓库需要相应访问权限。
+以下示例从公开仓库的 `main` 安装当前功能。
 
 ```bash
 git clone --branch main \
@@ -57,9 +65,20 @@ uv run --locked python scripts/library.py status
 测试默认排除联网测试；`library.py status` 只读本地状态，不创建不存在的数据库。
 上述检查不查询天文服务，但首次安装依赖需要联网。
 
-**新 clone 不带数据。** `data/`、演示星表和个人凭据不随 Git 分发。
+**新 clone 不带本地数据库。** `data/`、完整星表和个人凭据不随 Git 分发；
+在线示例使用的少量公开数据单独保存在 `examples/observatory/`。
 首次看到空库是正常结果，不必为了启动服务先下载完整样本。
 旧 TWA 演示的准备和重建方法见 [TWA bootstrap](docs/operator-runbook.md#twa-demo-bootstrap)。
+
+在线示例可用标准库独立构建，不需要安装管线依赖或准备数据库：
+
+```bash
+python scripts/build_pages.py
+python -m http.server 8766 --directory dist/pages
+```
+
+然后打开 `http://localhost:8766/`。更新示例数据或观测台资产并推送到 `main` 后，
+GitHub Actions 会自动重新发布 Pages；只上传 `dist/pages` 中的静态站点文件。
 
 ## 按任务选择入口
 
