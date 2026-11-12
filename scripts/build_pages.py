@@ -42,6 +42,7 @@ def build(output: Path) -> None:
     (output / 'index.html').write_text(document,encoding='utf-8')
     (output / '.nojekyll').write_text('',encoding='utf-8')
     shutil.copyfile(ROOT / 'examples/observatory/about.html',output / 'about.html')
+    shutil.copyfile(ROOT / 'examples/observatory/architecture.html', output / 'architecture.html')
     print(output)
 
 if __name__ == '__main__':
