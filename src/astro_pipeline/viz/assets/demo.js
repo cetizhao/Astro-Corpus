@@ -8,6 +8,18 @@
       const d = await snapshot, revision = d.meta.revision;
       if (path === '/api/v1/meta') return d.meta;
       if (path === '/api/v1/research-tasks') return d.research_tasks || {suites:[],warnings:[]};
+      if (path === '/api/v1/research-items') {
+        const all = (p.revision_id || p.include_history === 'true') ? (d.science?.archive || []) : (d.science?.items || []);
+        const rows = all.filter(r => (!p.record_id || r.record_id === p.record_id) && (!p.revision_id || r.revision_id === p.revision_id)
+          && (!p.kind || r.item.kind === p.kind) && (!p.topic || r.item.topic === p.topic)
+          && (!p.paper_version_id || r.evidence.some(e => e.kind === 'paper' && e.paper.paper_version_id === p.paper_version_id))
+          && (!p.source_id || r.item.targets.some(t => t.source_id === p.source_id && t.release === (p.release || 'dr3')))
+          && (!p.text || JSON.stringify(r).toLowerCase().includes(p.text.toLowerCase())))
+          .sort((a,b) => b.created_at-a.created_at || b.ordinal-a.ordinal);
+        const offset = Number(p.offset || 0), limit = Number(p.limit || 20), items = rows.slice(offset, offset+limit);
+        return { schema_version: 'research-query-1', schema_ready: !!d.science, read_only: true, items,
+          page: { total: rows.length, returned: items.length, offset, limit, has_more: offset+items.length<rows.length } };
+      }
       if (path === '/api/v1/sources' || path === '/api/v1/sky') {
         const rows = d.sources.filter(s => (!p.release || s.release === p.release)
           && (!p.corpus_id || s.datasets.some(v => v.corpus_id === p.corpus_id))

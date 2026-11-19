@@ -29,7 +29,7 @@ from astro_pipeline.library.identity import (
 )
 from astro_pipeline.library.schema import (
     APPLICATION_ID, EVIDENCE_SCHEMA_STATEMENTS, PAPER_SCHEMA_STATEMENTS,
-    SCHEMA_STATEMENTS, SCHEMA_VERSION,
+    RESEARCH_SCHEMA_STATEMENTS, SCHEMA_STATEMENTS, SCHEMA_VERSION,
 )
 
 
@@ -190,10 +190,10 @@ class LibraryStore:
                         connection.execute(statement)
                     connection.execute(f"PRAGMA application_id = {APPLICATION_ID}")
                     connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
-                elif version in (1, 2):
+                elif version in (1, 2, 3):
                     self._validate_owner(connection)
                     migrations = (PAPER_SCHEMA_STATEMENTS if version == 1 else ())
-                    for statement in migrations + EVIDENCE_SCHEMA_STATEMENTS:
+                    for statement in migrations + (EVIDENCE_SCHEMA_STATEMENTS if version < 3 else ()) + RESEARCH_SCHEMA_STATEMENTS:
                         connection.execute(statement)
                     connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
                 elif version != SCHEMA_VERSION:
@@ -267,7 +267,7 @@ class LibraryStore:
                 return result
             version = self._schema_version(connection)
             result["schema"] = version
-            if version not in (1, 2, SCHEMA_VERSION):
+            if version not in (1, 2, 3, SCHEMA_VERSION):
                 return result
             counts = {
                 "n_sources": "SELECT COUNT(*) FROM sources",
@@ -286,6 +286,9 @@ class LibraryStore:
             if version >= 3:
                 counts["n_paper_annotation_batches"] = "SELECT COUNT(*) FROM paper_annotation_batches"
                 counts["n_paper_annotations"] = "SELECT COUNT(*) FROM paper_annotations"
+            if version >= 4:
+                counts["n_research_items"] = "SELECT COUNT(*) FROM research_items"
+                counts["n_research_revisions"] = "SELECT COUNT(*) FROM research_revisions"
             for name, sql in counts.items():
                 result[name] = int(connection.execute(sql).fetchone()[0])
             return result

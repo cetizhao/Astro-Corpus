@@ -38,6 +38,7 @@ from mcp.server.fastmcp import FastMCP
 from astro_pipeline.corpus import Corpus
 from astro_pipeline.intake import resolve_members
 from astro_pipeline.models.evidence import Assessment, EvidenceTarget, MembershipStatus, PaperAnnotationBatch, Role
+from astro_pipeline.models.research import ItemKind, ResearchItem
 from astro_pipeline.spectra import get_xp_spectrum_png
 
 logger = logging.getLogger(__name__)
@@ -68,10 +69,132 @@ except FileNotFoundError as exc:
     # return a structured bootstrap message.
     logger.warning("Default cached corpus unavailable: %s", exc)
     corpus = None
-mcp = FastMCP("astro-corpus")
+mcp = FastMCP("astro-corpus", instructions=(
+    "For source-led scientific corpus construction, start with prepare_research_workspace. "
+    "Read the sources' pinned paper evidence, then record_research_item for scientific records "
+    "or open research tasks. Use query_research_items, update_research_item and "
+    "export_research_corpus to maintain the corpus. Benchmark questions are a separate optional "
+    "use, not the default corpus format. Preserve attribution, uncertainty and original evidence."
+))
 
 
 # --------------------------------------------------------------------- tools
+@mcp.tool()
+def prepare_research_workspace(targets: list[EvidenceTarget], topic: str,
+                               paper_limit: int = 20, paper_offset: int = 0) -> dict:
+    """Start building scientific corpus/tasks from explicit Gaia sources and their literature.
+
+    Resolve user-provided star names first with resolve_name/lookup_library_source;
+    preserve alias provenance and Gaia release. Returns candidate linked papers,
+    cached immutable full-text versions, existing research records, missing-data
+    guidance, construction instructions and the write schema. Bibliography,
+    object-paper annotations and research-record citations are distinguished.
+    This read-only tool does not download, classify or call a model. Paginate
+    candidate papers until paper_page.has_more is false for each target.
+    """
+    from astro_pipeline.library import get_library
+    from astro_pipeline.library.research import prepare_research_workspace as prepare
+    try:
+        return prepare(get_library(create=False), targets, topic, paper_limit=paper_limit, paper_offset=paper_offset)
+    except (ValueError, RuntimeError, OSError) as exc:
+        return {"error": str(exc)}
+
+
+@mcp.tool()
+def record_research_item(item: ResearchItem, request_id: str) -> dict:
+    """Store one scientific record or open research task with version-pinned inputs.
+
+    Sources must exist in the shared library. Evidence is an exact paper span or
+    selected catalog fields from a completed run/member ordinal. Scientific
+    content records observations, methods, analysis, results and limitations;
+    distinguish paper_report, prior_work, catalog_record, agent_calculation, agent_synthesis and
+    synthetic_example. Each unit cites evidence and earlier dependency units.
+    Tasks use objectives/procedures/expected outputs, without benchmark answers.
+    related_revision_ids pin other research records/tasks. author records the
+    actual agent/model and prompt version (unknown is allowed; do not invent).
+    The server validates source existence and exact evidence, not scientific entailment, and
+    stores all content pending review. request_id makes identical retries safe.
+    Returns record_id and revision_id for subsequent queries/updates.
+    """
+    from astro_pipeline.library import get_library
+    from astro_pipeline.library.research import record_research_item as record
+    try:
+        return record(get_library(create=False), item, request_id)
+    except (ValueError, RuntimeError, OSError) as exc:
+        return {"error": str(exc)}
+
+
+@mcp.tool()
+def query_research_items(record_id: Optional[str] = None, revision_id: Optional[str] = None,
+                          kind: Optional[ItemKind] = None, source_id: Optional[str] = None,
+                          release: str = "dr3", topic: Optional[str] = None,
+                          text: Optional[str] = None, paper_version_id: Optional[str] = None,
+                          include_history: bool = False, limit: int = 20, offset: int = 0) -> dict:
+    """Query scientific records and research tasks, not benchmark task packets.
+
+    Default: current revisions. Select record_id to inspect a record, revision_id
+    to read a pinned historical version, or include_history to list revisions.
+    Source filtering always includes the Gaia release. topic is exact; text
+    searches the saved content. paper_version_id filters direct evidence links.
+    Paginated, read-only and offline; never creates/migrates an absent database.
+    """
+    from astro_pipeline.library import get_library
+    from astro_pipeline.library.research import query_research_items as query
+    try:
+        return query(get_library(create=False), record_id=record_id, revision_id=revision_id, kind=kind,
+                     source_id=source_id, release=release, topic=topic, text=text,
+                     paper_version_id=paper_version_id, include_history=include_history, limit=limit, offset=offset)
+    except (ValueError, RuntimeError, OSError) as exc:
+        return {"error": str(exc)}
+
+
+@mcp.tool()
+def update_research_item(record_id: str, expected_revision_id: str, item: ResearchItem,
+                         request_id: str, change_note: str) -> dict:
+    """Append a complete revised scientific record/task and preserve every prior version.
+
+    Pass the last-read head revision as expected_revision_id. A concurrent change
+    causes a conflict instead of overwriting it; re-query before revising. Send
+    the complete item, not a JSON patch. Use new request IDs for new revisions;
+    exact retries return the original result even after the head advances.
+    Task completion records outcomes but does not certify scientific correctness.
+    """
+    from astro_pipeline.library import get_library
+    from astro_pipeline.library.research import update_research_item as update
+    try:
+        return update(get_library(create=False), record_id, expected_revision_id, item, request_id, change_note)
+    except (ValueError, RuntimeError, OSError) as exc:
+        return {"error": str(exc)}
+
+
+@mcp.tool()
+def export_research_corpus(label: str, record_ids: Optional[list[str]] = None,
+                           revision_ids: Optional[list[str]] = None, source_id: Optional[str] = None,
+                           release: str = "dr3", topic: Optional[str] = None,
+                           include_observatory: bool = False) -> dict:
+    """Export selected scientific records/tasks to immutable JSON, JSONL and Markdown.
+
+    Supply exactly one selection: current record_ids, exact revision_ids, source_id
+    (with release), or exact topic. Referenced record revisions are included as
+    dependencies, preserving their old versions even if current records changed.
+    Creates data/research_corpora/<label>/exports/<export_id>/ with checksums;
+    never replaces older exports. include_observatory also writes a selected,
+    path-free observatory.json suitable for public preview. It does not publish
+    to GitHub or include full papers, a database, model scores or inferred labels.
+    The agent can publish selected examples through the repository Pages workflow.
+    """
+    from astro_pipeline.config import PipelineConfig
+    from astro_pipeline.library import get_library
+    from astro_pipeline.library.research import export_research_corpus as export
+    try:
+        config = PipelineConfig.load()
+        return export(get_library(config, create=False), label, output_root=config.output.base_dir / "research_corpora",
+                      record_ids=record_ids, revision_ids=revision_ids, source_id=source_id, release=release,
+                      topic=topic, include_observatory=include_observatory)
+    except (ValueError, RuntimeError, OSError) as exc:
+        return {"error": str(exc)}
+
+
 @mcp.tool()
 def lookup_source(gaia_id: str) -> dict:
     """Look up astrometry, multimodal availability, and SIMBAD-curated paper list for a Gaia DR3 source.

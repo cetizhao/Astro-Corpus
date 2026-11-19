@@ -41,7 +41,7 @@ _ASSET_PATHS = {
         "text/javascript; charset=utf-8",
     ),
 }
-for _asset in ("evidence.js", "evidence.css", "research.js", "research.css"):
+for _asset in ("evidence.js", "evidence.css", "research.js", "research.css", "science.js", "science.css"):
     _ASSET_PATHS[f"/assets/{_asset}"] = (
         Path(__file__).with_name("assets") / _asset,
         "text/javascript; charset=utf-8" if _asset.endswith(".js") else "text/css; charset=utf-8",
@@ -334,6 +334,18 @@ class LibraryViewerHandler(BaseHTTPRequestHandler):
 
                 self._query_values(target.query, set())
                 self._send_json(HTTPStatus.OK, research_snapshot(self.server.research_dir), send_body=send_body)
+                return
+            if path == "/api/v1/research-items":
+                from astro_pipeline.library.research import query_research_items
+
+                values = self._query_values(target.query, {"record_id", "revision_id", "kind", "source_id",
+                    "release", "topic", "text", "paper_version_id", "include_history", "limit", "offset"})
+                if values.get("include_history", "false") not in {"true", "false"}:
+                    raise ValueError("include_history must be true or false")
+                kwargs = {k: v for k, v in values.items() if k not in {"include_history", "limit", "offset"} and v}
+                kwargs.update(include_history=values.get("include_history") == "true",
+                              limit=int(values.get("limit", 20)), offset=int(values.get("offset", 0)))
+                self._send_json(HTTPStatus.OK, query_research_items(self.server.store, **kwargs), send_body=send_body)
                 return
             if path in {"/api/v1/sources", "/api/v1/sky"}:
                 values = self._query_values(

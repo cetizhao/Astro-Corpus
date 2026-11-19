@@ -20,8 +20,8 @@ config:
     padding: 18
 ---
 flowchart TB
-    accTitle: Astro-Corpus 观测、论文、证据与展示
-    accDescr: 两条构建路径将观测和论文写入共享库。外部 agent 通过三个 MCP 接口读取固定版本上下文、保存带原文位置的关系与结果并查询标注。只读观测台连接星图、光谱和文献证据，GitHub Pages 展示显式选取的静态示例。
+    accTitle: Astro-Corpus 观测、论文、科研语料与展示
+    accDescr: 两条构建路径将观测和论文写入共享库。外部 agent 通过 MCP 读取证据、保存关系、建设科研记录与开放任务。版本化入库支持查询、修订和导出；本机观测台读取共享库，GitHub Pages 展示选定静态示例。
     subgraph entry["01 · 调用入口"]
         direction LR
         agent["外部 AI agent<br/>通过 MCP 选择工具"]:::entry
@@ -41,16 +41,18 @@ flowchart TB
         runs["运行快照与兼容视图<br/>原表、匹配、固定制品引用<br/>manifest 与可选静态 HTML"]:::storage
         db ~~~ objects ~~~ runs
     end
-    subgraph evidence["04 · 天体—论文关系与原文证据"]
+    subgraph evidence["04 · 天体—论文证据与科研语料"]
         direction LR
         context["MCP 读取固定版本上下文<br/>外部 agent 提交关系与结果"]:::paper
         annotations["校验原文位置与引文<br/>不可变批次 · 标注待复核<br/>区分本文分析与前人结果"]:::paper
+        research["科研记录与开放任务<br/>观测 → 方法 → 分析 → 结果<br/>归属与限制 · 修订历史"]:::paper
         context --> annotations
+        context --> research
     end
     subgraph access["05 · 查询与展示"]
         direction LR
-        query["CLI / Python / MCP<br/>查询数据、关系与标注历史"]:::reader
-        viewer["本机全库观测台<br/>星图 · 光谱 · 文献与证据高亮"]:::reader
+        query["Python / MCP 科研建设<br/>入库 · 查询 · 修订 · 固定导出"]:::reader
+        viewer["本机全库观测台<br/>观测 · 文献证据 · 科研内容"]:::reader
         demo["GitHub Pages 公开示例<br/>复用界面 · 固定静态 JSON"]:::reader
         query ~~~ viewer ~~~ demo
     end

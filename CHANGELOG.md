@@ -7,6 +7,14 @@ All notable changes to this project are documented here. Versions follow
 
 ### Added
 
+- Source-led scientific corpus construction through five MCP tools (35 total):
+  preparation, record/task creation, query, revision and pinned export. Schema v4
+  preserves exact paper/catalog evidence, attributed analysis, immutable input
+  revisions, idempotent writes and concurrent-update checks. Open tasks carry
+  objectives and progress without mandatory benchmark answers. Local and public
+  observatories add a separate scientific-content section; public examples cover
+  four CTTS records and two open tasks with historical input versions. Existing
+  benchmark bundles remain independent; no paid model calls or training results.
 - Twelve integrated CTTS development cases with 51 separately scored checkpoints,
   cross-paper and Gaia/literature comparisons, explicit assumptions, uncertainty
   interpretation and per-checkpoint evidence. Adds matched A/B/C prompts,

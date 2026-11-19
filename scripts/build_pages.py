@@ -11,7 +11,7 @@ def build(output: Path) -> None:
     assets = ROOT / 'src/astro_pipeline/viz/assets'
     output.mkdir(parents=True, exist_ok=True)
     (output / 'assets').mkdir(exist_ok=True)
-    for name in ('library.css','library.js','evidence.css','evidence.js','research.css','research.js','demo.js'):
+    for name in ('library.css','library.js','evidence.css','evidence.js','research.css','research.js','science.css','science.js','demo.js'):
         shutil.copyfile(assets / name, output / 'assets' / name)
     shutil.copyfile(assets.parent / 'vendor/echarts.min.js', output / 'assets/echarts.min.js')
     data = json.loads((ROOT / 'examples/observatory/demo.json').read_text(encoding='utf-8'))
@@ -28,6 +28,26 @@ def build(output: Path) -> None:
         data['exported_at'] = extra['exported_at']
         data['default_source'] = extra['sources'][0]['key']
         data['meta']['revision'] += '-' + '-'.join(s['bundle_sha256'][:12] for s in extra['research_tasks']['suites'])
+    science_path = ROOT / 'examples/observatory/science.json'
+    if science_path.is_file():
+        extra = json.loads(science_path.read_text(encoding='utf-8'))
+        known = {s['key']: s for s in data['sources']}
+        for source in extra['sources']:
+            if source['key'] in known:
+                # Keep existing observations and all dataset provenance; a record citation
+                # does not promote a source to a scientifically verified annotation.
+                current = known[source['key']]
+                datasets = {(d['corpus_id'], d['run_id']) for d in current['datasets']}
+                current['datasets'].extend(d for d in source['datasets'] if (d['corpus_id'], d['run_id']) not in datasets)
+                names = {v['name'] for v in current.get('catalog_names', [])}
+                current.setdefault('catalog_names', []).extend(v for v in source['catalog_names'] if v['name'] not in names)
+            else:
+                data['sources'].append(source)
+                known[source['key']] = source
+        data['meta']['datasets'].extend(extra['datasets'])
+        data['science'] = extra['science']
+        data['exported_at'] = extra['exported_at']
+        data['meta']['revision'] += '-' + extra['revision'][:12]
     data['meta']['total_sources'] = len(data['sources'])
     data['meta']['exported_at'] = data['exported_at']
     (output / 'demo.json').write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
@@ -35,7 +55,8 @@ def build(output: Path) -> None:
     document = document.replace('<script defer src="assets/library.js">', '<script defer src="assets/demo.js"></script>\n  <script defer src="assets/library.js">')
     document = document.replace('ASTRO-CORPUS / LOCAL LIBRARY','ASTRO-CORPUS / PUBLIC DEMO')
     n_tasks = sum(len(s['tasks']) for s in data.get('research_tasks', {}).get('suites', []))
-    document = document.replace('<nav class="section-nav"', f'<p class="notice">公开示例 · {len(data["sources"])} 个 Gaia DR3 天体 · {n_tasks} 道科研开发题。搜索 CTTS、TW Hya 或 TWA 查看观测与论文；科研任务包含证据摘录及待复核参考解答。<a href="about.html">数据来源与说明</a></p>\n    <nav class="section-nav"')
+    n_science = len(data.get('science', {}).get('items', []))
+    document = document.replace('<nav class="section-nav"', f'<p class="notice">公开示例 · {len(data["sources"])} 个 Gaia 天体 · {n_science} 条科研语料与研究任务 · {n_tasks} 项评测示例。搜索 CTTS、TW Hya 或 TWA 查看观测与论文；科研内容保留证据、归属和版本。<a href="about.html">数据来源与说明</a></p>\n    <nav class="section-nav"')
     document = document.replace('立即同步','重新载入').replace('只读 SQLite 视图','固定示例快照').replace('本地只读 · 不暴露文件目录或凭据','公开演示 · 不连接本地数据库')
     document = document.replace('点开前校验文件；不等于 availability', '本次快照未包含 XP 光谱文件').replace('已登记 ready 光谱源', '示例包含光谱的源')
     document = document.replace('正在读取共享库…', '正在读取示例数据…').replace('当前发布、进行中和历史记录分别标注；已入库不等于所有阶段完成。Legacy 数据不被自动认证为成员表。', '本页使用经过选取的公开数据快照；样本来源见各天体详情及数据说明。')

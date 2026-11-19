@@ -1,7 +1,7 @@
 """Versioned SQLite schema for the shared local library."""
 from __future__ import annotations
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 APPLICATION_ID = 0x41535452
 
 SCHEMA_V1_STATEMENTS = (
@@ -350,4 +350,26 @@ EVIDENCE_SCHEMA_STATEMENTS = (
     "CREATE INDEX IF NOT EXISTS idx_paper_annotation_roles_role ON paper_annotation_roles(role, annotation_id)",
 )
 
-SCHEMA_STATEMENTS = SCHEMA_V1_STATEMENTS + PAPER_SCHEMA_STATEMENTS + EVIDENCE_SCHEMA_STATEMENTS
+RESEARCH_SCHEMA_STATEMENTS = (
+    """CREATE TABLE IF NOT EXISTS research_items (
+        record_id TEXT PRIMARY KEY, kind TEXT NOT NULL,
+        head_revision_id TEXT, created_at REAL NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS research_revisions (
+        revision_id TEXT PRIMARY KEY, record_id TEXT NOT NULL REFERENCES research_items(record_id),
+        ordinal INTEGER NOT NULL, parent_revision_id TEXT REFERENCES research_revisions(revision_id),
+        request_id TEXT NOT NULL UNIQUE, request_hash TEXT NOT NULL,
+        content_json TEXT NOT NULL, created_at REAL NOT NULL, change_note TEXT NOT NULL,
+        UNIQUE(record_id, ordinal)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_research_revisions_record ON research_revisions(record_id, ordinal)",
+    """CREATE TABLE IF NOT EXISTS research_targets (
+        revision_id TEXT NOT NULL REFERENCES research_revisions(revision_id),
+        release TEXT NOT NULL, source_id TEXT NOT NULL,
+        PRIMARY KEY(revision_id, release, source_id),
+        FOREIGN KEY(release, source_id) REFERENCES sources(gaia_release, source_id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_research_targets_source ON research_targets(release, source_id, revision_id)",
+)
+
+SCHEMA_STATEMENTS = SCHEMA_V1_STATEMENTS + PAPER_SCHEMA_STATEMENTS + EVIDENCE_SCHEMA_STATEMENTS + RESEARCH_SCHEMA_STATEMENTS
