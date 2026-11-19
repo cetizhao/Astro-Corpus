@@ -8,7 +8,7 @@
     loadingToken: 0, lastSync: null,
   };
   const charts = { sky: null, spectrum: null };
-  let research, researchReady = Promise.resolve();
+  let research, researchReady = Promise.resolve(), science, scienceReady = Promise.resolve();
   const labels = {
     ready: ["✓ 已登记", "good"], unavailable: ["— 档案库无产品", ""],
     not_downloaded: ["↓ 未下载", ""], pending: ["◷ 获取中", "warning"],
@@ -288,7 +288,10 @@
             return;
           }
           if (!changed && !force) { connection("● 已同步", "good"); return; }
-          if (changed) { state.cursor = null; state.history = []; }
+          if (changed) {
+            state.cursor = null; state.history = [];
+            if (science && !state.selected) scienceReady = science.reload();
+          }
           state.revision = meta.revision;
           const filter = filters();
           const page = await api("/api/v1/sources", { ...filter, revision: state.revision, limit: $("page-size").value, cursor: state.cursor });
@@ -380,10 +383,11 @@
   async function loadEvidence(data, token) {
     const selected = state.selected;
     const records = [];
-    await researchReady;
+    await Promise.all([researchReady, scienceReady]);
     if (token !== state.detailToken) return;
     const bibliography = [...(data.active_bibliography?.papers || data.papers || []),
-      ...(research?.bibliographyFor(selected.release, selected.source_id) || [])];
+      ...(research?.bibliographyFor(selected.release, selected.source_id) || []),
+      ...(science?.bibliographyFor(selected.release, selected.source_id) || [])];
     try {
       let offset = 0, result;
       do {
@@ -414,6 +418,7 @@
     ++state.spectrumToken;
     state.detail = null;
     research?.setSource(null);
+    if (science) scienceReady = science.setSource(null);
     state.spectrum = null;
     for (const id of ["source-title", "source-identity", "source-badges", "source-properties", "source-provenance", "source-papers", "spectrum-provenance", "spectrum-note", "spectrum-table-head", "spectrum-table-body"]) $(id).replaceChildren();
     for (const id of ["provenance-section", "spectrum-chart", "spectrum-table-section"]) $(id).hidden = true;
@@ -436,6 +441,7 @@
     }
     state.selected = { key, release, source_id: String(sourceId) };
     research?.setSource(state.selected);
+    if (science) scienceReady = science.setSource(state.selected);
     renderSky();
     for (const row of $("source-rows").querySelectorAll("tr[data-key]")) {
       row.classList.toggle("selected", row.dataset.key === key);
@@ -558,6 +564,18 @@
     renderSpectrum();
   }
   function start() {
+    science = window.AstroScience.mount($("science-records"), {
+      load: (params) => api("/api/v1/research-items", params), selectSource,
+      loadContext: async (version, block) => {
+        let result, offset = 0; const units = [];
+        do {
+          result = await api(`/api/v1/paper/${encodeURIComponent(version)}/context`, { block_id: block, offset, limit: 100 });
+          units.push(...result.units); offset += result.page?.returned || 0;
+        } while (result.page?.has_more);
+        return { ...result, units };
+      },
+    });
+    scienceReady = science.reload();
     research = window.AstroResearch.mount($("research-tasks"), {
       load: () => api("/api/v1/research-tasks"), selectSource,
       loadContext: async (version, block) => {
@@ -577,7 +595,7 @@
     for (const id of ["release", "dataset", "scope", "spectrum-filter", "evidence-filter", "page-size"]) $(id).addEventListener("change", changeFilters);
     let searchTimer;
     $("search").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(changeFilters, 350); });
-    $("refresh").addEventListener("click", () => { researchReady = research.reload(); refreshView(true); });
+    $("refresh").addEventListener("click", () => { researchReady = research.reload(); scienceReady = science.reload(); refreshView(true); });
     $("theme").addEventListener("click", () => applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
     $("fit-sky").addEventListener("click", () => renderSky(true));
     $("show-source-evidence").addEventListener("click", () => {

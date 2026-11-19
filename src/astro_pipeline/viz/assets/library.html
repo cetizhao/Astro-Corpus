@@ -10,6 +10,8 @@
   <script defer src="/assets/evidence.js"></script>
   <link rel="stylesheet" href="/assets/research.css">
   <script defer src="/assets/research.js"></script>
+  <link rel="stylesheet" href="/assets/science.css">
+  <script defer src="/assets/science.js"></script>
   <script defer src="/assets/library.js"></script>
 </head>
 <body>
@@ -30,7 +32,8 @@
     <nav class="section-nav" aria-label="观测台内容">
       <a href="#observations">观测与光谱</a>
       <a href="#paper-section">文献与证据</a>
-      <a href="#research-section">科研任务</a>
+      <a href="#science-section">科研语料与任务</a>
+      <a href="#research-section">评测示例</a>
       <a href="#activity">采集与来源</a>
     </nav>
 
@@ -99,8 +102,14 @@
       <div id="source-papers" class="paper-list"><p class="empty">选择天体后显示论文关系、成员判断和原文证据。</p></div>
     </section>
 
+    <section id="science-section" class="card research-card" aria-labelledby="science-heading">
+      <div class="card-heading"><div><p class="eyebrow">SCIENTIFIC CORPUS</p><h2 id="science-heading" tabindex="-1">科研语料与任务</h2></div><a href="#observations" class="section-return">返回观测与光谱 ↑</a></div>
+      <p class="caption">以天体和关联文献为起点，保存观测、方法、分析过程、结果与限制；研究任务可引用固定版本语料并持续更新。</p>
+      <div id="science-records"><p class="empty">正在读取科研语料…</p></div>
+    </section>
+
     <section id="research-section" class="card research-card" aria-labelledby="research-heading">
-      <div class="card-heading"><div><p class="eyebrow">RESEARCH TASKS</p><h2 id="research-heading" tabindex="-1">科研任务</h2></div><a href="#observations" class="section-return">返回观测与光谱 ↑</a></div>
+      <div class="card-heading"><div><p class="eyebrow">EVALUATION EXAMPLES</p><h2 id="research-heading" tabindex="-1">评测示例</h2></div><a href="#observations" class="section-return">返回观测与光谱 ↑</a></div>
       <p class="caption">结合观测与多篇论文，检查物理推导、跨历元比较和不确定度判断。可筛选综合案例或基础题；参考解答保留待复核状态。</p>
       <div id="research-tasks"><p class="empty">正在读取科研任务…</p></div>
     </section>

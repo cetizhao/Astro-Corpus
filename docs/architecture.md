@@ -1,5 +1,13 @@
 # Architecture and data contracts
 
+Scientific corpus construction adds schema v4: `research_items` holds stable IDs
+and current revision pointers, `research_revisions` retains immutable full
+records, and `research_targets` indexes release-qualified sources per revision.
+Scientific records and open tasks share exact evidence and attributed content
+units. The external agent supplies interpretation; the service checks paper
+slices and completed-run catalog rows before writing. See the
+[scientific-corpus workflow](scientific-corpus.md) for the five MCP tools.
+
 Object–paper evidence adds an append-only layer above pinned paper text: schema
 v3 stores annotation batches, source-scoped assessments and queryable role
 labels. Exact slices retain block/cell coordinates and original locators; all
@@ -73,8 +81,8 @@ config:
     padding: 18
 ---
 flowchart TB
-    accTitle: Astro-Corpus 观测、论文、证据与展示
-    accDescr: 两条构建路径将观测和论文写入共享库。外部 agent 通过三个 MCP 接口读取固定版本上下文、保存带原文位置的关系与结果并查询标注。只读观测台连接星图、光谱和文献证据，GitHub Pages 展示显式选取的静态示例。
+    accTitle: Astro-Corpus 观测、论文、科研语料与展示
+    accDescr: 两条构建路径将观测和论文写入共享库。外部 agent 通过 MCP 读取证据、保存关系、建设科研记录与开放任务。版本化入库支持查询、修订和导出；本机观测台读取共享库，GitHub Pages 展示选定静态示例。
     subgraph entry["01 · 调用入口"]
         direction LR
         agent["外部 AI agent<br/>通过 MCP 选择工具"]:::entry
@@ -94,16 +102,18 @@ flowchart TB
         runs["运行快照与兼容视图<br/>原表、匹配、固定制品引用<br/>manifest 与可选静态 HTML"]:::storage
         db ~~~ objects ~~~ runs
     end
-    subgraph evidence["04 · 天体—论文关系与原文证据"]
+    subgraph evidence["04 · 天体—论文证据与科研语料"]
         direction LR
         context["MCP 读取固定版本上下文<br/>外部 agent 提交关系与结果"]:::paper
         annotations["校验原文位置与引文<br/>不可变批次 · 标注待复核<br/>区分本文分析与前人结果"]:::paper
+        research["科研记录与开放任务<br/>观测 → 方法 → 分析 → 结果<br/>归属与限制 · 修订历史"]:::paper
         context --> annotations
+        context --> research
     end
     subgraph access["05 · 查询与展示"]
         direction LR
-        query["CLI / Python / MCP<br/>查询数据、关系与标注历史"]:::reader
-        viewer["本机全库观测台<br/>星图 · 光谱 · 文献与证据高亮"]:::reader
+        query["Python / MCP 科研建设<br/>入库 · 查询 · 修订 · 固定导出"]:::reader
+        viewer["本机全库观测台<br/>观测 · 文献证据 · 科研内容"]:::reader
         demo["GitHub Pages 公开示例<br/>复用界面 · 固定静态 JSON"]:::reader
         query ~~~ viewer ~~~ demo
     end
@@ -549,6 +559,33 @@ main nodes and edges:
 | Full text is an explicit, independent builder with parse fallback | [`library/paper_corpus.py`](../src/astro_pipeline/library/paper_corpus.py): `build_paper_corpus`, `_acquire_version`; [`sources/paper_fulltext.py`](../src/astro_pipeline/sources/paper_fulltext.py): `ArxivClient`; [`paper_text.py`](../src/astro_pipeline/paper_text.py): format parsers |
 | Viewer reads local metadata, pins and spectrum bytes, without fetching upstream data | [`viz/library_viewer.py`](../src/astro_pipeline/viz/library_viewer.py), [`library/overview.py`](../src/astro_pipeline/library/overview.py), [`spectral_adapters.py`](../src/astro_pipeline/spectral_adapters.py) |
 | Global lookup is independent of construction | [`library/query.py`](../src/astro_pipeline/library/query.py): `Library`; [`library/__init__.py`](../src/astro_pipeline/library/__init__.py): `get_library(create=False)` |
+
+## Scientific-record revisions and exports
+
+`models/research.py` defines observations, methods, analysis, results, limitations
+and optional open-task plans. Paper reports, prior work, catalog data, agent
+calculations, agent synthesis and synthetic examples retain separate origins.
+Units reference evidence IDs and preceding units; tasks can reference immutable
+research revision IDs. This is independent of the fixed evaluation bundles.
+
+`library/research.py` verifies the exact paper artifact and excerpt or completed
+sample-member occurrence outside SQLite write transactions. It captures source
+attributes and referenced revision IDs without rewriting source data. Within
+`BEGIN IMMEDIATE`, an update compares `expected_revision_id` with the current
+head before appending a revision and replacing that pointer. Request IDs and
+content hashes make retries idempotent. Concurrent stale writers cannot replace
+a successor. Read-only preparation and query use the existing library and never
+create or migrate an absent database; the first valid write adds v4 tables.
+
+An export selects current heads in one read or explicitly named immutable
+versions, then includes the transitive closure of referenced revisions. Newer
+revisions do not replace pinned task inputs. Each export gets its own directory,
+JSON/JSONL/Markdown files and checksum manifest. The optional public projection
+removes source-attribute snapshots and local artifact paths, retaining selected
+scientific content, cited excerpts, source fields and revision dependencies.
+The local viewer queries `/api/v1/research-items` read-only; the Pages viewer uses
+the equivalent static selection. Neither viewer invokes a model or executes
+stored calculation text. Evidence validation is not scientific verification.
 
 ## Shared-library concurrency and lifecycle
 

@@ -1,0 +1,15 @@
+#science-section { scroll-margin-top: 20px; margin-top: 18px; }
+.sci-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.sci-record { min-width: 0; padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; }
+.sci-record details { border-top: 1px solid var(--line); padding-top: 7px; }
+.sci-question { font-weight: 600; }
+.sci-summary { color: var(--secondary); }
+.sci-unit { margin: 12px 0; padding: 12px; border-left: 2px solid var(--blue); background: var(--page); border-radius: 0 8px 8px 0; }
+.sci-unit h4 { margin: 0 0 8px; }
+.sci-measurement { font-weight: 600; }
+.sci-calculation { white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.7 ui-monospace, monospace; }
+.sci-origin-agent_calculation, .sci-origin-agent_synthesis { color: var(--blue); }
+.sci-evidence a { margin-left: 12px; font-size: 12px; }
+.sci-related .sci-record, .sci-old-version .sci-record { border: 0; padding: 10px; }
+@media (max-width: 850px) { .sci-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 480px) { .sci-record { padding: 12px; } }

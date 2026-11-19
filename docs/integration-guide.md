@@ -171,7 +171,7 @@ Claude Code references:
 ### Object–paper evidence
 
 The server also exposes `get_paper_evidence_context`, `record_paper_annotations`,
-and `query_source_evidence` (30 tools total). Read a pinned full-text version,
+and `query_source_evidence`. Read a pinned full-text version,
 submit per-object roles with exact passage/table evidence, then query the
 unreviewed history by Gaia release and source ID. Only recording writes; the
 other two do not download, create or migrate the library. See the
@@ -498,9 +498,30 @@ the connected agent for annotation.
 Full commands, schema and limits: [paper corpus guide](paper-corpus.md).
 Restart existing MCP server processes after upgrading to load the new tools.
 
+## Scientific corpus construction
+
+Ask the agent to build scientific records from named sources and their associated
+papers. `prepare_research_workspace(targets, topic)` assembles the existing
+bibliography, fixed full-text versions and records; it does not download or call a
+model. The agent resolves names, acquires selected missing material with the
+existing tools, and reads evidence before calling `record_research_item`.
+
+Scientific records preserve observations, methods, analysis, results and limits,
+including attribution and exact evidence. Open `research_task` items specify
+objectives, procedures and expected outputs without requiring reference answers.
+Use `query_research_items` for current/history reads and `update_research_item`
+with the expected head revision for a full replacement that preserves history.
+Writes are idempotent by request ID; stale revisions are rejected.
+
+`export_research_corpus` freezes an explicit selection and its pinned input
+revisions as JSON, JSONL and Markdown, optionally with an observatory snapshot.
+Local viewing reads the library; online publication requires committing the
+selected public snapshot. All records remain pending scientific review.
+See the [construction guide, prompt and field contract](scientific-corpus.md).
+
 ## Tool reference
 
-The server currently registers 30 tools.
+The server currently registers 35 tools.
 
 | Tool | Network | Writes data | Purpose |
 |---|---|---|---|
@@ -511,6 +532,11 @@ The server currently registers 30 tools.
 | `get_paper_evidence_context` | no | no | Read pinned passages/cells, name candidates and original locators |
 | `record_paper_annotations` | no | yes | Validate exact quotes and append pending-review object assessments |
 | `query_source_evidence` | no | no | Read release-qualified, version-pinned relation/evidence history |
+| `prepare_research_workspace` | no | no | Prepare source-led literature candidates, fixed versions and a construction schema |
+| `record_research_item` | no | yes | Validate evidence and save a scientific record or open research task |
+| `query_research_items` | no | no | Query current records, exact revisions and history by source, topic or paper |
+| `update_research_item` | no | yes | Append a revision after comparing the expected current version |
+| `export_research_corpus` | no | export only | Freeze selected records and dependencies; optionally export public viewer data |
 | `library_status` | no | no | Read global SQLite coverage and paths without creating it |
 | `lookup_source` | no | no | Query the configured cached corpus by Gaia ID |
 | `lookup_paper` | no | no | Query by arXiv ID, bibcode, or title |
